@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 800" width="960" height="800">
+<style>
+  text { font-family: "SF Mono", "Fira Code", "Cascadia Code", "Courier New", "Microsoft YaHei", "SimHei", monospace; fill: #e2e8f0; }
+  .title { font-size: 18px; font-weight: 700; fill: #f8fafc; letter-spacing: 0.05em; }
+  .layer-label { font-size: 13px; font-weight: 700; }
+  .layer-sub { font-size: 11px; fill: #64748b; }
+  .node-label { font-size: 13px; fill: #e2e8f0; }
+  .node-sub { font-size: 10px; fill: #64748b; }
+  .legend-text { font-size: 11px; fill: #94a3b8; }
+  .db-table { font-size: 11px; fill: #94a3b8; }
+</style>
+<defs>
+  <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#0f0f1a"/>
+    <stop offset="100%" stop-color="#1a1a2e"/>
+  </linearGradient>
+  <marker id="arr-p" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#a855f7"/>
+  </marker>
+  <marker id="arr-o" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#f97316"/>
+  </marker>
+  <marker id="arr-b" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#3b82f6"/>
+  </marker>
+  <marker id="arr-g" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+  </marker>
+  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur stdDeviation="2" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+</defs>
+<rect width="960" height="800" fill="url(#bg)"/>
+<text x="480" y="32" text-anchor="middle" class="title">星火量化交易系统架构</text>
+<rect x="30" y="52" width="900" height="105" rx="8" fill="none" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="48" y="70" class="layer-label" fill="#a855f7">Web UI</text>
+<text x="120" y="70" class="layer-sub">Vue 3 SPA</text>
+<rect x="60" y="80" width="140" height="55" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="130" y="104" text-anchor="middle" class="node-label">VCP 选股</text>
+<text x="130" y="122" text-anchor="middle" class="node-sub">形态筛选</text>
+<rect x="240" y="80" width="140" height="55" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="310" y="104" text-anchor="middle" class="node-label">股票画像</text>
+<text x="310" y="122" text-anchor="middle" class="node-sub">61 标签</text>
+<rect x="420" y="80" width="140" height="55" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="490" y="104" text-anchor="middle" class="node-label">策略回测</text>
+<text x="490" y="122" text-anchor="middle" class="node-sub">建仓模拟</text>
+<rect x="600" y="80" width="140" height="55" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="670" y="104" text-anchor="middle" class="node-label">蒸馏专家</text>
+<text x="670" y="122" text-anchor="middle" class="node-sub">大师视角</text>
+<rect x="780" y="80" width="140" height="55" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="850" y="104" text-anchor="middle" class="node-label">数据管理</text>
+<text x="850" y="122" text-anchor="middle" class="node-sub">导入同步</text>
+<rect x="30" y="197" width="900" height="105" rx="8" fill="none" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="48" y="215" class="layer-label" fill="#f97316">FastAPI 应用层</text>
+<text x="195" y="215" class="layer-sub">路由分发 · Pydantic 序列化</text>
+<rect x="60" y="225" width="140" height="55" rx="6" fill="#1c1917" stroke="#ea580c" stroke-width="1.2"/>
+<text x="130" y="249" text-anchor="middle" class="node-label">vcp/api</text>
+<text x="130" y="267" text-anchor="middle" class="node-sub">筛选接口</text>
+<rect x="240" y="225" width="140" height="55" rx="6" fill="#1c1917" stroke="#ea580c" stroke-width="1.2"/>
+<text x="310" y="249" text-anchor="middle" class="node-label">tags/api</text>
+<text x="310" y="267" text-anchor="middle" class="node-sub">画像接口</text>
+<rect x="420" y="225" width="140" height="55" rx="6" fill="#1c1917" stroke="#ea580c" stroke-width="1.2"/>
+<text x="490" y="249" text-anchor="middle" class="node-label">backtest</text>
+<text x="490" y="267" text-anchor="middle" class="node-sub">回测接口</text>
+<rect x="600" y="225" width="140" height="55" rx="6" fill="#1c1917" stroke="#ea580c" stroke-width="1.2"/>
+<text x="670" y="249" text-anchor="middle" class="node-label">ai-ask</text>
+<text x="670" y="267" text-anchor="middle" class="node-sub">SSE 流式</text>
+<rect x="780" y="225" width="140" height="55" rx="6" fill="#1c1917" stroke="#ea580c" stroke-width="1.2"/>
+<text x="850" y="249" text-anchor="middle" class="node-label">data_mgmt</text>
+<text x="850" y="267" text-anchor="middle" class="node-sub">管理接口</text>
+<rect x="30" y="342" width="900" height="105" rx="8" fill="none" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="48" y="360" class="layer-label" fill="#3b82f6">业务逻辑层</text>
+<text x="165" y="360" class="layer-sub">核心算法 · 策略逻辑</text>
+<rect x="60" y="370" width="140" height="55" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="130" y="394" text-anchor="middle" class="node-label">VCP Engine</text>
+<text x="130" y="412" text-anchor="middle" class="node-sub">趋势模板 + VCP</text>
+<rect x="240" y="370" width="140" height="55" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="310" y="394" text-anchor="middle" class="node-label">Tags Calculators</text>
+<text x="310" y="412" text-anchor="middle" class="node-sub">技术面 + 基本面</text>
+<rect x="420" y="370" width="140" height="55" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="490" y="394" text-anchor="middle" class="node-label">Backtest Engine</text>
+<text x="490" y="412" text-anchor="middle" class="node-sub">建仓回测引擎</text>
+<rect x="600" y="370" width="140" height="55" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="670" y="394" text-anchor="middle" class="node-label">Debate Engine</text>
+<text x="670" y="412" text-anchor="middle" class="node-sub">AI 多轮辩论</text>
+<rect x="780" y="370" width="140" height="55" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="850" y="394" text-anchor="middle" class="node-label">Data Import</text>
+<text x="850" y="412" text-anchor="middle" class="node-sub">通达信 + 东财</text>
+<rect x="30" y="487" width="900" height="60" rx="8" fill="#0f2b1e" stroke="#059669" stroke-width="1.2"/>
+<text x="480" y="512" text-anchor="middle" class="layer-label" fill="#10b981">数据访问层 — SQLAlchemy ORM</text>
+<text x="480" y="532" text-anchor="middle" class="layer-sub">SessionLocal / Engine / DeclarativeBase</text>
+<rect x="30" y="587" width="900" height="130" rx="8" fill="none" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="48" y="605" class="layer-label" fill="#10b981">MySQL 8.0</text>
+<text x="155" y="605" class="layer-sub">localhost:3306 · ai_trading</text>
+<rect x="55" y="615" width="175" height="85" rx="6" fill="#052e16" stroke="#059669" stroke-width="1"/>
+<text x="142" y="633" text-anchor="middle" class="node-label" fill="#10b981">行情数据</text>
+<text x="142" y="651" text-anchor="middle" class="db-table">stocks</text>
+<text x="142" y="667" text-anchor="middle" class="db-table">daily_prices</text>
+<text x="142" y="683" text-anchor="middle" class="db-table">weekly_prices</text>
+<rect x="265" y="615" width="175" height="85" rx="6" fill="#052e16" stroke="#059669" stroke-width="1"/>
+<text x="352" y="633" text-anchor="middle" class="node-label" fill="#10b981">财务数据</text>
+<text x="352" y="651" text-anchor="middle" class="db-table">fin_ratios</text>
+<text x="352" y="667" text-anchor="middle" class="db-table">fin_extended</text>
+<text x="352" y="683" text-anchor="middle" class="db-table">financial_metrics</text>
+<rect x="475" y="615" width="175" height="85" rx="6" fill="#052e16" stroke="#059669" stroke-width="1"/>
+<text x="562" y="633" text-anchor="middle" class="node-label" fill="#10b981">画像标签</text>
+<text x="562" y="651" text-anchor="middle" class="db-table">stock_tags</text>
+<text x="562" y="667" text-anchor="middle" class="db-table">stock_profiles</text>
+<text x="562" y="683" text-anchor="middle" class="db-table">vcp_signals</text>
+<rect x="685" y="615" width="175" height="85" rx="6" fill="#052e16" stroke="#059669" stroke-width="1"/>
+<text x="772" y="633" text-anchor="middle" class="node-label" fill="#10b981">回测板块</text>
+<text x="772" y="651" text-anchor="middle" class="db-table">backtest_*</text>
+<text x="772" y="667" text-anchor="middle" class="db-table">blocks</text>
+<text x="772" y="683" text-anchor="middle" class="db-table">stock_blocks</text>
+<line x1="130" y1="180" x2="130" y2="197" stroke="#a855f7" stroke-width="1.5" marker-end="url(#arr-p)"/>
+<line x1="310" y1="180" x2="310" y2="197" stroke="#a855f7" stroke-width="1.5" marker-end="url(#arr-p)"/>
+<line x1="490" y1="180" x2="490" y2="197" stroke="#a855f7" stroke-width="1.5" marker-end="url(#arr-p)"/>
+<line x1="670" y1="180" x2="670" y2="197" stroke="#a855f7" stroke-width="1.5" marker-end="url(#arr-p)"/>
+<line x1="850" y1="180" x2="850" y2="197" stroke="#a855f7" stroke-width="1.5" marker-end="url(#arr-p)"/>
+<line x1="130" y1="325" x2="130" y2="342" stroke="#f97316" stroke-width="1.5" marker-end="url(#arr-o)"/>
+<line x1="310" y1="325" x2="310" y2="342" stroke="#f97316" stroke-width="1.5" marker-end="url(#arr-o)"/>
+<line x1="490" y1="325" x2="490" y2="342" stroke="#f97316" stroke-width="1.5" marker-end="url(#arr-o)"/>
+<line x1="670" y1="325" x2="670" y2="342" stroke="#f97316" stroke-width="1.5" marker-end="url(#arr-o)"/>
+<line x1="850" y1="325" x2="850" y2="342" stroke="#f97316" stroke-width="1.5" marker-end="url(#arr-o)"/>
+<line x1="130" y1="468" x2="130" y2="487" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arr-b)"/>
+<line x1="310" y1="468" x2="310" y2="487" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arr-b)"/>
+<line x1="490" y1="468" x2="490" y2="487" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arr-b)"/>
+<line x1="670" y1="468" x2="670" y2="487" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arr-b)"/>
+<line x1="850" y1="468" x2="850" y2="487" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arr-b)"/>
+<line x1="130" y1="547" x2="130" y2="587" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)"/>
+<line x1="310" y1="547" x2="310" y2="587" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)"/>
+<line x1="490" y1="547" x2="490" y2="587" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)"/>
+<line x1="670" y1="547" x2="670" y2="587" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)"/>
+<line x1="850" y1="547" x2="850" y2="587" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)"/>
+<text x="640" y="738" class="legend-text" font-weight="700">数据流向</text>
+<line x1="640" y1="753" x2="660" y2="753" stroke="#a855f7" stroke-width="1.5" marker-end="url(#arr-p)"/>
+<text x="666" y="757" class="legend-text">UI → API</text>
+<line x1="720" y1="753" x2="740" y2="753" stroke="#f97316" stroke-width="1.5" marker-end="url(#arr-p)"/>
+<text x="746" y="757" class="legend-text">API → 业务</text>
+<line x1="800" y1="753" x2="820" y2="753" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arr-p)"/>
+<text x="826" y="757" class="legend-text">业务 → ORM</text>
+<line x1="880" y1="753" x2="900" y2="753" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-p)"/>
+<text x="906" y="757" class="legend-text">ORM → DB</text>
+<text x="48" y="770" class="layer-sub" fill="#475569">星火量化 · A股智能决策系统</text>
+</svg>
