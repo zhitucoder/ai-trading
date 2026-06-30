@@ -130,12 +130,12 @@ FIELD_MAP = {
     221: ('ebitda', 'EBITDA'),
     228: ('total_revenue_cagr_3y', '营收3年复合增长率'),
     229: ('net_profit_cagr_3y', '净利润3年复合增长率'),
-    223: ('operating_revenue_ttm', '营业收入TTM'),
-    224: ('net_profit_ttm', '净利润TTM'),
-    225: ('op_cash_flow_ttm', '经营现金流TTM'),
-    281: ('free_cash_flow', '企业自由现金流'),
-    282: ('market_cap', '总市值'),
-    283: ('pe_ttm', '市盈率(TTM)'),
+     223: ('operating_revenue_ttm', '营业收入TTM'),
+      224: ('net_profit_ttm', '净利润TTM'),
+     225: ('op_cash_flow_ttm', '经营现金流TTM'),
+      281: ('pe_ttm_raw', '市盈率(TTM原始)'),
+     282: ('market_cap_raw', '总市值原始'),
+     283: ('col283_other', '其他'),
 }
 
 
@@ -310,11 +310,12 @@ def make_tables(cursor):
 
 
 def safe(val):
-    """None 或异常值处理"""
     if val is None:
         return None
     if isinstance(val, float):
         if abs(val) > 1e15 or abs(val) < 1e-15:
+            return None
+        if 999998 < abs(val) < 1000001:
             return None
     return val
 
