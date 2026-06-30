@@ -75,22 +75,46 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 | `fin_income` | 290k | Income statement per quarter |
 | 6 more `fin_*` | 290k each | Balance sheet, cash flow, etc. |
 
-### Data quirks (import from pytdx, column indices may shift)
+### Table reliability (pytdx field index shifts)
 
-| Field | Storage format | Example |
-|---|---|---|
-| `revenue_growth_rate` | **BROKEN** — pytdx field index mismatch, do NOT use | N/A |
-| `net_profit_growth_rate` | **BROKEN** — pytdx field index mismatch, do NOT use | N/A |
-| `debt_ratio` | Percentage value | 87.24 = 87.24% |
-| `market_cap`, `pe_ttm` | **Always NULL** — pytdx index mismatch | N/A |
+pytdx 财务数据的字段索引发生过偏移。索引 ≤ 97 的字段（利润表、资产负债表）正确；
+索引 ≥ 166 的比率类字段大面积损坏。以下是各表的详细可靠性评估。
 
-**Always verify actual data format before writing queries against `fin_*` fields.**
+#### Table-level summary
 
-**Growth rate reliability**: `fin_ratios.revenue_growth_rate` and `net_profit_growth_rate`
-are unreliable due to pytdx field index shifts. The **profile module** (`strategies/profile.py`)
-correctly computes YoY growth rates from `fin_income` raw data (current vs prior year same quarter).
-The **screening module** (`routers/screening.py`, `strategies/fundamental.py`) still uses the
-broken `fin_ratios` fields — when fixing, convert to `fin_income` self-join pattern.
+| Table | Field indices | Reliability | Why |
+|---|---|---|---|
+| `stocks` | — | ✅ **Trustworthy** | Manually maintained code→name |
+| `daily_kline` | — | ✅ **Trustworthy** | Direct import from .day binary |
+| `fin_balance_sheet` | 8–73 | ✅ **Trustworthy** | Balance equation holds (TA−TL−TE=0) |
+| `fin_income` | 74–97 | ✅ **Trustworthy** | 收入/成本/利润合理，税率匹配 |
+| `fin_cash_flow` | 98–118 | ✅ **Trustworthy** | 相邻索引范围，与 income/BS 一致 |
+| `fin_quarterly` | 230–236 | ✅ **Trustworthy** | 单季数据与 fin_income 吻合 |
+| `fin_ratios` | 1–6 (roe, eps, bps) | ✅ **Trustworthy** | 低索引字段，与原始数据计算一致 |
+| `fin_ratios` | 166–194 | ❌ **UNRELIABLE** | 字段索引偏移，数据来自错误列 |
+| `fin_ratios` | 220–229 (ebit, ebitda, CAGR) | ⚠️ **Partially broken** | `revenue_cagr_3y` 永远为 NULL（FIELD_MAP 命名不匹配），`net_profit_cagr_3y` 有值但未知可靠性 |
+| `fin_ratios` | 282–283 (pe_ttm, market_cap) | ❌ **Always NULL** | 已知 pytdx 索引不匹配 |
+| `fin_extended` | 220–337 | ❌ **UNRELIABLE** | `rd_expense` 全为 NULL, `rev_ttm` 字段错位，`fcf` 全为 NULL |
+
+#### Verified trustworthy fields
+
+直接从原始表计算，不使用 `fin_ratios`：
+
+| 指标 | 正确计算方式 |
+|---|---|
+| `revenue_growth_rate` | `fin_income` 自连接：`(current_rev − prev_year_rev) / prev_year_rev * 100` |
+| `net_profit_growth_rate` | `fin_income` 自连接：`(current_profit − prev_year_profit) / prev_year_profit * 100` |
+| `debt_ratio` | `fin_balance_sheet`：`total_liabilities / total_assets * 100` |
+| `current_ratio` | `fin_balance_sheet`：`current_assets / current_liabilities` |
+| `roe` | `fin_income.net_profit / fin_balance_sheet.total_equity * 100` |
+| `gross_margin` | `(operating_revenue − operating_cost) / operating_revenue * 100` from fin_income |
+| `net_margin` | `fin_income.net_profit / fin_income.operating_revenue * 100` |
+
+#### Code references
+
+- **Profile module** (`strategies/profile.py`): ✅ 全部指标从原始表计算，不使用 `fin_ratios`
+- **Screening module** (`strategies/fundamental.py`, `routers/screening.py`): ✅ 已修复，从 `fin_income` / `fin_balance_sheet` 计算
+- **Pre-2026-07 screening code**: ❌ 使用损坏的 `fin_ratios` 字段，需手动迁移
 
 ### Indexes
 - `daily_kline`: `(stock_code, trade_date, close_price)` — covering index for MA calculations
