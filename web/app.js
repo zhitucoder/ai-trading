@@ -438,6 +438,9 @@ app.component('ma-bt-page', {
 app.component('profile-page', {
     template: '#profile-tpl',
     setup() {
+        const activeTab = ref('single');
+
+        // ── Tab1: 单股画像 ──
         const stockCode = ref('600519');
         const loading = ref(false);
         const profile = ref(null);
@@ -467,6 +470,13 @@ app.component('profile-page', {
             return 'score-low';
         }
 
+        function scoreTextClass(val) {
+            if (val == null) return '';
+            if (val >= 70) return 'up';
+            if (val >= 40) return '';
+            return 'down';
+        }
+
         function rsiClass(val) {
             if (val == null) return '';
             if (val > 70) return 'down';
@@ -480,11 +490,136 @@ app.component('profile-page', {
             return 'up';
         }
 
-        onMounted(loadProfile);
+        function goToProfile(code) {
+            stockCode.value = code;
+            activeTab.value = 'single';
+            loadProfile();
+        }
+
+        // ── Tab2: 画像筛选 ──
+        const stageOptions = [
+            { id: 'stage.s2', label: 'S2 突围加速' },
+            { id: 'stage.s1s2', label: 'S1S2 过渡' },
+            { id: 'stage.s1', label: 'S1 打底' },
+            { id: 'stage.s3', label: 'S3 见顶' },
+            { id: 'stage.s4', label: 'S4 衰败' },
+        ];
+        const selectedStages = ref([]);
+        const filterTechScore = ref(0);
+        const filterFundScore = ref(0);
+        const filterRevGrowth = ref(null);
+        const filterProfitGrowth = ref(null);
+        const filterDebtMax = ref(null);
+        const searchLoading = ref(false);
+        const searchResult = ref(null);
+        const profileStatusData = ref(null);
+        const refreshing = ref(false);
+        const refreshProgress = ref('');
+
+        function toggleStage(id) {
+            const i = selectedStages.value.indexOf(id);
+            if (i >= 0) selectedStages.value.splice(i, 1);
+            else selectedStages.value.push(id);
+        }
+
+        let searchDebounce = null;
+        function onFilterChange() {
+            if (searchDebounce) clearTimeout(searchDebounce);
+            searchDebounce = setTimeout(doSearch, 400);
+        }
+
+        async function doSearch() {
+            searchLoading.value = true;
+            try {
+                const body = {
+                    stages: selectedStages.value,
+                    tags: { must: [], must_not: [], any: [] },
+                    tech_score_min: filterTechScore.value > 0 ? filterTechScore.value : null,
+                    fund_score_min: filterFundScore.value > 0 ? filterFundScore.value : null,
+                    revenue_growth_min: filterRevGrowth.value,
+                    net_profit_growth_min: filterProfitGrowth.value,
+                    debt_ratio_max: filterDebtMax.value,
+                    page: searchResult.value ? searchResult.value.page : 1,
+                    page_size: 50,
+                    sort_by: 'tech_score',
+                    sort_order: 'desc',
+                };
+                const r = await fetch(`${API_BASE}/profiles/search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                const data = await r.json();
+                if (!data.error) searchResult.value = data;
+            } catch (e) {
+                console.error(e);
+            } finally {
+                searchLoading.value = false;
+            }
+        }
+
+        function resetFilters() {
+            selectedStages.value = [];
+            filterTechScore.value = 0;
+            filterFundScore.value = 0;
+            filterRevGrowth.value = null;
+            filterProfitGrowth.value = null;
+            filterDebtMax.value = null;
+            searchResult.value = null;
+        }
+
+        async function loadStatus() {
+            try {
+                const r = await fetch(`${API_BASE}/profiles/status`);
+                profileStatusData.value = await r.json();
+            } catch (e) { /* ignore */ }
+        }
+
+        async function triggerRefresh() {
+            if (refreshing.value) return;
+            refreshing.value = true;
+            refreshProgress.value = '启动中...';
+            try {
+                await fetch(`${API_BASE}/profiles/refresh`, { method: 'POST' });
+                const poll = setInterval(async () => {
+                    try {
+                        const r = await fetch(`${API_BASE}/profiles/refresh/progress`);
+                        const p = await r.json();
+                        if (p.status === 'running') {
+                            const pct = p.total > 0 ? Math.round(p.computed / p.total * 100) : 0;
+                            refreshProgress.value = pct + '%';
+                        } else {
+                            clearInterval(poll);
+                            refreshing.value = false;
+                            refreshProgress.value = '';
+                            await loadStatus();
+                            if (searchResult.value) doSearch();
+                        }
+                    } catch (e) {
+                        clearInterval(poll);
+                        refreshing.value = false;
+                        refreshProgress.value = '';
+                    }
+                }, 2000);
+            } catch (e) {
+                refreshing.value = false;
+                refreshProgress.value = '';
+            }
+        }
+
+        onMounted(() => {
+            loadProfile();
+            loadStatus();
+        });
 
         return {
-            stockCode, loading, profile, error,
-            loadProfile, scoreClass, rsiClass, debtClass,
+            activeTab, stockCode, loading, profile, error,
+            loadProfile, scoreClass, scoreTextClass, rsiClass, debtClass, goToProfile,
+            stageOptions, selectedStages, filterTechScore, filterFundScore,
+            filterRevGrowth, filterProfitGrowth, filterDebtMax,
+            searchLoading, searchResult, profileStatusData,
+            refreshing, refreshProgress,
+            toggleStage, onFilterChange, doSearch, resetFilters, triggerRefresh,
             fmt, fmtGrowth, fmtMoney, valClass,
         };
     },

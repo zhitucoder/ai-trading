@@ -64,6 +64,8 @@ def get_klines(code, days=300):
         ORDER BY trade_date DESC
         LIMIT %s
     """, [code, days])
+    if not rows:
+        return []
     rows.reverse()
     return [{
         'date': str(r['trade_date']),

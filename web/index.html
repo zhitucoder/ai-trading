@@ -340,176 +340,218 @@
 <template id="profile-tpl">
     <div class="topbar">
         <h2>股票画像</h2>
-        <span class="badge">智能诊断</span>
+        <span class="badge" v-if="profileStatusData">{{ profileStatusData.latest_data_date || '未缓存' }}</span>
+        <button v-if="activeTab === 'screening'" class="btn btn-outline btn-sm" style="margin-left:auto;" @click="triggerRefresh" :disabled="refreshing">
+            <span v-if="refreshing" class="spinner" style="display:inline-block;width:12px;height:12px;border-width:2px;vertical-align:middle;margin-right:4px;"></span>
+            {{ refreshing ? refreshProgress : '⟳ 刷新缓存' }}
+        </button>
+    </div>
+    <div class="profile-tabs">
+        <button :class="{ active: activeTab === 'single' }" @click="activeTab = 'single'">单股画像</button>
+        <button :class="{ active: activeTab === 'screening' }" @click="activeTab = 'screening'">画像筛选</button>
     </div>
     <div class="content">
-        <div class="card">
-            <div class="form-row">
-                <div class="config-item" style="min-width:120px;">
-                    <label>股票代码</label>
-                    <input v-model="stockCode" placeholder="600519" @keyup.enter="loadProfile" style="width:140px;">
+        <!-- ══════ Tab1: 单股画像 ══════ -->
+        <div v-if="activeTab === 'single'">
+            <div class="card">
+                <div class="form-row">
+                    <div class="config-item" style="min-width:120px;">
+                        <label>股票代码</label>
+                        <input v-model="stockCode" placeholder="600519" @keyup.enter="loadProfile" style="width:140px;">
+                    </div>
+                    <div class="config-item" style="min-width:100px;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary" @click="loadProfile" :disabled="loading">
+                            {{ loading ? '加载中...' : '▶ 生成画像' }}
+                        </button>
+                    </div>
                 </div>
-                <div class="config-item" style="min-width:100px;">
-                    <label>&nbsp;</label>
-                    <button class="btn btn-primary" @click="loadProfile" :disabled="loading">
-                        {{ loading ? '加载中...' : '▶ 生成画像' }}
+            </div>
+
+            <div v-if="error" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;">
+                {{ error }}
+            </div>
+
+            <template v-if="profile">
+                <div class="profile-header">
+                    <div class="profile-header-left">
+                        <div class="profile-code">{{ profile.code }}</div>
+                        <div class="profile-name">{{ profile.name }}</div>
+                    </div>
+                    <div class="profile-header-right">
+                        <div class="profile-price">{{ fmt(profile.latest_price) }}</div>
+                        <div class="profile-change" :class="valClass(profile.price_change_pct)">{{ fmtGrowth(profile.price_change_pct) }}</div>
+                    </div>
+                </div>
+
+                <div class="profile-row-2col">
+                    <div class="profile-stage-card" :class="'stage-' + (profile.stage.id || '').replace('stage.', '')">
+                        <div class="profile-stage-label">{{ profile.stage.name }}</div>
+                        <div class="profile-stage-id">{{ profile.stage.id }}</div>
+                        <div class="profile-stage-bar"><div class="profile-stage-bar-fill" :style="{width: profile.stage.confidence + '%'}"></div></div>
+                        <div class="profile-stage-conf">置信度 {{ profile.stage.confidence }}%</div>
+                    </div>
+                    <div class="profile-scores">
+                        <div class="profile-score-item">
+                            <div class="profile-score-label">技术面评分</div>
+                            <div class="profile-score-bar-wrap"><div class="profile-score-bar" :class="scoreClass(profile.scores.tech)"><div class="profile-score-fill" :style="{width: profile.scores.tech + '%'}"></div></div></div>
+                            <div class="profile-score-val" :class="scoreClass(profile.scores.tech)">{{ profile.scores.tech }}</div>
+                        </div>
+                        <div class="profile-score-item">
+                            <div class="profile-score-label">基本面评分</div>
+                            <div class="profile-score-bar-wrap"><div class="profile-score-bar" :class="scoreClass(profile.scores.fund)"><div class="profile-score-fill" :style="{width: profile.scores.fund + '%'}"></div></div></div>
+                            <div class="profile-score-val" :class="scoreClass(profile.scores.fund)">{{ profile.scores.fund }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" v-if="profile.biz_tags && profile.biz_tags.length">
+                    <div class="card-title">业务标签</div>
+                    <div class="profile-tag-grid">
+                        <div v-for="t in profile.biz_tags" :key="t.id" class="profile-tag profile-tag-biz" :title="t.id">{{ t.name }}</div>
+                    </div>
+                </div>
+
+                <div class="card" v-if="profile.ma_values">
+                    <div class="card-title">关键指标</div>
+                    <div class="profile-ind-grid">
+                        <div class="profile-ind-item"><div class="profile-ind-label">MA5</div><div class="profile-ind-val">{{ fmt(profile.ma_values.ma5) }}</div></div>
+                        <div class="profile-ind-item"><div class="profile-ind-label">MA10</div><div class="profile-ind-val">{{ fmt(profile.ma_values.ma10) }}</div></div>
+                        <div class="profile-ind-item"><div class="profile-ind-label">MA20</div><div class="profile-ind-val">{{ fmt(profile.ma_values.ma20) }}</div></div>
+                        <div class="profile-ind-item"><div class="profile-ind-label">MA50</div><div class="profile-ind-val">{{ fmt(profile.ma_values.ma50) }}</div></div>
+                        <div class="profile-ind-item"><div class="profile-ind-label">MA60</div><div class="profile-ind-val">{{ fmt(profile.ma_values.ma60) }}</div></div>
+                        <div class="profile-ind-item"><div class="profile-ind-label">MA150</div><div class="profile-ind-val">{{ fmt(profile.ma_values.ma150) }}</div></div>
+                        <div class="profile-ind-item"><div class="profile-ind-label">MA200</div><div class="profile-ind-val">{{ fmt(profile.ma_values.ma200) }}</div></div>
+                        <div class="profile-ind-item"><div class="profile-ind-label">RSI14</div><div class="profile-ind-val" :class="rsiClass(profile.ma_values.rsi14)">{{ profile.ma_values.rsi14 != null ? profile.ma_values.rsi14.toFixed(1) : '-' }}</div></div>
+                    </div>
+                </div>
+
+                <div class="card" v-if="profile.fin_data && profile.fin_data.report_date">
+                    <div class="card-title">财务数据 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">（{{ profile.fin_data.report_date }}）</span></div>
+                    <div class="profile-ind-grid">
+                        <div class="profile-ind-item" v-if="profile.fin_data.revenue_growth_rate != null"><div class="profile-ind-label">营收增长率</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_growth_rate)">{{ fmtGrowth(profile.fin_data.revenue_growth_rate) }}</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.net_profit_growth_rate != null"><div class="profile-ind-label">净利润增长率</div><div class="profile-ind-val" :class="valClass(profile.fin_data.net_profit_growth_rate)">{{ fmtGrowth(profile.fin_data.net_profit_growth_rate) }}</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.debt_ratio != null"><div class="profile-ind-label">资产负债率</div><div class="profile-ind-val" :class="debtClass(profile.fin_data.debt_ratio)">{{ profile.fin_data.debt_ratio.toFixed(2) }}%</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_3y != null"><div class="profile-ind-label">营收3年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_3y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_3y) }}</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.net_profit_cagr_3y != null"><div class="profile-ind-label">净利润3年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.net_profit_cagr_3y)">{{ fmtGrowth(profile.fin_data.net_profit_cagr_3y) }}</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.operating_revenue != null"><div class="profile-ind-label">营业收入</div><div class="profile-ind-val accent">{{ fmtMoney(profile.fin_data.operating_revenue) }}</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.net_profit != null"><div class="profile-ind-label">净利润</div><div class="profile-ind-val accent">{{ fmtMoney(profile.fin_data.net_profit) }}</div></div>
+                    </div>
+                </div>
+
+                <div class="card" v-if="profile.ind_tags && profile.ind_tags.length">
+                    <div class="card-title">指标标签</div>
+                    <div class="profile-tag-grid">
+                        <div v-for="t in profile.ind_tags" :key="t.id" class="profile-tag profile-tag-ind" :title="t.id">{{ t.name }}</div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ══════ Tab2: 画像筛选 ══════ -->
+        <div v-if="activeTab === 'screening'">
+            <div class="screening-panel">
+                <div class="screening-section">
+                    <div class="screening-section-title">阶段</div>
+                    <div class="screening-stage-group">
+                        <button v-for="s in stageOptions" :key="s.id"
+                                class="screening-stage-btn" :class="{ active: selectedStages.includes(s.id) }"
+                                @click="toggleStage(s.id)">{{ s.label }}</button>
+                    </div>
+                </div>
+
+                <div class="screening-section">
+                    <div class="screening-section-title">评分</div>
+                    <div class="screening-slider-row">
+                        <span>技术评分 ≥</span>
+                        <input type="range" min="0" max="100" v-model.number="filterTechScore" @input="onFilterChange">
+                        <span class="screening-slider-val">{{ filterTechScore }}</span>
+                    </div>
+                    <div class="screening-slider-row">
+                        <span>基本面评分 ≥</span>
+                        <input type="range" min="0" max="100" v-model.number="filterFundScore" @input="onFilterChange">
+                        <span class="screening-slider-val">{{ filterFundScore }}</span>
+                    </div>
+                </div>
+
+                <div class="screening-section">
+                    <div class="screening-section-title">增长率 & 负债率</div>
+                    <div class="screening-range-row">
+                        <div><label>营收增长率 ≥</label><input type="number" v-model.number="filterRevGrowth" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label>净利润增长率 ≥</label><input type="number" v-model.number="filterProfitGrowth" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label>负债率 ≤</label><input type="number" v-model.number="filterDebtMax" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                    </div>
+                </div>
+
+                <div class="screening-actions">
+                    <button class="btn btn-primary" @click="doSearch" :disabled="searchLoading">
+                        {{ searchLoading ? '搜索中...' : '▶ 执行筛选' }}
                     </button>
+                    <span v-if="searchResult" class="screening-count">共 <strong>{{ searchResult.total }}</strong> 只</span>
+                    <button v-if="searchResult" class="btn btn-outline btn-sm" @click="resetFilters" style="margin-left:8px;">重置</button>
+                </div>
+            </div>
+
+            <div v-if="searchLoading" class="loading"><div class="spinner"></div><span>搜索中...</span></div>
+
+            <div v-if="searchResult && searchResult.rows.length" class="card">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:36px;">#</th>
+                                <th style="width:80px;">代码</th>
+                                <th style="width:80px;">名称</th>
+                                <th style="width:80px;">价格</th>
+                                <th style="width:60px;">涨幅</th>
+                                <th style="width:80px;">阶段</th>
+                                <th style="width:60px;">技术</th>
+                                <th style="width:60px;">基本</th>
+                                <th style="width:80px;">营收增长</th>
+                                <th style="width:80px;">利润增长</th>
+                                <th>标签</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(row, i) in searchResult.rows" :key="row.stock_code"
+                                class="screening-row" @click="goToProfile(row.stock_code)">
+                                <td>{{ (searchResult.page - 1) * searchResult.page_size + i + 1 }}</td>
+                                <td><strong>{{ row.stock_code }}</strong></td>
+                                <td>{{ row.stock_name }}</td>
+                                <td>{{ fmt(row.latest_price) }}</td>
+                                <td :class="valClass(row.price_change_pct)">{{ fmtGrowth(row.price_change_pct) }}</td>
+                                <td><span :class="'stage-badge stage-' + (row.stage_id || '').replace('stage.', '')">{{ row.stage_name }}</span></td>
+                                <td :class="scoreTextClass(row.tech_score)">{{ row.tech_score }}</td>
+                                <td :class="scoreTextClass(row.fund_score)">{{ row.fund_score }}</td>
+                                <td :class="valClass(row.revenue_growth)">{{ row.revenue_growth != null ? fmtGrowth(row.revenue_growth) : '-' }}</td>
+                                <td :class="valClass(row.net_profit_growth)">{{ row.net_profit_growth != null ? fmtGrowth(row.net_profit_growth) : '-' }}</td>
+                                <td style="text-align:left;">
+                                    <span v-for="t in (row.active_tags || []).slice(0, 4)" :key="t.id" class="screening-tag">{{ t.name }}</span>
+                                    <span v-if="(row.active_tags || []).length > 4" class="screening-tag-more">+{{ row.active_tags.length - 4 }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" v-if="searchResult.total > searchResult.page_size">
+                    <button class="page-btn" :disabled="searchResult.page <= 1" @click="searchResult.page--; doSearch()">‹</button>
+                    <span class="page-info">{{ searchResult.page }} / {{ Math.ceil(searchResult.total / searchResult.page_size) }}</span>
+                    <button class="page-btn" :disabled="searchResult.page * searchResult.page_size >= searchResult.total" @click="searchResult.page++; doSearch()">›</button>
+                </div>
+            </div>
+
+            <div v-else-if="searchResult && !searchResult.rows.length" class="card">
+                <div class="placeholder" style="height:100px;">
+                    <p style="font-size:13px;color:var(--text-muted);">没有符合条件的股票，请调整筛选条件</p>
+                </div>
+            </div>
+
+            <div v-if="!searchResult && !searchLoading" class="card">
+                <div class="placeholder" style="height:100px;">
+                    <p style="font-size:13px;color:var(--text-muted);">设置筛选条件后点击"执行筛选"</p>
                 </div>
             </div>
         </div>
-
-        <div v-if="error" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;">
-            {{ error }}
-        </div>
-
-        <template v-if="profile">
-            <!-- Stock Header -->
-            <div class="profile-header">
-                <div class="profile-header-left">
-                    <div class="profile-code">{{ profile.code }}</div>
-                    <div class="profile-name">{{ profile.name }}</div>
-                </div>
-                <div class="profile-header-right">
-                    <div class="profile-price">{{ fmt(profile.latest_price) }}</div>
-                    <div class="profile-change" :class="valClass(profile.price_change_pct)">
-                        {{ fmtGrowth(profile.price_change_pct) }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Stage + Scores Row -->
-            <div class="profile-row-2col">
-                <div class="profile-stage-card" :class="'stage-' + (profile.stage.id || '').replace('stage.', '')">
-                    <div class="profile-stage-label">{{ profile.stage.name }}</div>
-                    <div class="profile-stage-id">{{ profile.stage.id }}</div>
-                    <div class="profile-stage-bar">
-                        <div class="profile-stage-bar-fill" :style="{width: profile.stage.confidence + '%'}"></div>
-                    </div>
-                    <div class="profile-stage-conf">置信度 {{ profile.stage.confidence }}%</div>
-                </div>
-                <div class="profile-scores">
-                    <div class="profile-score-item">
-                        <div class="profile-score-label">技术面评分</div>
-                        <div class="profile-score-bar-wrap">
-                            <div class="profile-score-bar" :class="scoreClass(profile.scores.tech)">
-                                <div class="profile-score-fill" :style="{width: profile.scores.tech + '%'}"></div>
-                            </div>
-                        </div>
-                        <div class="profile-score-val" :class="scoreClass(profile.scores.tech)">{{ profile.scores.tech }}</div>
-                    </div>
-                    <div class="profile-score-item">
-                        <div class="profile-score-label">基本面评分</div>
-                        <div class="profile-score-bar-wrap">
-                            <div class="profile-score-bar" :class="scoreClass(profile.scores.fund)">
-                                <div class="profile-score-fill" :style="{width: profile.scores.fund + '%'}"></div>
-                            </div>
-                        </div>
-                        <div class="profile-score-val" :class="scoreClass(profile.scores.fund)">{{ profile.scores.fund }}</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Business Tags -->
-            <div class="card" v-if="profile.biz_tags && profile.biz_tags.length">
-                <div class="card-title">业务标签</div>
-                <div class="profile-tag-grid">
-                    <div v-for="t in profile.biz_tags" :key="t.id"
-                         class="profile-tag profile-tag-biz"
-                         :title="t.id">
-                        {{ t.name }}
-                    </div>
-                    <div v-if="!profile.biz_tags.length" style="color:var(--text-muted);font-size:13px;">
-                        无活跃业务标签
-                    </div>
-                </div>
-            </div>
-
-            <!-- Indicators -->
-            <div class="card" v-if="profile.ma_values">
-                <div class="card-title">关键指标</div>
-                <div class="profile-ind-grid">
-                    <div class="profile-ind-item">
-                        <div class="profile-ind-label">MA5</div>
-                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma5) }}</div>
-                    </div>
-                    <div class="profile-ind-item">
-                        <div class="profile-ind-label">MA10</div>
-                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma10) }}</div>
-                    </div>
-                    <div class="profile-ind-item">
-                        <div class="profile-ind-label">MA20</div>
-                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma20) }}</div>
-                    </div>
-                    <div class="profile-ind-item">
-                        <div class="profile-ind-label">MA50</div>
-                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma50) }}</div>
-                    </div>
-                    <div class="profile-ind-item">
-                        <div class="profile-ind-label">MA60</div>
-                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma60) }}</div>
-                    </div>
-                    <div class="profile-ind-item">
-                        <div class="profile-ind-label">MA150</div>
-                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma150) }}</div>
-                    </div>
-                    <div class="profile-ind-item">
-                        <div class="profile-ind-label">MA200</div>
-                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma200) }}</div>
-                    </div>
-                    <div class="profile-ind-item">
-                        <div class="profile-ind-label">RSI14</div>
-                        <div class="profile-ind-val" :class="rsiClass(profile.ma_values.rsi14)">{{ profile.ma_values.rsi14 != null ? profile.ma_values.rsi14.toFixed(1) : '-' }}</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Financial Data -->
-            <div class="card" v-if="profile.fin_data && profile.fin_data.report_date">
-                <div class="card-title">财务数据 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">（{{ profile.fin_data.report_date }}）</span></div>
-                <div class="profile-ind-grid">
-                    <div class="profile-ind-item" v-if="profile.fin_data.revenue_growth_rate != null">
-                        <div class="profile-ind-label">营收增长率</div>
-                        <div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_growth_rate)">{{ fmtGrowth(profile.fin_data.revenue_growth_rate) }}</div>
-                    </div>
-                    <div class="profile-ind-item" v-if="profile.fin_data.net_profit_growth_rate != null">
-                        <div class="profile-ind-label">净利润增长率</div>
-                        <div class="profile-ind-val" :class="valClass(profile.fin_data.net_profit_growth_rate)">{{ fmtGrowth(profile.fin_data.net_profit_growth_rate) }}</div>
-                    </div>
-                    <div class="profile-ind-item" v-if="profile.fin_data.debt_ratio != null">
-                        <div class="profile-ind-label">资产负债率</div>
-                        <div class="profile-ind-val" :class="debtClass(profile.fin_data.debt_ratio)">{{ profile.fin_data.debt_ratio.toFixed(2) }}%</div>
-                    </div>
-                    <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_3y != null">
-                        <div class="profile-ind-label">营收3年CAGR</div>
-                        <div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_3y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_3y) }}</div>
-                    </div>
-                    <div class="profile-ind-item" v-if="profile.fin_data.net_profit_cagr_3y != null">
-                        <div class="profile-ind-label">净利润3年CAGR</div>
-                        <div class="profile-ind-val" :class="valClass(profile.fin_data.net_profit_cagr_3y)">{{ fmtGrowth(profile.fin_data.net_profit_cagr_3y) }}</div>
-                    </div>
-                    <div class="profile-ind-item" v-if="profile.fin_data.operating_revenue != null">
-                        <div class="profile-ind-label">营业收入</div>
-                        <div class="profile-ind-val accent">{{ fmtMoney(profile.fin_data.operating_revenue) }}</div>
-                    </div>
-                    <div class="profile-ind-item" v-if="profile.fin_data.net_profit != null">
-                        <div class="profile-ind-label">净利润</div>
-                        <div class="profile-ind-val accent">{{ fmtMoney(profile.fin_data.net_profit) }}</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Indicator Tags -->
-            <div class="card" v-if="profile.ind_tags && profile.ind_tags.length">
-                <div class="card-title">指标标签</div>
-                <div class="profile-tag-grid">
-                    <div v-for="t in profile.ind_tags" :key="t.id"
-                         class="profile-tag profile-tag-ind"
-                         :title="t.id">
-                        {{ t.name }}
-                    </div>
-                </div>
-            </div>
-        </template>
     </div>
 </template>
 
