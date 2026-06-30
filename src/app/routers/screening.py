@@ -77,11 +77,17 @@ def screen_ma_bullish_and_revenue_growth(ma_periods, revenue_threshold=20.0):
 
     periods = sorted(ma_periods)
     max_period = max(periods)
-    th = revenue_threshold / 100.0
 
-    fund_rows = query("""SELECT stock_code FROM fin_ratios
-                         WHERE report_date = %(rdate)s AND revenue_growth_rate > %(th)s""",
-                      {'rdate': rdate, 'th': th})
+    fund_rows = query("""SELECT sub.stock_code FROM (
+        SELECT r.stock_code
+        FROM fin_ratios r
+        JOIN fin_income i ON i.stock_code = r.stock_code AND i.report_date = r.report_date
+        JOIN fin_income i2 ON i2.stock_code = r.stock_code
+            AND i2.report_date = DATE_SUB(r.report_date, INTERVAL 1 YEAR)
+        WHERE r.report_date = %(rdate)s
+          AND i2.operating_revenue IS NOT NULL AND i2.operating_revenue > 0
+          AND (i.operating_revenue - i2.operating_revenue) / i2.operating_revenue * 100 > %(th)s
+    ) sub""", {'rdate': rdate, 'th': revenue_threshold})
     if not fund_rows:
         return {'columns': _combined_cols(periods), 'rows': [], 'total': 0}
 
@@ -103,15 +109,21 @@ WHERE r.rn = 1 AND {cond}"""
         return {'columns': _combined_cols(periods), 'rows': [], 'total': 0}
 
     ma_map = {r['stock_code']: r for r in ma_rows}
-    fund_details = query(f"""SELECT r.stock_code, s.stock_name, r.revenue_growth_rate * 100 AS revenue_growth_rate,
-                                    r.net_profit_growth_rate, r.debt_ratio,
-                                    i.operating_revenue, i.net_profit, r.report_date
-                             FROM fin_ratios r
-                             JOIN stocks s ON s.stock_code = r.stock_code
-                             JOIN fin_income i ON i.stock_code = r.stock_code AND i.report_date = r.report_date
-                             WHERE r.stock_code IN ({','.join(['%s'] * len(ma_rows))})
-                               AND r.report_date = %s""",
-                         [r['stock_code'] for r in ma_rows] + [str(rdate)])
+    fund_details = query(f"""SELECT sub.* FROM (
+        SELECT r.stock_code, s.stock_name,
+               (i.operating_revenue - i2.operating_revenue) / i2.operating_revenue * 100 AS revenue_growth_rate,
+               (i.net_profit - i2.net_profit) / i2.net_profit * 100 AS net_profit_growth_rate,
+               b.total_liabilities / b.total_assets * 100 AS debt_ratio,
+               i.operating_revenue, i.net_profit, r.report_date
+        FROM fin_ratios r
+        JOIN stocks s ON s.stock_code = r.stock_code
+        JOIN fin_income i ON i.stock_code = r.stock_code AND i.report_date = r.report_date
+        JOIN fin_income i2 ON i2.stock_code = r.stock_code
+            AND i2.report_date = DATE_SUB(r.report_date, INTERVAL 1 YEAR)
+        JOIN fin_balance_sheet b ON b.stock_code = r.stock_code AND b.report_date = r.report_date
+        WHERE r.stock_code IN ({','.join(['%s'] * len(ma_rows))})
+          AND r.report_date = %s
+    ) sub""", [r['stock_code'] for r in ma_rows] + [str(rdate)])
 
     rows = []
     for fd in fund_details:
