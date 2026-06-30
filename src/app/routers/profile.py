@@ -1,3 +1,4 @@
+import json
 import threading
 from datetime import date
 from fastapi import APIRouter, HTTPException, Query
@@ -17,7 +18,8 @@ def get_profile(stock_code: str):
     r = query("SELECT profile_json FROM stock_profiles WHERE stock_code = %s "
               "ORDER BY trade_date DESC LIMIT 1", [stock_code])
     if r and r[0]['profile_json']:
-        return r[0]['profile_json']
+        raw = r[0]['profile_json']
+        return json.loads(raw) if isinstance(raw, str) else raw
     return generate_profile(stock_code)
 
 
