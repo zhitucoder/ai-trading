@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from .routers import screening
+from .routers import screening, backtest
 
 app = FastAPI(title='AI Trading System')
 
@@ -16,6 +16,7 @@ app.add_middleware(
 )
 
 app.include_router(screening.router, prefix='/api/screening', tags=['选股'])
+app.include_router(backtest.router, prefix='/api', tags=['回测'])
 
 web_dir = Path(__file__).resolve().parent.parent.parent / 'web'
 

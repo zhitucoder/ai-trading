@@ -24,6 +24,8 @@
     <!-- Main -->
     <div class="main">
         <screening-page v-if="currentPage === 'screening'"></screening-page>
+        <position-bt-page v-else-if="currentPage === 'position_bt'"></position-bt-page>
+        <ma-bt-page v-else-if="currentPage === 'ma_bt'"></ma-bt-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
@@ -163,7 +165,178 @@
     </div>
 </template>
 
+<!-- ── Position Backtest Template ── -->
+<template id="position-bt-tpl">
+    <div class="topbar">
+        <h2>建仓回测</h2>
+        <span class="badge">交互式</span>
+    </div>
+    <div class="content">
+        <div class="card">
+            <div class="form-row">
+                <div class="config-item" style="min-width:100px;">
+                    <label>股票代码</label>
+                    <input v-model="stockCode" placeholder="600519" @keyup.enter="loadKline">
+                </div>
+                <div class="config-item" style="min-width:100px;">
+                    <label>K线天数</label>
+                    <input v-model.number="klineDays" type="number" min="60" max="2000">
+                </div>
+                <div class="config-item" style="min-width:100px;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary" @click="loadKline" :disabled="klineLoading">
+                        {{ klineLoading ? '加载中...' : '加载K线' }}
+                    </button>
+                </div>
+                <div v-if="stockName" class="config-item" style="justify-content:flex-end;">
+                    <span style="font-size:16px;font-weight:700;color:var(--accent);">{{ stockCode }} {{ stockName }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="chartData.length" class="trade-toggle">
+            <button class="toggle-btn buy" :class="{ active: tradeDirection === 'buy' }" @click="tradeDirection='buy'">▲ 买入</button>
+            <button class="toggle-btn sell" :class="{ active: tradeDirection === 'sell' }" @click="tradeDirection='sell'">▼ 卖出</button>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:12px;line-height:34px;">点击K线柱添加交易记录（每手100股）</span>
+        </div>
+
+        <div v-if="chartData.length" class="chart-box" ref="chartRef"></div>
+
+        <div v-if="trades.length" class="card">
+            <div class="card-title">交易记录 ({{ trades.length }})</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>日期</th><th>方向</th><th>股数</th><th>价格</th><th>金额</th><th>操作</th></tr></thead>
+                    <tbody>
+                        <tr v-for="(t, i) in trades" :key="i">
+                            <td>{{ t.date }}</td>
+                            <td><span :style="{color:t.direction==='buy'? 'var(--red)':'var(--green)'}">{{ t.direction==='buy' ? '买入' : '卖出' }}</span></td>
+                            <td>{{ t.shares }}</td>
+                            <td>{{ fmt(t.price) }}</td>
+                            <td>{{ fmt(t.shares * t.price) }}</td>
+                            <td><button class="btn-delete" @click="deleteTrade(i)">删除</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div v-if="trades.length" style="margin-top:12px;">
+                <button class="btn btn-primary" @click="runPositionBt" :disabled="btLoading">
+                    {{ btLoading ? '计算中...' : '▶ 计算回测结果' }}
+                </button>
+            </div>
+        </div>
+
+        <div v-if="btResult.summary && Object.keys(btResult.summary).length" class="card">
+            <div class="card-title">持仓汇总</div>
+            <div class="summary-grid">
+                <div class="summary-item"><div class="label">已投入总金额</div><div class="value accent">{{ fmtMoney(btResult.summary.total_invested) }}</div></div>
+                <div class="summary-item"><div class="label">当前持仓市值</div><div class="value accent">{{ fmtMoney(btResult.summary.final_market_value) }}</div></div>
+                <div class="summary-item"><div class="label">已卖出金额</div><div class="value accent">{{ fmtMoney(btResult.summary.total_sold_value) }}</div></div>
+                <div class="summary-item"><div class="label">盈亏金额</div><div class="value" :class="btResult.summary.total_pnl >= 0 ? 'green' : 'red'">{{ fmtMoney(btResult.summary.total_pnl) }}</div></div>
+                <div class="summary-item"><div class="label">总收益率</div><div class="value" :class="btResult.summary.total_return >= 0 ? 'green' : 'red'">{{ btResult.summary.total_return }}%</div></div>
+                <div class="summary-item"><div class="label">最大回撤</div><div class="value red">{{ btResult.summary.max_drawdown }}%</div></div>
+                <div class="summary-item"><div class="label">持仓股数</div><div class="value accent">{{ btResult.summary.shares_held }}</div></div>
+            </div>
+        </div>
+
+        <div v-if="paginatedPnl.length" class="card">
+            <div class="card-title">逐日盈亏明细</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>日期</th><th>持仓</th><th>市值</th><th>累计盈亏</th></tr></thead>
+                    <tbody>
+                        <tr v-for="d in paginatedPnl" :key="d.date">
+                            <td>{{ d.date }}</td>
+                            <td>{{ d.shares_held }}</td>
+                            <td>{{ fmtMoney(d.market_value) }}</td>
+                            <td :style="{color:d.cumulative_pnl>=0?'var(--green)':'var(--red)'}">{{ fmtMoney(d.cumulative_pnl) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <button class="page-btn" :disabled="pnlPage <= 1" @click="pnlPage--">‹</button>
+                <span class="page-info">{{ pnlPage }} / {{ pnlTotalPages }}</span>
+                <button class="page-btn" :disabled="pnlPage >= pnlTotalPages" @click="pnlPage++">›</button>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- ── MA Backtest Template ── -->
+<template id="ma-bt-tpl">
+    <div class="topbar">
+        <h2>均线回测</h2>
+        <span class="badge">MA策略</span>
+    </div>
+    <div class="content">
+        <div class="card">
+            <div class="card-title">策略参数</div>
+            <div class="form-row">
+                <div class="config-item"><label>股票代码</label><input v-model="maStockCode" placeholder="600519" @keyup.enter="runMaBt"></div>
+                <div class="config-item"><label>开始日期</label><input v-model="maStartDate" type="date"></div>
+                <div class="config-item"><label>结束日期</label><input v-model="maEndDate" type="date"></div>
+                <div class="config-item"><label>短期均线</label><input v-model.number="maShort" type="number" min="2" max="120"></div>
+                <div class="config-item"><label>长期均线</label><input v-model.number="maLong" type="number" min="5" max="250"></div>
+                <div class="config-item"><label>总资金</label><input v-model.number="maAmount" type="number" min="10000"></div>
+                <div class="config-item"><label>&nbsp;</label><button class="btn btn-primary" @click="runMaBt" :disabled="maLoading">{{ maLoading ? '运行中...' : '▶ 运行回测' }}</button></div>
+            </div>
+            <div v-if="maResult.summary && Object.keys(maResult.summary).length" style="margin-top:8px;">
+                <div class="summary-grid">
+                    <div class="summary-item"><div class="label">总收益率</div><div class="value" :class="maResult.summary.total_return>=0?'green':'red'">{{ maResult.summary.total_return }}%</div></div>
+                    <div class="summary-item"><div class="label">交易次数</div><div class="value accent">{{ maResult.summary.total_trades }}</div></div>
+                    <div class="summary-item"><div class="label">胜率</div><div class="value accent">{{ maResult.summary.win_rate }}%</div></div>
+                    <div class="summary-item"><div class="label">最大回撤</div><div class="value red">{{ maResult.summary.max_drawdown }}%</div></div>
+                    <div class="summary-item"><div class="label">总盈亏</div><div class="value" :class="maResult.summary.total_pnl>=0?'green':'red'">{{ fmtMoney(maResult.summary.total_pnl) }}</div></div>
+                    <div class="summary-item"><div class="label">剩余现金</div><div class="value accent">{{ fmtMoney(maResult.summary.final_cash) }}</div></div>
+                    <div class="summary-item"><div class="label">持仓股数</div><div class="value accent">{{ maResult.summary.final_shares }}</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="maResult.trades && maResult.trades.length" class="chart-box" ref="maChartRef"></div>
+
+        <div v-if="maResult.trades && maResult.trades.length" class="card">
+            <div class="card-title">交易明细 ({{ maResult.trades.length }})</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>买入日</th><th>买入价</th><th>卖出日</th><th>卖出价</th><th>股数</th><th>盈亏</th><th>收益率</th></tr></thead>
+                    <tbody>
+                        <tr v-for="t in maResult.trades" :key="t.entry_date">
+                            <td>{{ t.entry_date }}</td><td>{{ fmt(t.entry_price) }}</td>
+                            <td>{{ t.exit_date || '-' }}</td><td>{{ t.exit_price ? fmt(t.exit_price) : '-' }}</td>
+                            <td>{{ t.shares }}</td>
+                            <td :style="{color:(t.pnl||0)>=0?'var(--green)':'var(--red)'}">{{ t.pnl ? fmtMoney(t.pnl) : '-' }}</td>
+                            <td :style="{color:(t.pnl_pct||0)>=0?'var(--green)':'var(--red)'}">{{ t.pnl_pct ? t.pnl_pct+'%' : '-' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div v-if="maResult.daily && maResult.daily.length" class="card">
+            <div class="card-title">逐日盈亏</div>
+            <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>日期</th><th>收盘价</th><th>状态</th><th>现金</th><th>持股</th><th>总资产</th><th>累计盈亏</th></tr></thead>
+                            <tbody>
+                                <tr v-for="d in maResult.daily" :key="d.date">
+                                    <td>{{ d.date }}</td><td>{{ fmt(d.close_price) }}</td>
+                                    <td>{{ d.in_position ? '持仓' : '空仓' }}</td>
+                                    <td>{{ fmtMoney(d.cash) }}</td>
+                                    <td>{{ d.shares_held }}</td>
+                                    <td>{{ fmtMoney(d.portfolio) }}</td>
+                                    <td :style="{color:d.cumulative_pnl>=0?'var(--green)':'var(--red)'}">{{ fmtMoney(d.cumulative_pnl) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+            </div>
+        </div>
+    </div>
+</template>
+
 <script src="https://unpkg.com/vue@3.4/dist/vue.global.prod.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

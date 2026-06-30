@@ -105,6 +105,30 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 - Joins `fin_ratios` + `fin_income` for operating_revenue/net_profit
 - Always filters `debt_ratio >= 0` to exclude junk data
 
+## Backtest API (`src/app/routers/backtest.py`)
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/kline/{stock_code}?days=N` | GET | OHLCV data for charting |
+| `/api/kline_range/{stock_code}?start_date=&end_date=` | GET | K-line in date range |
+| `/api/backtest/position` | POST | User-defined trades → P&L |
+| `/api/backtest/ma` | POST | MA crossover backtest |
+
+### Position backtest
+- Body: `{"stock_code":"600519","trades":[{"date":"...","direction":"buy","shares":100,"price":1500}]}`
+- Trade dates auto-mapped to nearest trading day
+- Average cost basis P&L calculation
+- Returns: daily_pnl[] + summary (total_invested, return, max_drawdown)
+
+### MA crossover backtest
+- Query params: `stock_code, start_date, end_date, short_ma, long_ma, total_capital`
+- Golden cross (short MA ↑ above long MA) → Buy; Death cross → Sell
+- Buy: max affordable 100-share lots from available cash; skip if < 1 hand
+- Sell: liquidate entire position
+- Uses lightweight-charts CDN for frontend K-line rendering
+
+---
+
 ### Combined (`ma_bullish_and_revenue_growth`)
 - Performance optimization: **filter by fundamental first** (reduces stock set), then calculate MA only for candidates
 - Process in batches of 500 to avoid MySQL IN clause length limits

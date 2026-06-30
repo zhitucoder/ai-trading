@@ -275,3 +275,98 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .result-bar .count { font-size: 13px; color: var(--text-muted); }
 .result-bar .count strong { color: var(--accent); }
+
+/* ── Chart ── */
+.chart-box {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 16px;
+    height: 420px;
+    position: relative;
+}
+.chart-box .tv-chart { width: 100%; height: 100%; }
+
+/* ── Buy/Sell Toggle ── */
+.trade-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.toggle-btn {
+    padding: 8px 22px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 2px solid var(--border);
+    background: none;
+    color: var(--text-muted);
+    transition: all 0.2s;
+}
+.toggle-btn.buy.active { border-color: var(--red); color: var(--red); background: rgba(239,68,68,0.1); }
+.toggle-btn.sell.active { border-color: var(--green); color: var(--green); background: rgba(16,185,129,0.1); }
+
+/* ── Summary Grid ── */
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+}
+.summary-item {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+}
+.summary-item .label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+.summary-item .value { font-size: 16px; font-weight: 700; font-family: 'SF Mono', monospace; }
+.summary-item .value.green { color: var(--green); }
+.summary-item .value.red { color: var(--red); }
+.summary-item .value.accent { color: var(--accent); }
+
+/* ── Pagination ── */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+.pagination .page-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+}
+.pagination .page-btn:hover { border-color: var(--accent); color: var(--accent); }
+.pagination .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.pagination .page-info { font-size: 12px; color: var(--text-muted); }
+
+/* ── Delete button ── */
+.btn-delete {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    border: 1px solid var(--red);
+    background: none;
+    color: var(--red);
+    transition: all 0.2s;
+}
+.btn-delete:hover { background: rgba(239,68,68,0.15); }
+
+/* ── MA chart ── */
+.form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+}
+.form-row .config-item { min-width: 140px; flex: 1; }
