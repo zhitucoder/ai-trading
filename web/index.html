@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Trading System</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">AI<span>Trade</span></div>
+        <nav>
+            <a v-for="p in pages" :key="p.id"
+               :class="{ active: currentPage === p.id }"
+               @click="currentPage = p.id">
+                <span class="icon">{{ p.icon }}</span>
+                {{ p.label }}
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+        <screening-page v-if="currentPage === 'screening'"></screening-page>
+        <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
+    </div>
+</div>
+
+<!-- Screening Template -->
+<template id="screening-tpl">
+    <div class="topbar">
+        <h2>选股策略</h2>
+        <span class="badge">智能筛选</span>
+    </div>
+    <div class="content">
+        <!-- Error -->
+        <div class="card" v-if="error" style="border-color:var(--red);color:var(--red);font-size:13px;">
+            {{ error }}
+        </div>
+
+        <!-- Strategy Tabs -->
+        <div class="strategy-tabs">
+            <button class="strategy-tab" :class="{ active: tabType === 'technical' }"
+                    @click="tabType = 'technical'; selectedStrategy = null; result = null">技术指标</button>
+            <button class="strategy-tab" :class="{ active: tabType === 'fundamental' }"
+                    @click="tabType = 'fundamental'; selectedStrategy = null; result = null">基本面指标</button>
+            <button class="strategy-tab" :class="{ active: tabType === 'combined' }"
+                    @click="tabType = 'combined'; selectedStrategy = null; result = null">组合筛选</button>
+        </div>
+
+        <!-- Strategy Cards -->
+        <div class="card" v-for="s in currentStrategies" :key="s.id"
+             v-show="tabType !== 'fundamental' || s.id === 'fundamental_all'"
+             :style="{ borderColor: isSelected(s.id) ? 'var(--accent)' : '' }">
+            <div class="card-title">
+                {{ s.name }}
+                <span class="hint">{{ s.description }}</span>
+            </div>
+            <div v-if="tabType === 'technical' && s.id === 'ma_bullish'" class="config-grid">
+                <div class="config-item">
+                    <label>均线周期（逗号分隔）</label>
+                    <input v-model="maPeriods" placeholder="5,10,20,60">
+                </div>
+            </div>
+            <div v-if="tabType === 'fundamental' && s.id === 'fundamental_all'" class="config-grid">
+                <div class="config-item">
+                    <label>营收增长率下限 (%)</label>
+                    <input v-model.number="revenueThreshold" type="number" step="1">
+                </div>
+                <div class="config-item">
+                    <label>净利润增长率下限 (%)</label>
+                    <input v-model.number="profitThreshold" type="number" step="1">
+                </div>
+                <div class="config-item">
+                    <label>资产负债率上限 (%)</label>
+                    <input v-model.number="debtThreshold" type="number" step="1">
+                </div>
+            </div>
+            <div v-if="tabType === 'combined' && s.id === 'ma_bullish_and_revenue_growth'" class="config-grid">
+                <div class="config-item">
+                    <label>均线周期（逗号分隔）</label>
+                    <input v-model="maPeriods" placeholder="5,10,20,60">
+                </div>
+                <div class="config-item">
+                    <label>营收增长率下限 (%)</label>
+                    <input v-model.number="revenueThreshold" type="number" step="1">
+                </div>
+            </div>
+            <div style="margin-top:12px;">
+                <button class="btn btn-primary" @click="selectStrategy(s.id)" :disabled="isSelected(s.id)">
+                    {{ isSelected(s.id) ? '✓ 已选择' : '选择此策略' }}
+                </button>
+            </div>
+        </div>
+
+        <!-- Execute -->
+        <div v-if="selectedStrategy" class="card" style="display:flex;align-items:center;gap:16px;">
+            <span style="font-size:13px;color:var(--text-muted);">
+                已选策略: <strong style="color:var(--accent);">{{ currentStrategies.find(s=>s.id===selectedStrategy)?.name || selectedStrategy }}</strong>
+            </span>
+            <button class="btn btn-primary" @click="execute" :disabled="loading">
+                <span v-if="loading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                {{ loading ? '筛选中...' : '▶ 执行筛选' }}
+            </button>
+        </div>
+
+        <!-- Results -->
+        <div v-if="result" class="card">
+            <div class="result-bar">
+                <span class="count">共筛选出 <strong>{{ result.total }}</strong> 只股票</span>
+            </div>
+            <div class="table-wrap" v-if="result.rows && result.rows.length">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:40px;">#</th>
+                                    <th style="width:80px;">代码</th>
+                                    <th style="width:90px;">名称</th>
+                                    <th v-for="col in result.columns" :key="col">
+                                        <template v-if="col === 'close_price'">最新价</template>
+                                        <template v-else-if="col === 'report_date'">报告期</template>
+                                        <template v-else-if="col === 'revenue_growth_rate'">营收增长率</template>
+                                        <template v-else-if="col === 'net_profit_growth_rate'">净利润增长率</template>
+                                        <template v-else-if="col === 'debt_ratio'">资产负债率</template>
+                                        <template v-else-if="col === 'operating_revenue'">营业收入</template>
+                                        <template v-else-if="col === 'net_profit'">净利润</template>
+                                        <template v-else>{{ col }}</template>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(row, i) in result.rows" :key="i">
+                                    <td>{{ i + 1 }}</td>
+                                    <td><strong>{{ row.stock_code }}</strong></td>
+                                    <td>{{ row.stock_name }}</td>
+                                    <td v-for="col in result.columns" :key="col" :class="valClass(row[col])">
+                                        <template v-if="col === 'close_price' || col.startsWith('ma')">
+                                            {{ fmt(row[col]) }}
+                                        </template>
+                                        <template v-else-if="col.includes('growth') || col.includes('ratio')">
+                                            {{ fmtGrowth(row[col]) }}
+                                        </template>
+                                        <template v-else-if="col === 'operating_revenue' || col === 'net_profit'">
+                                            {{ fmtMoney(row[col]) }}
+                                        </template>
+                                        <template v-else-if="col === 'report_date'">
+                                            {{ row[col] ? String(row[col]).substring(0, 10) : '' }}
+                                        </template>
+                                        <template v-else>
+                                            {{ row[col] ?? '-' }}
+                                        </template>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+            </div>
+            <div v-else class="placeholder" style="height:100px;">
+                <p style="font-size:13px;color:var(--text-muted);">没有符合条件的股票</p>
+            </div>
+        </div>
+    </div>
+</template>
+
+<script src="https://unpkg.com/vue@3.4/dist/vue.global.prod.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

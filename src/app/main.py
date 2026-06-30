@@ -1,0 +1,35 @@
+from pathlib import Path
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from .routers import screening
+
+app = FastAPI(title='AI Trading System')
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
+
+app.include_router(screening.router, prefix='/api/screening', tags=['选股'])
+
+web_dir = Path(__file__).resolve().parent.parent.parent / 'web'
+
+
+@app.get('/api/health')
+def health():
+    return {'status': 'ok'}
+
+
+# Serve SPA: API routes declared above, everything else -> index.html
+@app.get('/')
+@app.get('/{path:path}')
+def serve_spa(request: Request, path: str = ''):
+    file_path = web_dir / path
+    if file_path.is_file() and file_path.suffix in {'.html', '.js', '.css', '.png', '.jpg', '.svg', '.ico'}:
+        return FileResponse(str(file_path))
+    return HTMLResponse((web_dir / 'index.html').read_text(encoding='utf-8'))
