@@ -111,6 +111,14 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 
 ---
 
+## Git Workflow
+
+- Default branch: `dev` (not `master`)
+- Commit → `git push origin dev` when ready
+- All development happens on `dev`; `master` is for releases only
+
+---
+
 ## Common Pitfalls
 
 1. **Server dies after shell timeout** → always use `setsid` + redirect
