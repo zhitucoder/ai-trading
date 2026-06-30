@@ -434,6 +434,62 @@ app.component('ma-bt-page', {
     },
 });
 
+// ── Profile Page ──
+app.component('profile-page', {
+    template: '#profile-tpl',
+    setup() {
+        const stockCode = ref('600519');
+        const loading = ref(false);
+        const profile = ref(null);
+        const error = ref('');
+
+        async function loadProfile() {
+            if (!stockCode.value) return;
+            loading.value = true;
+            error.value = '';
+            profile.value = null;
+            try {
+                const r = await fetch(`${API_BASE}/profile/${stockCode.value}`);
+                const data = await r.json();
+                if (data.error) error.value = data.error;
+                else profile.value = data;
+            } catch (e) {
+                error.value = '请求失败: ' + e.message;
+            } finally {
+                loading.value = false;
+            }
+        }
+
+        function scoreClass(val) {
+            if (val == null) return '';
+            if (val >= 70) return 'score-high';
+            if (val >= 40) return 'score-mid';
+            return 'score-low';
+        }
+
+        function rsiClass(val) {
+            if (val == null) return '';
+            if (val > 70) return 'down';
+            if (val < 30) return 'up';
+            return '';
+        }
+
+        function debtClass(val) {
+            if (val == null) return '';
+            if (val > 60) return 'down';
+            return 'up';
+        }
+
+        onMounted(loadProfile);
+
+        return {
+            stockCode, loading, profile, error,
+            loadProfile, scoreClass, rsiClass, debtClass,
+            fmt, fmtGrowth, fmtMoney, valClass,
+        };
+    },
+});
+
 app.component('placeholder-page', {
     props: ['page'],
     template: '<div class="placeholder"><div class="big-icon">{{ icon }}</div><p>{{ page.label }}</p><p>功能开发中...</p></div>',

@@ -79,12 +79,18 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 
 | Field | Storage format | Example |
 |---|---|---|
-| `revenue_growth_rate` | **Fraction** (not %) | 0.064 = 6.4% |
-| `net_profit_growth_rate` | Percentage value | 4.65 = 4.65% |
+| `revenue_growth_rate` | **BROKEN** — pytdx field index mismatch, do NOT use | N/A |
+| `net_profit_growth_rate` | **BROKEN** — pytdx field index mismatch, do NOT use | N/A |
 | `debt_ratio` | Percentage value | 87.24 = 87.24% |
 | `market_cap`, `pe_ttm` | **Always NULL** — pytdx index mismatch | N/A |
 
 **Always verify actual data format before writing queries against `fin_*` fields.**
+
+**Growth rate reliability**: `fin_ratios.revenue_growth_rate` and `net_profit_growth_rate`
+are unreliable due to pytdx field index shifts. The **profile module** (`strategies/profile.py`)
+correctly computes YoY growth rates from `fin_income` raw data (current vs prior year same quarter).
+The **screening module** (`routers/screening.py`, `strategies/fundamental.py`) still uses the
+broken `fin_ratios` fields — when fixing, convert to `fin_income` self-join pattern.
 
 ### Indexes
 - `daily_kline`: `(stock_code, trade_date, close_price)` — covering index for MA calculations

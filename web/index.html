@@ -26,6 +26,7 @@
         <screening-page v-if="currentPage === 'screening'"></screening-page>
         <position-bt-page v-else-if="currentPage === 'position_bt'"></position-bt-page>
         <ma-bt-page v-else-if="currentPage === 'ma_bt'"></ma-bt-page>
+        <profile-page v-else-if="currentPage === 'profile'"></profile-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
@@ -332,6 +333,183 @@
                         </table>
             </div>
         </div>
+    </div>
+</template>
+
+<!-- ── Profile Template ── -->
+<template id="profile-tpl">
+    <div class="topbar">
+        <h2>股票画像</h2>
+        <span class="badge">智能诊断</span>
+    </div>
+    <div class="content">
+        <div class="card">
+            <div class="form-row">
+                <div class="config-item" style="min-width:120px;">
+                    <label>股票代码</label>
+                    <input v-model="stockCode" placeholder="600519" @keyup.enter="loadProfile" style="width:140px;">
+                </div>
+                <div class="config-item" style="min-width:100px;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary" @click="loadProfile" :disabled="loading">
+                        {{ loading ? '加载中...' : '▶ 生成画像' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="error" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;">
+            {{ error }}
+        </div>
+
+        <template v-if="profile">
+            <!-- Stock Header -->
+            <div class="profile-header">
+                <div class="profile-header-left">
+                    <div class="profile-code">{{ profile.code }}</div>
+                    <div class="profile-name">{{ profile.name }}</div>
+                </div>
+                <div class="profile-header-right">
+                    <div class="profile-price">{{ fmt(profile.latest_price) }}</div>
+                    <div class="profile-change" :class="valClass(profile.price_change_pct)">
+                        {{ fmtGrowth(profile.price_change_pct) }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stage + Scores Row -->
+            <div class="profile-row-2col">
+                <div class="profile-stage-card" :class="'stage-' + (profile.stage.id || '').replace('stage.', '')">
+                    <div class="profile-stage-label">{{ profile.stage.name }}</div>
+                    <div class="profile-stage-id">{{ profile.stage.id }}</div>
+                    <div class="profile-stage-bar">
+                        <div class="profile-stage-bar-fill" :style="{width: profile.stage.confidence + '%'}"></div>
+                    </div>
+                    <div class="profile-stage-conf">置信度 {{ profile.stage.confidence }}%</div>
+                </div>
+                <div class="profile-scores">
+                    <div class="profile-score-item">
+                        <div class="profile-score-label">技术面评分</div>
+                        <div class="profile-score-bar-wrap">
+                            <div class="profile-score-bar" :class="scoreClass(profile.scores.tech)">
+                                <div class="profile-score-fill" :style="{width: profile.scores.tech + '%'}"></div>
+                            </div>
+                        </div>
+                        <div class="profile-score-val" :class="scoreClass(profile.scores.tech)">{{ profile.scores.tech }}</div>
+                    </div>
+                    <div class="profile-score-item">
+                        <div class="profile-score-label">基本面评分</div>
+                        <div class="profile-score-bar-wrap">
+                            <div class="profile-score-bar" :class="scoreClass(profile.scores.fund)">
+                                <div class="profile-score-fill" :style="{width: profile.scores.fund + '%'}"></div>
+                            </div>
+                        </div>
+                        <div class="profile-score-val" :class="scoreClass(profile.scores.fund)">{{ profile.scores.fund }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Business Tags -->
+            <div class="card" v-if="profile.biz_tags && profile.biz_tags.length">
+                <div class="card-title">业务标签</div>
+                <div class="profile-tag-grid">
+                    <div v-for="t in profile.biz_tags" :key="t.id"
+                         class="profile-tag profile-tag-biz"
+                         :title="t.id">
+                        {{ t.name }}
+                    </div>
+                    <div v-if="!profile.biz_tags.length" style="color:var(--text-muted);font-size:13px;">
+                        无活跃业务标签
+                    </div>
+                </div>
+            </div>
+
+            <!-- Indicators -->
+            <div class="card" v-if="profile.ma_values">
+                <div class="card-title">关键指标</div>
+                <div class="profile-ind-grid">
+                    <div class="profile-ind-item">
+                        <div class="profile-ind-label">MA5</div>
+                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma5) }}</div>
+                    </div>
+                    <div class="profile-ind-item">
+                        <div class="profile-ind-label">MA10</div>
+                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma10) }}</div>
+                    </div>
+                    <div class="profile-ind-item">
+                        <div class="profile-ind-label">MA20</div>
+                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma20) }}</div>
+                    </div>
+                    <div class="profile-ind-item">
+                        <div class="profile-ind-label">MA50</div>
+                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma50) }}</div>
+                    </div>
+                    <div class="profile-ind-item">
+                        <div class="profile-ind-label">MA60</div>
+                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma60) }}</div>
+                    </div>
+                    <div class="profile-ind-item">
+                        <div class="profile-ind-label">MA150</div>
+                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma150) }}</div>
+                    </div>
+                    <div class="profile-ind-item">
+                        <div class="profile-ind-label">MA200</div>
+                        <div class="profile-ind-val">{{ fmt(profile.ma_values.ma200) }}</div>
+                    </div>
+                    <div class="profile-ind-item">
+                        <div class="profile-ind-label">RSI14</div>
+                        <div class="profile-ind-val" :class="rsiClass(profile.ma_values.rsi14)">{{ profile.ma_values.rsi14 != null ? profile.ma_values.rsi14.toFixed(1) : '-' }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Financial Data -->
+            <div class="card" v-if="profile.fin_data && profile.fin_data.report_date">
+                <div class="card-title">财务数据 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">（{{ profile.fin_data.report_date }}）</span></div>
+                <div class="profile-ind-grid">
+                    <div class="profile-ind-item" v-if="profile.fin_data.revenue_growth_rate != null">
+                        <div class="profile-ind-label">营收增长率</div>
+                        <div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_growth_rate)">{{ fmtGrowth(profile.fin_data.revenue_growth_rate) }}</div>
+                    </div>
+                    <div class="profile-ind-item" v-if="profile.fin_data.net_profit_growth_rate != null">
+                        <div class="profile-ind-label">净利润增长率</div>
+                        <div class="profile-ind-val" :class="valClass(profile.fin_data.net_profit_growth_rate)">{{ fmtGrowth(profile.fin_data.net_profit_growth_rate) }}</div>
+                    </div>
+                    <div class="profile-ind-item" v-if="profile.fin_data.debt_ratio != null">
+                        <div class="profile-ind-label">资产负债率</div>
+                        <div class="profile-ind-val" :class="debtClass(profile.fin_data.debt_ratio)">{{ profile.fin_data.debt_ratio.toFixed(2) }}%</div>
+                    </div>
+                    <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_3y != null">
+                        <div class="profile-ind-label">营收3年CAGR</div>
+                        <div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_3y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_3y) }}</div>
+                    </div>
+                    <div class="profile-ind-item" v-if="profile.fin_data.net_profit_cagr_3y != null">
+                        <div class="profile-ind-label">净利润3年CAGR</div>
+                        <div class="profile-ind-val" :class="valClass(profile.fin_data.net_profit_cagr_3y)">{{ fmtGrowth(profile.fin_data.net_profit_cagr_3y) }}</div>
+                    </div>
+                    <div class="profile-ind-item" v-if="profile.fin_data.operating_revenue != null">
+                        <div class="profile-ind-label">营业收入</div>
+                        <div class="profile-ind-val accent">{{ fmtMoney(profile.fin_data.operating_revenue) }}</div>
+                    </div>
+                    <div class="profile-ind-item" v-if="profile.fin_data.net_profit != null">
+                        <div class="profile-ind-label">净利润</div>
+                        <div class="profile-ind-val accent">{{ fmtMoney(profile.fin_data.net_profit) }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Indicator Tags -->
+            <div class="card" v-if="profile.ind_tags && profile.ind_tags.length">
+                <div class="card-title">指标标签</div>
+                <div class="profile-tag-grid">
+                    <div v-for="t in profile.ind_tags" :key="t.id"
+                         class="profile-tag profile-tag-ind"
+                         :title="t.id">
+                        {{ t.name }}
+                    </div>
+                </div>
+            </div>
+        </template>
     </div>
 </template>
 
