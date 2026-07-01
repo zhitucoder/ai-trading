@@ -1,11 +1,9 @@
 """全市场画像批量计算模块"""
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from src.app.database import query, execute
 from src.app.strategies.profile import generate_profile, IND_TAGS_DEF, BIZ_TAGS_DEF
 
-WORKERS = 16
 BATCH_SIZE = 500
 
 TAG_COLUMNS = sorted(
@@ -60,10 +58,14 @@ def _batch_insert(rows, conn):
          'data_date', 'fin_report_date', 'profile_json']
         + TAG_COLUMNS
     )
-    placeholders = ', '.join(f'%({c})s' for c in cols)
-    sql = f"INSERT IGNORE INTO stock_profiles ({', '.join(cols)}) VALUES ({placeholders})"
+    placeholders = ', '.join(['%s'] * len(cols))
+    col_names = ', '.join(cols)
+    values = []
+    for row in rows:
+        values.append(tuple(row[c] for c in cols))
+    sql = f"INSERT IGNORE INTO stock_profiles ({col_names}) VALUES ({placeholders})"
     with conn.cursor() as cur:
-        cur.executemany(sql, rows)
+        cur.executemany(sql, values)
     conn.commit()
 
 
@@ -104,33 +106,32 @@ def run_batch(report_date=None):
         execute("INSERT INTO profile_refresh_log (started_at, status, total_stocks, trade_date, fin_report_date) "
                 "VALUES (NOW(), 'running', %s, %s, %s)",
                 [total, trade_date, str(fin_report_date) if fin_report_date else None])
-        log_id = query("SELECT LAST_INSERT_ID() AS id")[0]['id']
 
         computed = 0
         errors = 0
         batch_rows = []
 
-        with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-            futures = {pool.submit(generate_profile, s['stock_code']): s['stock_code'] for s in stocks}
-            for future in as_completed(futures):
-                result = future.result()
-                computed += 1
-                if 'error' not in result:
-                    batch_rows.append(_to_profile_row(result, trade_date, fin_report_date))
-                else:
-                    errors += 1
+        for s in stocks:
+            result = generate_profile(s['stock_code'])
+            computed += 1
+            if 'error' not in result:
+                batch_rows.append(_to_profile_row(result, trade_date, fin_report_date))
+            else:
+                errors += 1
 
-                if len(batch_rows) >= BATCH_SIZE:
-                    _batch_insert(batch_rows, conn)
-                    batch_rows.clear()
-                    _update_progress_log(log_id, computed, total, errors, conn=conn)
+            if len(batch_rows) >= BATCH_SIZE:
+                _batch_insert(batch_rows, conn)
+                batch_rows.clear()
 
         if batch_rows:
             _batch_insert(batch_rows, conn)
 
-        execute("DELETE FROM stock_profiles WHERE trade_date < DATE_SUB(%s, INTERVAL 2 DAY)", [trade_date])
+        execute("DELETE FROM stock_profiles WHERE data_date < DATE_SUB(%s, INTERVAL 2 DAY)", [trade_date])
 
-        _update_progress_log(log_id, computed, total, errors, status='done')
+        log_entry = query("SELECT MAX(id) AS max_id FROM profile_refresh_log")
+        if log_entry and log_entry[0]['max_id']:
+            execute("UPDATE profile_refresh_log SET status='done', finished_at=NOW() WHERE id = %s",
+                    [log_entry[0]['max_id']])
 
         return {'total': total, 'computed': computed, 'errors': errors}
     finally:
