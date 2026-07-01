@@ -35,6 +35,7 @@ const app = createApp({
         const currentPage = ref('screening');
         const pages = [
             { id: 'screening', label: '选股策略', icon: '⊞' },
+            { id: 'vcp', label: 'VCP波动收缩', icon: '◐' },
             { id: 'position_bt', label: '建仓回测', icon: '⟳' },
             { id: 'ma_bt', label: '均线回测', icon: '∿' },
             { id: 'profile', label: '股票画像', icon: '◈' },
@@ -706,6 +707,170 @@ app.component('debate-page', {
             stockCode, loading, error, result,
             startDebate,
             renderMarkdown, fmt, fmtGrowth, fmtMoney, valClass,
+        };
+    },
+});
+
+app.component('vcp-page', {
+    template: '#vcp-tpl',
+    setup() {
+        const loading = ref(false);
+        const result = ref(null);
+        const scanTime = ref(0);
+        const scannedCount = ref(0);
+        const minContractions = ref(2);
+        const maxContractions = ref(6);
+        const minPct = ref(3);
+        const lookbackDays = ref(150);
+
+        async function scan() {
+            loading.value = true;
+            result.value = null;
+            scanTime.value = 0;
+            const start = Date.now();
+            try {
+                const params = new URLSearchParams({
+                    min_contractions: minContractions.value,
+                    max_contractions: maxContractions.value,
+                    min_pct: minPct.value,
+                    lookback_days: lookbackDays.value,
+                    max_stocks: 50,
+                });
+                const r = await fetch(`${API_BASE}/vcp/scan?${params}`);
+                const data = await r.json();
+                result.value = data;
+                scannedCount.value = data.total || 0;
+            } catch (e) {
+                console.error(e);
+            } finally {
+                loading.value = false;
+                scanTime.value = ((Date.now() - start) / 1000).toFixed(1);
+            }
+        }
+
+        return {
+            loading, result, scanTime, scannedCount,
+            minContractions, maxContractions, minPct, lookbackDays,
+            scan, fmt,
+        };
+    },
+});
+
+app.component('expert-page', {
+    template: '#expert-tpl',
+    setup() {
+        const experts = ref([]);
+        const availableExperts = ref([]);
+        const selectedExpert = ref('');
+        const expertName = ref('');
+        const expertDesc = ref('');
+        const stockCode = ref('');
+        const question = ref('');
+        const loading = ref(false);
+        const error = ref('');
+        const messages = ref([]);
+        const stockData = ref(null);
+        const finData = ref(null);
+        const chatBottom = ref(null);
+
+        async function loadExperts() {
+            try {
+                const r = await fetch(`${API_BASE}/expert/list`);
+                const data = await r.json();
+                experts.value = data.experts || [];
+                availableExperts.value = data.experts || [];
+            } catch (e) {
+                error.value = '加载专家列表失败: ' + e.message;
+            }
+        }
+
+        function switchExpert() {
+            messages.value = [];
+            stockData.value = null;
+            finData.value = null;
+            error.value = '';
+            const e = experts.value.find(x => x.id === selectedExpert.value);
+            expertName.value = e ? e.name : '';
+            expertDesc.value = e ? e.description : '';
+        }
+
+        async function send() {
+            if (!selectedExpert.value || !stockCode.value || !question.value) return;
+            if (loading.value) return;
+
+            error.value = '';
+            const q = question.value;
+            question.value = '';
+
+            messages.value.push({ role: 'user', content: q });
+
+            const typingMsg = { role: 'expert', content: '', typing: true };
+            messages.value.push(typingMsg);
+            scrollBottom();
+            loading.value = true;
+
+            const history = [];
+            for (let i = 0; i < messages.value.length - 2; i += 2) {
+                const u = messages.value[i];
+                const a = messages.value[i + 1];
+                if (u.role === 'user' && a.role === 'expert') {
+                    history.push({ question: u.content, answer: a.content });
+                }
+            }
+
+            try {
+                const r = await fetch(`${API_BASE}/expert/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        expert_id: selectedExpert.value,
+                        stock_code: stockCode.value,
+                        question: q,
+                        history: history,
+                    }),
+                });
+                const data = await r.json();
+
+                if (data.error) {
+                    messages.value.pop();
+                    messages.value.push({ role: 'expert', content: '⚠️ ' + data.error });
+                } else {
+                    typingMsg.typing = false;
+                    typingMsg.content = data.answer;
+                    stockData.value = data.stock;
+                    finData.value = data.financials;
+                }
+            } catch (e) {
+                messages.value.pop();
+                messages.value.push({ role: 'expert', content: '⚠️ 请求失败: ' + e.message });
+            } finally {
+                loading.value = false;
+                scrollBottom();
+            }
+        }
+
+        function scrollBottom() {
+            setTimeout(() => {
+                if (chatBottom.value) {
+                    chatBottom.value.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 50);
+        }
+
+        function finClass(val) {
+            if (val == null) return '';
+            if (val > 0) return 'up';
+            if (val < 0) return 'down';
+            return '';
+        }
+
+        onMounted(loadExperts);
+
+        return {
+            experts, availableExperts, selectedExpert, expertName, expertDesc,
+            stockCode, question, loading, error, messages, stockData, finData, chatBottom,
+            switchExpert, send, scrollBottom, finClass,
+            renderMarkdown, fmt, fmtGrowth, valClass,
         };
     },
 });

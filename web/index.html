@@ -24,10 +24,12 @@
     <!-- Main -->
     <div class="main">
         <screening-page v-if="currentPage === 'screening'"></screening-page>
+        <vcp-page v-else-if="currentPage === 'vcp'"></vcp-page>
         <position-bt-page v-else-if="currentPage === 'position_bt'"></position-bt-page>
         <ma-bt-page v-else-if="currentPage === 'ma_bt'"></ma-bt-page>
         <profile-page v-else-if="currentPage === 'profile'"></profile-page>
         <debate-page v-else-if="currentPage === 'debate'"></debate-page>
+        <expert-page v-else-if="currentPage === 'expert'"></expert-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
@@ -52,6 +54,22 @@
                     @click="tabType = 'fundamental'; selectedStrategy = null; result = null">基本面指标</button>
             <button class="strategy-tab" :class="{ active: tabType === 'combined' }"
                     @click="tabType = 'combined'; selectedStrategy = null; result = null">组合筛选</button>
+            <button class="strategy-tab tab-minervini" :class="{ active: tabType === 'minervini' }"
+                    @click="tabType = 'minervini'; selectedStrategy = null; result = null"
+                    style="color:var(--amber);">⚡ Minervini</button>
+        </div>
+
+        <div v-if="tabType === 'minervini'" class="card" style="border-color:var(--amber);font-size:13px;line-height:1.7;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="font-size:20px;">⚡</span>
+                <strong style="color:var(--amber);">Mark Minervini · SEPA 选股法</strong>
+            </div>
+            <p style="color:var(--text-muted);">
+                <strong style="color:var(--text);">SEPA（Specific Entry Point Analysis）</strong> = 基本面 + 技术面双优筛选。
+                Minervini 的「趋势模板」要求：EPS/营收增长 > 25%、ROE > 17%、
+                价格在 MA50/MA150 上方、距 52 周高点的 75% 以内、近期波幅收敛、成交量放大确认。<br>
+                <span style="color:var(--text-dim);font-size:12px;">参考: 《超级绩效》《股票魔法师》</span>
+            </p>
         </div>
 
         <!-- Strategy Cards -->
@@ -92,6 +110,35 @@
                     <input v-model.number="revenueThreshold" type="number" step="1">
                 </div>
             </div>
+            <div v-if="tabType === 'minervini' && s.id === 'sepa_master'" class="config-grid">
+                <div class="config-item">
+                    <label>Minervini: 净利润增长率 ≥ (%)</label>
+                    <input v-model.number="profitThreshold" type="number" step="1">
+                    <span class="hint">Minervini基准: 25%+</span>
+                </div>
+                <div class="config-item">
+                    <label>Minervini: 营收增长率 ≥ (%)</label>
+                    <input v-model.number="revenueThreshold" type="number" step="1">
+                    <span class="hint">Minervini基准: 25%+</span>
+                </div>
+                <div class="config-item">
+                    <label>Minervini: ROE ≥ (%)</label>
+                    <input v-model.number="debtThreshold" type="number" step="1">
+                    <span class="hint">Minervini基准: 17%+</span>
+                </div>
+            </div>
+            <div v-if="tabType === 'minervini' && s.id === 'minervini_trend_template'" class="config-grid">
+                <div class="config-item">
+                    <label>距52周高点 ≥ (%)</label>
+                    <input v-model.number="revenueThreshold" type="number" step="1">
+                    <span class="hint">Minervini基准: 75%+</span>
+                </div>
+                <div class="config-item">
+                    <label>价格紧凑观察期 (天)</label>
+                    <input v-model.number="profitThreshold" type="number" step="1">
+                    <span class="hint">Minervini基准: 15-30天</span>
+                </div>
+            </div>
             <div style="margin-top:12px;">
                 <button class="btn btn-primary" @click="selectStrategy(s.id)" :disabled="isSelected(s.id)">
                     {{ isSelected(s.id) ? '✓ 已选择' : '选择此策略' }}
@@ -125,11 +172,19 @@
                                     <th v-for="col in result.columns" :key="col">
                                         <template v-if="col === 'close_price'">最新价</template>
                                         <template v-else-if="col === 'report_date'">报告期</template>
+                                        <template v-else-if="col === 'latest_date'">最新日</template>
                                         <template v-else-if="col === 'revenue_growth_rate'">营收增长率</template>
                                         <template v-else-if="col === 'net_profit_growth_rate'">净利润增长率</template>
                                         <template v-else-if="col === 'debt_ratio'">资产负债率</template>
+                                        <template v-else-if="col === 'roe'">ROE</template>
                                         <template v-else-if="col === 'q_revenue'">单季营业收入</template>
                                         <template v-else-if="col === 'q_parent_net_profit'">单季归母净利润</template>
+                                        <template v-else-if="col === 'latest_price'">最新价</template>
+                                        <template v-else-if="col === 'pct_52w_high'">距52周高</template>
+                                        <template v-else-if="col === 'ma50'">MA50</template>
+                                        <template v-else-if="col === 'ma150'">MA150</template>
+                                        <template v-else-if="col === 'tightness'">波幅</template>
+                                        <template v-else-if="col === 'volume_ratio'">量比</template>
                                         <template v-else>{{ col }}</template>
                                     </th>
                                 </tr>
@@ -140,16 +195,31 @@
                                     <td><strong>{{ row.stock_code }}</strong></td>
                                     <td>{{ row.stock_name }}</td>
                                     <td v-for="col in result.columns" :key="col" :class="valClass(row[col])">
-                                        <template v-if="col === 'close_price' || col.startsWith('ma')">
+                                        <template v-if="col === 'close_price' || col === 'ma50' || col === 'ma150' || col === 'latest_price'">
+                                            {{ fmt(row[col]) }}
+                                        </template>
+                                        <template v-else-if="col.startsWith('ma') && col !== 'ma50' && col !== 'ma150'">
                                             {{ fmt(row[col]) }}
                                         </template>
                                         <template v-else-if="col.includes('growth') || col.includes('ratio')">
                                             {{ fmtGrowth(row[col]) }}
                                         </template>
+                                        <template v-else-if="col === 'roe'">
+                                            {{ fmtGrowth(row[col]) }}
+                                        </template>
+                                        <template v-else-if="col === 'pct_52w_high'">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(1) + '%' : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'tightness'">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(2) + '%' : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'volume_ratio'">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(2) + 'x' : '-' }}
+                                        </template>
                                         <template v-else-if="col === 'q_revenue' || col === 'q_parent_net_profit'">
                                             {{ fmtMoney(row[col]) }}
                                         </template>
-                                        <template v-else-if="col === 'report_date'">
+                                        <template v-else-if="col === 'report_date' || col === 'latest_date'">
                                             {{ row[col] ? String(row[col]).substring(0, 10) : '' }}
                                         </template>
                                         <template v-else>
@@ -552,6 +622,238 @@
                 <div class="placeholder" style="height:100px;">
                     <p style="font-size:13px;color:var(--text-muted);">设置筛选条件后点击"执行筛选"</p>
                 </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="vcp-tpl">
+    <div class="topbar">
+        <h2>VCP 波动收缩扫描</h2>
+        <span class="badge">Minervini</span>
+    </div>
+    <div class="content">
+        <div class="card" style="border-color:var(--amber);font-size:13px;line-height:1.7;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                <span style="font-size:18px;">◐</span>
+                <strong style="color:var(--amber);">Volatility Contraction Pattern · 波动收缩形态</strong>
+            </div>
+            <p style="color:var(--text-muted);margin:0;">
+                VCP 是 <strong style="color:var(--text);">Mark Minervini</strong> 选股方法的核心形态：
+                股票经历 2-6 次价格收缩（T1→T2→T3…），每次收缩幅度递减、成交量逐步萎缩，
+                最后在极度紧凑的价格区间内<strong style="color:var(--green);">放量突破</strong>。
+            </p>
+        </div>
+
+        <div class="card">
+            <div class="config-grid">
+                <div class="config-item">
+                    <label>最少收缩次数</label>
+                    <input v-model.number="minContractions" type="number" min="1" max="6" step="1">
+                </div>
+                <div class="config-item">
+                    <label>最多收缩次数</label>
+                    <input v-model.number="maxContractions" type="number" min="2" max="10" step="1">
+                </div>
+                <div class="config-item">
+                    <label>单次最小收缩幅度 (%)</label>
+                    <input v-model.number="minPct" type="number" min="1" max="20" step="0.5">
+                </div>
+                <div class="config-item">
+                    <label>回溯天数</label>
+                    <input v-model.number="lookbackDays" type="number" min="60" max="365" step="10">
+                </div>
+                <div class="config-item" style="justify-content:flex-end;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary" @click="scan" :disabled="loading">
+                        <span v-if="loading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ loading ? '扫描中...' : '◐ 扫描 VCP' }}
+                    </button>
+                </div>
+            </div>
+            <div v-if="scanTime" style="font-size:12px;color:var(--text-dim);margin-top:8px;">
+                扫描用时 {{ scanTime }} 秒 · 全市场扫描 {{ scannedCount }} 只
+            </div>
+        </div>
+
+        <div v-if="result && result.total > 0" class="card">
+            <div class="result-bar">
+                <span class="count">检测到 <strong>{{ result.total }}</strong> 只 VCP 形态股
+                    <span v-if="result.total <= 10" style="color:var(--amber);margin-left:8px;">| 收缩数越多 · 信号越强</span>
+                </span>
+                <div class="vcp-legend">
+                    <span class="vcp-legend-dot" style="background:var(--green);"></span> 突破信号
+                    <span class="vcp-legend-dot" style="background:var(--amber);margin-left:12px;"></span> 近轴心
+                    <span class="vcp-legend-dot" style="background:var(--text-dim);margin-left:12px;"></span> 收缩中
+                </div>
+            </div>
+        </div>
+
+        <div v-if="result && result.rows.length" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;">
+            <div v-for="(stock, si) in result.rows" :key="stock.stock_code"
+                 class="card vcp-stock-card"
+                 :class="{'vcp-breakout': stock.breakout_signal, 'vcp-near-pivot': stock.near_pivot}">
+                <div class="vcp-card-header">
+                    <div>
+                        <strong class="vcp-code">{{ stock.stock_code }}</strong>
+                        <span class="vcp-name">{{ stock.stock_name }}</span>
+                    </div>
+                    <div class="vcp-price-section">
+                        <span class="vcp-price">{{ fmt(stock.latest_price) }}</span>
+                        <span v-if="stock.breakout_signal" class="vcp-badge vcp-badge-breakout">🚀 突破</span>
+                        <span v-else-if="stock.near_pivot" class="vcp-badge vcp-badge-ready">⚡ 临近</span>
+                        <span v-else class="vcp-badge vcp-badge-building">◐ 构建中</span>
+                    </div>
+                </div>
+
+                <div class="vcp-timeline">
+                    <div v-for="(c, ci) in stock.contractions" :key="ci" class="vcp-tick"
+                         :class="{'vcp-tick-last': ci === stock.contractions.length - 1}">
+                        <div class="vcp-tick-label">{{ c.label }}</div>
+                        <div class="vcp-tick-bar-wrap">
+                            <div class="vcp-tick-bar" :style="{height: c.decline_pct * 3 + 'px', opacity: 1 - ci * 0.15}"></div>
+                        </div>
+                        <div class="vcp-tick-decline">{{ c.decline_pct }}%</div>
+                        <div v-if="c.is_complete === false" class="vcp-tick-pending">进行中</div>
+                    </div>
+                </div>
+
+                <div class="vcp-metrics">
+                    <div class="vcp-metric">
+                        <span class="vcp-metric-label">收缩次数</span>
+                        <span class="vcp-metric-val">{{ stock.contraction_count }}T</span>
+                    </div>
+                    <div class="vcp-metric">
+                        <span class="vcp-metric-label">轴心价</span>
+                        <span class="vcp-metric-val">{{ fmt(stock.pivot_price) }}</span>
+                    </div>
+                    <div class="vcp-metric">
+                        <span class="vcp-metric-label">距轴心</span>
+                        <span class="vcp-metric-val" :class="stock.distance_from_pivot_pct > 0 ? 'up' : 'down'">{{ stock.distance_from_pivot_pct > 0 ? '+' : '' }}{{ stock.distance_from_pivot_pct }}%</span>
+                    </div>
+                    <div class="vcp-metric">
+                        <span class="vcp-metric-label">20日波幅</span>
+                        <span class="vcp-metric-val">{{ stock.current_tightness }}%</span>
+                    </div>
+                    <div class="vcp-metric">
+                        <span class="vcp-metric-label">量比(10/50)</span>
+                        <span class="vcp-metric-val" :class="stock.volume_dry_up ? 'down' : 'accent'">{{ stock.volume_ratio }}x</span>
+                    </div>
+                    <div class="vcp-metric">
+                        <span class="vcp-metric-label">MA50/MA150</span>
+                        <span class="vcp-metric-val" style="font-size:11px;">{{ stock.ma50_ma150 || '-' }}</span>
+                    </div>
+                </div>
+
+                <div class="vcp-volume-row">
+                    <span class="vcp-volume-label">量能:</span>
+                    <span v-if="stock.volume_dry_up" class="vcp-volume-dry">缩量 ✓</span>
+                    <span v-if="stock.volume_surge" class="vcp-volume-surge">放量 💥</span>
+                    <span v-else-if="!stock.volume_dry_up && !stock.volume_surge" class="vcp-volume-normal">正常</span>
+                    <span class="vcp-volume-date" style="margin-left:auto;font-size:11px;">{{ stock.latest_date }}</span>
+                </div>
+            </div>
+
+            <div v-if="!result.rows.length && !loading" class="card">
+                <div class="placeholder" style="height:100px;">
+                    <p>未检测到 VCP 形态，请调整参数</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="expert-tpl">
+    <div class="topbar">
+        <h2>蒸馏专家</h2>
+        <span class="badge" v-if="expertName">{{ expertName }}</span>
+    </div>
+    <div class="content expert-layout">
+        <div class="expert-sidebar">
+            <div class="card" style="margin-bottom:12px;">
+                <div class="card-title" style="font-size:13px;">选择专家</div>
+                <div class="expert-select-wrap">
+                    <select v-model="selectedExpert" @change="switchExpert" class="expert-select">
+                        <option value="" disabled>请选择思维框架...</option>
+                        <option v-for="e in experts" :key="e.id" :value="e.id">
+                            {{ e.name }}
+                        </option>
+                    </select>
+                </div>
+                <div v-if="expertDesc" class="expert-desc">
+                    <div class="expert-desc-text">{{ expertDesc }}</div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom:12px;">
+                <div class="card-title" style="font-size:13px;">当前股票数据</div>
+                <div v-if="stockData">
+                    <div class="expert-data-row"><span>代码</span><span>{{ stockData.stock_code }}</span></div>
+                    <div class="expert-data-row"><span>名称</span><span>{{ stockData.stock_name }}</span></div>
+                    <div class="expert-data-row"><span>最新价</span><span class="accent">{{ fmt(stockData.price) }}</span></div>
+                    <div class="expert-data-row"><span>MA50</span><span>{{ stockData.ma50 != null ? fmt(stockData.ma50) : '-' }}</span></div>
+                    <div class="expert-data-row"><span>距52周高</span><span>{{ stockData.pct_52w != null ? stockData.pct_52w + '%' : '-' }}</span></div>
+                    <div v-if="finData" style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">
+                        <div class="expert-data-row"><span>营收增长</span><span :class="finClass(finData.revenue_growth)">{{ finData.revenue_growth != null ? fmtGrowth(finData.revenue_growth) : '-' }}</span></div>
+                        <div class="expert-data-row"><span>利润增长</span><span :class="finClass(finData.profit_growth)">{{ finData.profit_growth != null ? fmtGrowth(finData.profit_growth) : '-' }}</span></div>
+                        <div class="expert-data-row"><span>ROE</span><span class="accent">{{ finData.roe != null ? finData.roe + '%' : '-' }}</span></div>
+                        <div class="expert-data-row"><span>负债率</span><span>{{ finData.debt_ratio != null ? finData.debt_ratio + '%' : '-' }}</span></div>
+                    </div>
+                </div>
+                <div v-else class="expert-data-empty">输入股票代码后显示</div>
+            </div>
+
+            <div v-if="availableExperts.length > 1" class="card" style="padding:12px;">
+                <div style="font-size:12px;color:var(--text-dim);">已安装 {{ availableExperts.length }} 个专家技能</div>
+            </div>
+        </div>
+
+        <div class="expert-main">
+            <div class="card" style="margin-bottom:12px;">
+                <div class="form-row" style="gap:8px;">
+                    <div class="config-item" style="min-width:100px;flex:0 0 100px;">
+                        <label>股票代码</label>
+                        <input v-model="stockCode" placeholder="600519" @keyup.enter="send" style="width:100%;">
+                    </div>
+                    <div class="config-item" style="flex:1;">
+                        <label>你想问什么？</label>
+                        <div style="display:flex;gap:8px;">
+                            <input v-model="question" placeholder="例如：这只股票值得买入吗？" @keyup.enter="send" style="flex:1;">
+                            <button class="btn btn-primary" @click="send" :disabled="loading || !selectedExpert" style="white-space:nowrap;">
+                                <span v-if="loading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:4px;"></span>
+                                {{ loading ? '思考中...' : '发送' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="error" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;margin-bottom:12px;">
+                {{ error }}
+            </div>
+
+            <div class="card expert-chat-card">
+                <div v-if="!messages.length" class="expert-welcome">
+                    <div style="font-size:36px;margin-bottom:12px;">⚗</div>
+                    <div style="font-size:15px;font-weight:600;color:var(--text);">蒸馏专家</div>
+                    <div style="font-size:13px;color:var(--text-muted);margin-top:6px;">
+                        选择一个思维框架，输入股票代码和问题，开始对话
+                    </div>
+                </div>
+
+                <div v-for="(msg, i) in messages" :key="i" class="expert-msg" :class="'msg-' + msg.role">
+                    <div class="expert-msg-avatar">
+                        <span v-if="msg.role === 'expert'">🧠</span>
+                        <span v-else>👤</span>
+                    </div>
+                    <div class="expert-msg-bubble" :class="'bubble-' + msg.role">
+                        <div class="expert-msg-name">{{ msg.role === 'expert' ? expertName || '专家' : '我' }}</div>
+                        <div class="expert-msg-content" v-html="renderMarkdown(msg.content)"></div>
+                        <div v-if="msg.typing" class="typing-dots"><span></span><span></span><span></span></div>
+                    </div>
+                </div>
+
+                <div ref="chatBottom" style="height:1px;"></div>
             </div>
         </div>
     </div>

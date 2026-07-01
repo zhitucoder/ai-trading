@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from ..strategies.technical import TECHNICAL_STRATEGIES, screen_ma_bullish
 from ..strategies.fundamental import FUNDAMENTAL_STRATEGIES, screen_revenue_growth, screen_profit_growth, screen_debt_ratio, screen_fundamental_all, get_latest_report_date
+from ..strategies.minervini import MINERVINI_STRATEGIES, screen_minervini_eps, screen_minervini_roe, screen_minervini_trend_template, screen_sepa_master
 from ..database import query
 
 router = APIRouter()
@@ -28,6 +29,9 @@ def list_strategies():
                 'description': '筛选出均线多头排列且营业收入增长率超过20%的股票',
                 'params': {},
             },
+        ],
+        'minervini': [
+            {'id': k, **v} for k, v in MINERVINI_STRATEGIES.items()
         ],
     }
 
@@ -66,6 +70,30 @@ def execute_screening(
 
     if strategy_id == 'ma_bullish_and_revenue_growth':
         return screen_ma_bullish_and_revenue_growth(periods, revenue_threshold)
+
+    if strategy_id == 'sepa_master':
+        rows = screen_sepa_master(
+            eps_threshold=profit_threshold,
+            rev_threshold=revenue_threshold,
+            roe_threshold=debt_threshold,
+        )
+        cols = ['revenue_growth_rate', 'net_profit_growth_rate', 'roe', 'debt_ratio',
+                'latest_price', 'pct_52w_high', 'ma50', 'ma150',
+                'tightness', 'volume_ratio', 'report_date', 'latest_date']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
+
+    if strategy_id == 'minervini_eps':
+        rows = screen_minervini_eps(revenue_threshold)
+        return {'columns': ['net_profit_growth_rate', 'report_date'], 'rows': rows, 'total': len(rows)}
+
+    if strategy_id == 'minervini_roe':
+        rows = screen_minervini_roe(debt_threshold)
+        return {'columns': ['roe', 'report_date'], 'rows': rows, 'total': len(rows)}
+
+    if strategy_id == 'minervini_trend_template':
+        rows = screen_minervini_trend_template(revenue_threshold, int(profit_threshold))
+        cols = ['latest_price', 'ma50', 'ma150', 'pct_52w_high', 'tightness', 'volume_ratio', 'latest_date']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     return {'error': f'Unknown strategy: {strategy_id}'}
 
