@@ -85,18 +85,19 @@ def calc_growth(cur, prev):
 
 def get_latest_financials(code):
     row = query("""
-        SELECT r.debt_ratio, r.revenue_cagr_3y, r.net_profit_cagr_3y,
-               r.report_date,
-               i.operating_revenue, i.net_profit,
-               i2.operating_revenue AS prev_revenue,
-               i2.net_profit AS prev_profit
-        FROM fin_ratios r
-        JOIN fin_income i ON i.stock_code = r.stock_code AND i.report_date = r.report_date
-        LEFT JOIN fin_income i2
-            ON i2.stock_code = r.stock_code
-            AND i2.report_date = DATE_SUB(r.report_date, INTERVAL 1 YEAR)
-        WHERE r.stock_code = %s
-        ORDER BY r.report_date DESC
+        SELECT fq.report_date,
+               fq.q_revenue, fq.q_parent_net_profit,
+               fq2.q_revenue AS prev_revenue,
+               fq2.q_parent_net_profit AS prev_profit,
+               b.total_assets, b.total_liabilities
+        FROM fin_quarterly fq
+        LEFT JOIN fin_quarterly fq2
+            ON fq2.stock_code = fq.stock_code
+            AND fq2.report_date = DATE_SUB(fq.report_date, INTERVAL 1 YEAR)
+        LEFT JOIN fin_balance_sheet b
+            ON b.stock_code = fq.stock_code AND b.report_date = fq.report_date
+        WHERE fq.stock_code = %s
+        ORDER BY fq.report_date DESC
         LIMIT 1
     """, [code])
     if not row:
@@ -106,17 +107,16 @@ def get_latest_financials(code):
 
 def get_prev_financials(code):
     rows = query("""
-        SELECT r.report_date,
-               i.operating_revenue, i.net_profit,
-               i2.operating_revenue AS prev_revenue,
-               i2.net_profit AS prev_profit
-        FROM fin_ratios r
-        JOIN fin_income i ON i.stock_code = r.stock_code AND i.report_date = r.report_date
-        LEFT JOIN fin_income i2
-            ON i2.stock_code = r.stock_code
-            AND i2.report_date = DATE_SUB(r.report_date, INTERVAL 1 YEAR)
-        WHERE r.stock_code = %s
-        ORDER BY r.report_date DESC
+        SELECT fq.report_date,
+               fq.q_revenue, fq.q_parent_net_profit,
+               fq2.q_revenue AS prev_revenue,
+               fq2.q_parent_net_profit AS prev_profit
+        FROM fin_quarterly fq
+        LEFT JOIN fin_quarterly fq2
+            ON fq2.stock_code = fq.stock_code
+            AND fq2.report_date = DATE_SUB(fq.report_date, INTERVAL 1 YEAR)
+        WHERE fq.stock_code = %s
+        ORDER BY fq.report_date DESC
         LIMIT 2
     """, [code])
     if len(rows) < 2:
@@ -126,17 +126,16 @@ def get_prev_financials(code):
 
 def get_growth_quarters(code, limit=5):
     rows = query("""
-        SELECT r.report_date,
-               i.operating_revenue, i.net_profit,
-               i2.operating_revenue AS prev_revenue,
-               i2.net_profit AS prev_profit
-        FROM fin_ratios r
-        JOIN fin_income i ON i.stock_code = r.stock_code AND i.report_date = r.report_date
-        LEFT JOIN fin_income i2
-            ON i2.stock_code = r.stock_code
-            AND i2.report_date = DATE_SUB(r.report_date, INTERVAL 1 YEAR)
-        WHERE r.stock_code = %s
-        ORDER BY r.report_date DESC
+        SELECT fq.report_date,
+               fq.q_revenue, fq.q_parent_net_profit,
+               fq2.q_revenue AS prev_revenue,
+               fq2.q_parent_net_profit AS prev_profit
+        FROM fin_quarterly fq
+        LEFT JOIN fin_quarterly fq2
+            ON fq2.stock_code = fq.stock_code
+            AND fq2.report_date = DATE_SUB(fq.report_date, INTERVAL 1 YEAR)
+        WHERE fq.stock_code = %s
+        ORDER BY fq.report_date DESC
         LIMIT %s
     """, [code, limit])
     return rows
@@ -252,9 +251,14 @@ def compute_business_tags(ind_map, fin, prev_fin, growth_quarters, klines):
     debt = None
 
     if fin:
-        rev_growth = calc_growth(fin.get('operating_revenue'), fin.get('prev_revenue'))
-        profit_growth = calc_growth(fin.get('net_profit'), fin.get('prev_profit'))
-        debt = float(fin['debt_ratio']) if fin.get('debt_ratio') is not None else None
+        rev_growth = calc_growth(fin.get('q_revenue'), fin.get('prev_revenue'))
+        profit_growth = calc_growth(fin.get('q_parent_net_profit'), fin.get('prev_profit'))
+        ta = fin.get('total_assets')
+        tl = fin.get('total_liabilities')
+        if ta is not None and tl is not None and float(ta) > 0:
+            debt = round(float(tl) / float(ta) * 100, 2)
+        else:
+            debt = None
 
     if rev_growth is not None and profit_growth is not None:
         biz_flags['boom_growth'] = rev_growth > 50 and profit_growth > 50
@@ -266,8 +270,8 @@ def compute_business_tags(ind_map, fin, prev_fin, growth_quarters, klines):
         biz_flags['profit_collapse'] = profit_growth < -50
 
         if prev_fin:
-            prev_profit = calc_growth(prev_fin.get('operating_revenue'), prev_fin.get('prev_revenue'))
-            prev_rev = calc_growth(prev_fin.get('net_profit'), prev_fin.get('prev_profit'))
+            prev_profit = calc_growth(prev_fin.get('q_revenue'), prev_fin.get('prev_revenue'))
+            prev_rev = calc_growth(prev_fin.get('q_parent_net_profit'), prev_fin.get('prev_profit'))
             if prev_profit is not None and prev_profit > 0 and profit_growth < 0:
                 biz_flags['profit_to_loss'] = True
             if prev_rev is not None and prev_rev > 30 and rev_growth < 10:
@@ -306,9 +310,9 @@ def compute_business_tags(ind_map, fin, prev_fin, growth_quarters, klines):
         biz_flags['break_support'] = False
 
     if growth_quarters and len(growth_quarters) >= 3:
-        q_profits = [calc_growth(q.get('net_profit'), q.get('prev_profit')) for q in growth_quarters]
+        q_profits = [calc_growth(q.get('q_parent_net_profit'), q.get('prev_profit')) for q in growth_quarters]
         q_profits = [p for p in q_profits if p is not None]
-        q_revs = [calc_growth(q.get('operating_revenue'), q.get('prev_revenue')) for q in growth_quarters]
+        q_revs = [calc_growth(q.get('q_revenue'), q.get('prev_revenue')) for q in growth_quarters]
         q_revs = [r for r in q_revs if r is not None]
         biz_flags['consecutive_profit_3q'] = len(q_profits) >= 3 and all(p > 0 for p in q_profits[:3])
         biz_flags['consecutive_profit_5q'] = len(q_profits) >= 5 and all(p > 0 for p in q_profits[:5])
@@ -518,16 +522,17 @@ def generate_profile(stock_code):
 
     fin_data = {}
     if fin:
-        rev_growth = calc_growth(fin.get('operating_revenue'), fin.get('prev_revenue'))
-        profit_growth = calc_growth(fin.get('net_profit'), fin.get('prev_profit'))
+        rev_growth = calc_growth(fin.get('q_revenue'), fin.get('prev_revenue'))
+        profit_growth = calc_growth(fin.get('q_parent_net_profit'), fin.get('prev_profit'))
+        ta = fin.get('total_assets')
+        tl = fin.get('total_liabilities')
+        debt_ratio = round(float(tl) / float(ta) * 100, 2) if ta is not None and tl is not None and float(ta) > 0 else None
         fin_data = {
             'revenue_growth_rate': rev_growth,
             'net_profit_growth_rate': profit_growth,
-            'debt_ratio': float(fin['debt_ratio']) if fin.get('debt_ratio') is not None else None,
-            'revenue_cagr_3y': float(fin['revenue_cagr_3y']) if fin.get('revenue_cagr_3y') is not None else None,
-            'net_profit_cagr_3y': float(fin['net_profit_cagr_3y']) if fin.get('net_profit_cagr_3y') is not None else None,
-            'operating_revenue': float(fin['operating_revenue']) if fin.get('operating_revenue') is not None else None,
-            'net_profit': float(fin['net_profit']) if fin.get('net_profit') is not None else None,
+            'debt_ratio': debt_ratio,
+            'q_revenue': float(fin['q_revenue']) if fin.get('q_revenue') is not None else None,
+            'q_parent_net_profit': float(fin['q_parent_net_profit']) if fin.get('q_parent_net_profit') is not None else None,
             'report_date': str(fin['report_date']) if fin.get('report_date') else None,
         }
 

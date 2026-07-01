@@ -127,8 +127,8 @@
                                         <template v-else-if="col === 'revenue_growth_rate'">营收增长率</template>
                                         <template v-else-if="col === 'net_profit_growth_rate'">净利润增长率</template>
                                         <template v-else-if="col === 'debt_ratio'">资产负债率</template>
-                                        <template v-else-if="col === 'operating_revenue'">营业收入</template>
-                                        <template v-else-if="col === 'net_profit'">净利润</template>
+                                        <template v-else-if="col === 'q_revenue'">单季营业收入</template>
+                                        <template v-else-if="col === 'q_parent_net_profit'">单季归母净利润</template>
                                         <template v-else>{{ col }}</template>
                                     </th>
                                 </tr>
@@ -145,7 +145,7 @@
                                         <template v-else-if="col.includes('growth') || col.includes('ratio')">
                                             {{ fmtGrowth(row[col]) }}
                                         </template>
-                                        <template v-else-if="col === 'operating_revenue' || col === 'net_profit'">
+                                        <template v-else-if="col === 'q_revenue' || col === 'q_parent_net_profit'">
                                             {{ fmtMoney(row[col]) }}
                                         </template>
                                         <template v-else-if="col === 'report_date'">
@@ -345,6 +345,7 @@
             <span v-if="refreshing" class="spinner" style="display:inline-block;width:12px;height:12px;border-width:2px;vertical-align:middle;margin-right:4px;"></span>
             {{ refreshing ? refreshProgress : '⟳ 刷新缓存' }}
         </button>
+        <span v-if="refreshToast" style="margin-left:12px;color:#22c55e;font-size:13px;">{{ refreshToast }}</span>
     </div>
     <div class="profile-tabs">
         <button :class="{ active: activeTab === 'single' }" @click="activeTab = 'single'">单股画像</button>
@@ -434,8 +435,8 @@
                         <div class="profile-ind-item" v-if="profile.fin_data.debt_ratio != null"><div class="profile-ind-label">资产负债率</div><div class="profile-ind-val" :class="debtClass(profile.fin_data.debt_ratio)">{{ profile.fin_data.debt_ratio.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_3y != null"><div class="profile-ind-label">营收3年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_3y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_3y) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.net_profit_cagr_3y != null"><div class="profile-ind-label">净利润3年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.net_profit_cagr_3y)">{{ fmtGrowth(profile.fin_data.net_profit_cagr_3y) }}</div></div>
-                        <div class="profile-ind-item" v-if="profile.fin_data.operating_revenue != null"><div class="profile-ind-label">营业收入</div><div class="profile-ind-val accent">{{ fmtMoney(profile.fin_data.operating_revenue) }}</div></div>
-                        <div class="profile-ind-item" v-if="profile.fin_data.net_profit != null"><div class="profile-ind-label">净利润</div><div class="profile-ind-val accent">{{ fmtMoney(profile.fin_data.net_profit) }}</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.q_revenue != null"><div class="profile-ind-label">单季营业收入</div><div class="profile-ind-val accent">{{ fmtMoney(profile.fin_data.q_revenue) }}</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.q_parent_net_profit != null"><div class="profile-ind-label">单季归母净利润</div><div class="profile-ind-val accent">{{ fmtMoney(profile.fin_data.q_parent_net_profit) }}</div></div>
                     </div>
                 </div>
 

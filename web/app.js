@@ -515,6 +515,8 @@ app.component('profile-page', {
         const profileStatusData = ref(null);
         const refreshing = ref(false);
         const refreshProgress = ref('');
+        const refreshToast = ref('');
+        let refreshToastTimer = null;
 
         function toggleStage(id) {
             const i = selectedStages.value.indexOf(id);
@@ -575,41 +577,68 @@ app.component('profile-page', {
             } catch (e) { /* ignore */ }
         }
 
+        let refreshPoll = null;
+
+        function startRefreshPoll() {
+            if (refreshPoll) clearInterval(refreshPoll);
+            refreshing.value = true;
+            refreshPoll = setInterval(async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/profiles/refresh/progress`);
+                    const p = await r.json();
+                    if (p.status === 'running') {
+                        const pct = p.total > 0 ? Math.round(p.computed / p.total * 100) : 0;
+                        refreshProgress.value = pct + '%';
+                    } else {
+                        clearInterval(refreshPoll);
+                        refreshPoll = null;
+                        refreshing.value = false;
+                        refreshProgress.value = '';
+                        refreshToast.value = '✓ 刷新完成！共计算 ' + p.total + ' 只股票';
+                        if (refreshToastTimer) clearTimeout(refreshToastTimer);
+                        refreshToastTimer = setTimeout(() => { refreshToast.value = ''; }, 4000);
+                        await loadStatus();
+                        if (searchResult.value) doSearch();
+                    }
+                } catch (e) {
+                    clearInterval(refreshPoll);
+                    refreshPoll = null;
+                    refreshing.value = false;
+                    refreshProgress.value = '';
+                }
+            }, 2000);
+        }
+
         async function triggerRefresh() {
             if (refreshing.value) return;
             refreshing.value = true;
             refreshProgress.value = '启动中...';
             try {
-                await fetch(`${API_BASE}/profiles/refresh`, { method: 'POST' });
-                const poll = setInterval(async () => {
-                    try {
-                        const r = await fetch(`${API_BASE}/profiles/refresh/progress`);
-                        const p = await r.json();
-                        if (p.status === 'running') {
-                            const pct = p.total > 0 ? Math.round(p.computed / p.total * 100) : 0;
-                            refreshProgress.value = pct + '%';
-                        } else {
-                            clearInterval(poll);
-                            refreshing.value = false;
-                            refreshProgress.value = '';
-                            await loadStatus();
-                            if (searchResult.value) doSearch();
-                        }
-                    } catch (e) {
-                        clearInterval(poll);
-                        refreshing.value = false;
-                        refreshProgress.value = '';
-                    }
-                }, 2000);
+                const r = await fetch(`${API_BASE}/profiles/refresh`, { method: 'POST' });
+                if (!r.ok && r.status === 429) {
+                    refreshProgress.value = '后台正在刷新...';
+                }
+                startRefreshPoll();
             } catch (e) {
                 refreshing.value = false;
                 refreshProgress.value = '';
             }
         }
 
+        async function checkRunningRefresh() {
+            try {
+                const r = await fetch(`${API_BASE}/profiles/refresh/progress`);
+                const p = await r.json();
+                if (p.status === 'running') {
+                    startRefreshPoll();
+                }
+            } catch (e) { /* ignore */ }
+        }
+
         onMounted(() => {
             loadProfile();
             loadStatus();
+            checkRunningRefresh();
         });
 
         return {
@@ -618,7 +647,7 @@ app.component('profile-page', {
             stageOptions, selectedStages, filterTechScore, filterFundScore,
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
             searchLoading, searchResult, profileStatusData,
-            refreshing, refreshProgress,
+            refreshing, refreshProgress, refreshToast,
             toggleStage, onFilterChange, doSearch, resetFilters, triggerRefresh,
             fmt, fmtGrowth, fmtMoney, valClass,
         };
