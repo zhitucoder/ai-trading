@@ -27,6 +27,7 @@
         <position-bt-page v-else-if="currentPage === 'position_bt'"></position-bt-page>
         <ma-bt-page v-else-if="currentPage === 'ma_bt'"></ma-bt-page>
         <profile-page v-else-if="currentPage === 'profile'"></profile-page>
+        <debate-page v-else-if="currentPage === 'debate'"></debate-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
@@ -553,6 +554,66 @@
                 </div>
             </div>
         </div>
+    </div>
+</template>
+
+<!-- ── AI Debate Template ── -->
+<template id="debate-tpl">
+    <div class="topbar">
+        <h2>AI多空辩论</h2>
+        <span class="badge">实时分析</span>
+    </div>
+    <div class="content">
+        <div class="card">
+            <div class="form-row">
+                <div class="config-item" style="min-width:120px;">
+                    <label>股票代码</label>
+                    <input v-model="stockCode" placeholder="600519" @keyup.enter="startDebate" style="width:140px;">
+                </div>
+                <div class="config-item">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary" @click="startDebate" :disabled="loading">
+                        <span v-if="loading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ loading ? '辩论进行中...' : '⚖ 开始辩论' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="error" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;">
+            {{ error }}
+        </div>
+
+        <template v-if="result">
+            <div class="profile-header">
+                <div class="profile-header-left">
+                    <div class="profile-code">{{ result.stock_code }}</div>
+                    <div class="profile-name">{{ result.stock_name }}</div>
+                </div>
+                <div class="profile-header-right">
+                    <div class="profile-price">{{ fmt(result.price) }}</div>
+                    <div class="profile-change" :class="valClass(result.change_pct)">{{ fmtGrowth(result.change_pct) }}</div>
+                </div>
+            </div>
+
+            <div v-for="(round, i) in result.rounds" :key="i" class="debate-round" :class="'round-' + round.stance">
+                <div class="debate-round-header">
+                    <span class="debate-round-num">第{{ i + 1 }}轮</span>
+                    <span class="debate-stance-tag" :class="'tag-' + round.stance">{{ round.stance === 'bullish' ? '看多' : round.stance === 'bearish' ? '看空' : '总结' }}</span>
+                    <span class="debate-round-label">{{ round.role }}</span>
+                </div>
+                <div class="debate-bubble" :class="'debate-' + round.stance">
+                    <div class="debate-speaker">
+                        <span class="debate-avatar">{{ round.avatar }}</span>
+                        <span class="debate-name" :class="'debate-name-' + round.stance">{{ round.speaker }}</span>
+                        <span class="debate-role-label">{{ round.role }}</span>
+                    </div>
+                    <div class="debate-content" v-html="renderMarkdown(round.content)"></div>
+                </div>
+            </div>
+
+            <div class="debate-disclaimer">{{ result.disclaimer }}</div>
+        </template>
     </div>
 </template>
 

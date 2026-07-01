@@ -654,6 +654,62 @@ app.component('profile-page', {
     },
 });
 
+// ── Markdown Renderer ──
+function renderMarkdown(text) {
+    if (!text) return '';
+    let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+    html = html.replace(/^-{3,}$/gm, '<hr>');
+    html = html.replace(/\n/g, '<br>');
+    html = html.replace(/\|(.+)\|/g, (match) => {
+        if (match.includes('---')) return '';
+        const cells = match.split('|').filter(c => c.trim());
+        const cols = cells.map(c => `<td>${c.trim()}</td>`).join('');
+        return `<tr>${cols}</tr>`;
+    });
+    return html;
+}
+
+// ── AI Debate ──
+app.component('debate-page', {
+    template: '#debate-tpl',
+    setup() {
+        const stockCode = ref('600519');
+        const loading = ref(false);
+        const error = ref('');
+        const result = ref(null);
+
+        async function startDebate() {
+            if (!stockCode.value) return;
+            loading.value = true;
+            error.value = '';
+            result.value = null;
+            try {
+                const r = await fetch(`${API_BASE}/debate/start?stock_code=${encodeURIComponent(stockCode.value)}`, { method: 'POST' });
+                const data = await r.json();
+                if (data.error) error.value = data.error;
+                else result.value = data;
+            } catch (e) {
+                error.value = '请求失败: ' + e.message;
+            } finally {
+                loading.value = false;
+            }
+        }
+
+        return {
+            stockCode, loading, error, result,
+            startDebate,
+            renderMarkdown, fmt, fmtGrowth, fmtMoney, valClass,
+        };
+    },
+});
+
 app.component('placeholder-page', {
     props: ['page'],
     template: '<div class="placeholder"><div class="big-icon">{{ icon }}</div><p>{{ page.label }}</p><p>功能开发中...</p></div>',

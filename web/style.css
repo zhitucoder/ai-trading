@@ -655,3 +655,168 @@ tbody tr:last-child td { border-bottom: none; }
 .stage-badge.stage-s3 { background: rgba(245,158,11,0.15); color: var(--amber); }
 .stage-badge.stage-s1 { background: rgba(100,116,139,0.15); color: var(--text-muted); }
 .btn-sm { padding: 6px 14px; font-size: 12px; }
+
+/* ── AI Debate ── */
+.debate-round {
+    margin-bottom: 20px;
+}
+.debate-round-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 10px 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+.round-bullish .debate-round-header {
+    border-left: 3px solid var(--red);
+}
+.round-bearish .debate-round-header {
+    border-left: 3px solid var(--green);
+}
+.round-neutral .debate-round-header {
+    border-left: 3px solid var(--accent);
+}
+.debate-round-num {
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 600;
+    background: var(--accent-dim);
+    padding: 2px 10px;
+    border-radius: 10px;
+}
+.debate-stance-tag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 10px;
+    letter-spacing: 0.5px;
+}
+.tag-bullish {
+    background: rgba(239,68,68,0.2);
+    color: var(--red);
+}
+.tag-bearish {
+    background: rgba(16,185,129,0.2);
+    color: var(--green);
+}
+.tag-neutral {
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+.debate-round-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+.debate-bubble {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    border-left: 4px solid var(--text-dim);
+}
+.debate-bubble.debate-bullish {
+    border-left-color: var(--red);
+}
+.debate-bubble.debate-bearish {
+    border-left-color: var(--green);
+}
+.debate-bubble.debate-neutral {
+    border-left-color: var(--accent);
+}
+.debate-speaker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(30,58,95,0.4);
+}
+.debate-avatar {
+    font-size: 28px;
+    line-height: 1;
+}
+.debate-name {
+    font-size: 15px;
+    font-weight: 700;
+}
+.debate-name-bullish { color: var(--red); }
+.debate-name-bearish { color: var(--green); }
+.debate-name-neutral { color: var(--accent); }
+.debate-role-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    padding: 2px 10px;
+    border-radius: 10px;
+    margin-left: 4px;
+}
+.debate-content {
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text);
+}
+.debate-content h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 16px 0 10px;
+    color: var(--text);
+}
+.debate-content h3:first-child {
+    margin-top: 0;
+}
+.debate-content strong {
+    color: var(--accent);
+    font-weight: 700;
+}
+.debate-content blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 8px 14px;
+    margin: 12px 0;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+.debate-content hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 20px 0;
+}
+.debate-content table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin: 12px 0;
+}
+.debate-content td {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    font-family: 'SF Mono', monospace;
+    text-align: center;
+}
+.debate-content tr:first-child td {
+    background: var(--bg-hover);
+    font-weight: 600;
+}
+.debate-content br {
+    display: block;
+    content: '';
+    margin: 4px 0;
+}
+.debate-disclaimer {
+    margin-top: 24px;
+    padding: 14px 20px;
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    text-align: center;
+}
