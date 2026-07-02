@@ -1,6 +1,6 @@
 import json
 import threading
-from datetime import date
+from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Optional
@@ -14,12 +14,13 @@ _refresh_lock = threading.Lock()
 
 # ── 单股画像 ──
 @router.get('/profile/{stock_code}')
-def get_profile(stock_code: str):
-    r = query("SELECT profile_json FROM stock_profiles WHERE stock_code = %s "
-              "ORDER BY trade_date DESC LIMIT 1", [stock_code])
-    if r and r[0]['profile_json']:
-        raw = r[0]['profile_json']
-        return json.loads(raw) if isinstance(raw, str) else raw
+def get_profile(stock_code: str, refresh: bool = False):
+    if not refresh:
+        r = query("SELECT profile_json FROM stock_profiles WHERE stock_code = %s "
+                  "ORDER BY trade_date DESC LIMIT 1", [stock_code])
+        if r and r[0]['profile_json']:
+            raw = r[0]['profile_json']
+            return json.loads(raw) if isinstance(raw, str) else raw
     return generate_profile(stock_code)
 
 
@@ -90,7 +91,7 @@ def refresh_progress():
     elapsed = None
     remains = None
     if l['started_at']:
-        secs = (l['finished_at'] or date.today()).timestamp() - l['started_at'].timestamp()
+        secs = (l['finished_at'] or datetime.combine(date.today(), datetime.min.time())).timestamp() - l['started_at'].timestamp()
         elapsed = int(secs)
         if l['status'] == 'running' and l['computed_stocks'] > 0:
             per_stock = secs / l['computed_stocks']
@@ -128,6 +129,11 @@ class SearchRequest(BaseModel):
     sort_order: str = 'desc'
 
 
+def _tag_to_col(tag_id: str) -> str:
+    prefix = tag_id.split('.')[0]
+    suffix = tag_id.split('.')[1] if '.' in tag_id else tag_id
+    return f'tag_{suffix}'
+
 @router.post('/profiles/search')
 def search_profiles(body: SearchRequest):
     conditions = ["p.profile_json IS NOT NULL"]
@@ -140,15 +146,18 @@ def search_profiles(body: SearchRequest):
         params.update(stage_params)
 
     for tag in body.tags.must:
-        if tag in TAG_COLUMNS:
-            conditions.append(f'p.{tag} = TRUE')
+        col = _tag_to_col(tag)
+        if col in TAG_COLUMNS:
+            conditions.append(f'p.{col} = TRUE')
 
     for tag in body.tags.must_not:
-        if tag in TAG_COLUMNS:
-            conditions.append(f'p.{tag} = FALSE')
+        col = _tag_to_col(tag)
+        if col in TAG_COLUMNS:
+            conditions.append(f'p.{col} = FALSE')
 
     if body.tags.any:
-        any_conds = [f'p.{t} = TRUE' for t in body.tags.any if t in TAG_COLUMNS]
+        cols = [_tag_to_col(t) for t in body.tags.any if _tag_to_col(t) in TAG_COLUMNS]
+        any_conds = [f'p.{c} = TRUE' for c in cols]
         if any_conds:
             conditions.append(f'({" OR ".join(any_conds)})')
 
@@ -182,9 +191,9 @@ def search_profiles(body: SearchRequest):
     limit = body.page_size
 
     where = ' AND '.join(conditions)
-    latest = query("SELECT MAX(trade_date) AS d FROM stock_profiles")[0]['d']
+    latest = query("SELECT MAX(data_date) AS d FROM stock_profiles")[0]['d']
 
-    count_sql = f"SELECT COUNT(*) AS c FROM stock_profiles p WHERE p.trade_date = %(ldate)s AND {where}"
+    count_sql = f"SELECT COUNT(*) AS c FROM stock_profiles p WHERE p.data_date = %(ldate)s AND {where}"
     count_params = {'ldate': str(latest), **params}
     total = query(count_sql, count_params)[0]['c']
 
@@ -195,7 +204,7 @@ def search_profiles(body: SearchRequest):
                p.revenue_growth, p.net_profit_growth, p.debt_ratio,
                {tag_cols_sql}
         FROM stock_profiles p
-        WHERE p.trade_date = %(ldate)s AND {where}
+        WHERE p.data_date = %(ldate)s AND {where}
         ORDER BY {sort_col} {sort_dir}
         LIMIT %(lo)s OFFSET %(of)s
     """

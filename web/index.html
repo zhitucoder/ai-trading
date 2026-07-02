@@ -30,6 +30,7 @@
         <profile-page v-else-if="currentPage === 'profile'"></profile-page>
         <debate-page v-else-if="currentPage === 'debate'"></debate-page>
         <expert-page v-else-if="currentPage === 'expert'"></expert-page>
+        <data-mgmt-page v-else-if="currentPage === 'data_mgmt'"></data-mgmt-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
@@ -511,6 +512,39 @@
                     </div>
                 </div>
 
+                <div class="card" v-if="profile.annual_data && profile.annual_data.gross_margin_trend && profile.annual_data.gross_margin_trend.length">
+                    <div class="card-title">毛利率趋势（年度）</div>
+                    <div class="gm-trend-grid">
+                        <div v-for="(item, i) in profile.annual_data.gross_margin_trend" :key="item.year"
+                             class="gm-trend-row">
+                            <span class="gm-year">{{ item.year }}</span>
+                            <span class="gm-bar-wrap">
+                                <span class="gm-bar" :style="{width: item.rate != null ? item.rate + '%' : '0'}"></span>
+                            </span>
+                            <span class="gm-rate" :class="gmTrendClass(item, i, profile.annual_data.gross_margin_trend)">{{ item.rate != null ? item.rate.toFixed(2) + '%' : '-' }}</span>
+                            <span v-if="i > 0 && item.rate != null && profile.annual_data.gross_margin_trend[i-1].rate != null"
+                                  class="gm-arrow"
+                                  :class="item.rate >= profile.annual_data.gross_margin_trend[i-1].rate ? 'up' : 'down'">
+                                {{ item.rate >= profile.annual_data.gross_margin_trend[i-1].rate ? '▲' : '▼' }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" v-if="profile.annual_data && profile.annual_data.revenue_growth && profile.annual_data.revenue_growth.length">
+                    <div class="card-title">年度增长率</div>
+                    <table class="gm-growth-table">
+                        <thead><tr><th>年份</th><th>营收增长</th><th>净利润增长</th></tr></thead>
+                        <tbody>
+                            <tr v-for="i in profile.annual_data.revenue_growth.length" :key="i">
+                                <td>{{ profile.annual_data.revenue_growth[i-1].year }}</td>
+                                <td :class="valClass(profile.annual_data.revenue_growth[i-1].rate)">{{ profile.annual_data.revenue_growth[i-1].rate != null ? fmtGrowth(profile.annual_data.revenue_growth[i-1].rate) : '-' }}</td>
+                                <td :class="valClass(profile.annual_data.profit_growth[i-1].rate)">{{ profile.annual_data.profit_growth[i-1].rate != null ? fmtGrowth(profile.annual_data.profit_growth[i-1].rate) : '-' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
                 <div class="card" v-if="profile.ind_tags && profile.ind_tags.length">
                     <div class="card-title">指标标签</div>
                     <div class="profile-tag-grid">
@@ -552,6 +586,15 @@
                         <div><label>营收增长率 ≥</label><input type="number" v-model.number="filterRevGrowth" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                         <div><label>净利润增长率 ≥</label><input type="number" v-model.number="filterProfitGrowth" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                         <div><label>负债率 ≤</label><input type="number" v-model.number="filterDebtMax" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                    </div>
+                </div>
+
+                <div class="screening-section">
+                    <div class="screening-section-title">连续增长标签</div>
+                    <div class="screening-stage-group">
+                        <button v-for="g in growthTagOptions" :key="g.id"
+                                class="screening-stage-btn" :class="{ active: selectedGrowthTags.includes(g.id) }"
+                                @click="toggleGrowthTag(g.id)">{{ g.label }}</button>
                     </div>
                 </div>
 
@@ -916,6 +959,168 @@
 
             <div class="debate-disclaimer">{{ result.disclaimer }}</div>
         </template>
+    </div>
+</template>
+
+<!-- ── Data Management Template ── -->
+<template id="data-mgmt-tpl">
+    <div class="topbar">
+        <h2>数据管理</h2>
+        <span class="badge">数据中心</span>
+        <button class="btn btn-outline btn-sm" style="margin-left:auto;" @click="loadStatus" :title="'刷新状态'">
+            ⟳ 刷新
+        </button>
+    </div>
+    <div class="content dm-page">
+        <!-- Summary Strip -->
+        <div class="dm-strip">
+            <div class="dm-strip-item">
+                <span class="dm-strip-icon">📅</span>
+                <div>
+                    <div class="dm-strip-val">{{ status.kline?.latest_date || '-' }}</div>
+                    <div class="dm-strip-label">最新K线日期</div>
+                </div>
+            </div>
+            <div class="dm-strip-item">
+                <span class="dm-strip-icon">📊</span>
+                <div>
+                    <div class="dm-strip-val">{{ status.kline?.stock_count || 0 }}</div>
+                    <div class="dm-strip-label">K线覆盖股票</div>
+                </div>
+            </div>
+            <div class="dm-strip-item">
+                <span class="dm-strip-icon">⏱</span>
+                <div>
+                    <div class="dm-strip-val">{{ lastSyncLabel }}</div>
+                    <div class="dm-strip-label">上次同步</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Source Cards -->
+        <div class="dm-grid">
+            <!-- Kline Card -->
+            <div class="dm-card dm-card-kline">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(0,212,255,0.12);">
+                        <span style="font-size:22px;">📈</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">日K线行情</div>
+                        <div class="dm-card-subtitle">{{ status.kline?.stock_count || 0 }} 只股票 · 10M+ 记录</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot dm-dot-online"></span>
+                        <span class="dm-status-text">已连接</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row">
+                        <span>数据来源</span>
+                        <span class="dm-val">通达信 .day 文件</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>最新交易日期</span>
+                        <span class="dm-val accent">{{ status.kline?.latest_date || '-' }}</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>数据量</span>
+                        <span class="dm-val">{{ status.kline?.stock_count || 0 }} 只股票</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>更新方式</span>
+                        <span class="dm-val">INSERT IGNORE 增量补全</span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <button class="btn btn-primary" @click="updateKline" :disabled="klineLoading">
+                        <span v-if="klineLoading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ klineLoading ? '更新中...' : '⟳ 更新日K线' }}
+                    </button>
+                    <span v-if="klineResult" class="dm-toast dm-toast-ok">✓ {{ klineResult }}</span>
+                    <span v-if="klineError" class="dm-toast dm-toast-err">✗ {{ klineError }}</span>
+                </div>
+            </div>
+
+            <!-- Financial Card -->
+            <div class="dm-card dm-card-fin">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(16,185,129,0.12);">
+                        <span style="font-size:22px;">📋</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">财务数据</div>
+                        <div class="dm-card-subtitle">利润表 · 资产负债表 · 现金流</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot" :class="finDotClass"></span>
+                        <span class="dm-status-text">{{ finStatusText }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row">
+                        <span>数据来源</span>
+                        <span class="dm-val">通达信 GPCW 数据</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>最新报告期</span>
+                        <span class="dm-val accent">{{ status.financial?.latest_date || '-' }}</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>记录数</span>
+                        <span class="dm-val">{{ status.financial?.record_count || 0 }}</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>覆盖表</span>
+                        <span class="dm-val">8 张财务表</span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <button class="btn btn-primary" style="background:var(--green);border-color:var(--green);" @click="updateFinancial" :disabled="finLoading">
+                        <span v-if="finLoading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ finLoading ? '同步中...' : '⟳ 同步财务数据' }}
+                    </button>
+                    <span v-if="finResult" class="dm-toast dm-toast-ok">✓ {{ finResult }}</span>
+                    <span v-if="finError" class="dm-toast dm-toast-err">✗ {{ finError }}</span>
+                </div>
+            </div>
+
+            <!-- Sector Card -->
+            <div class="dm-card dm-card-sector">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(245,158,11,0.12);">
+                        <span style="font-size:22px;">🏷</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">板块分类</div>
+                        <div class="dm-card-subtitle">行业板块 · 概念板块 · 地域板块</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot dm-dot-pending"></span>
+                        <span class="dm-status-text">待接入</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row">
+                        <span>数据来源</span>
+                        <span class="dm-val">通达信板块数据</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>分类类型</span>
+                        <span class="dm-val">行业 · 概念 · 地域</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>同步状态</span>
+                        <span class="dm-val pending">{{ status.sector?.message || '未接入' }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <button class="btn btn-outline" disabled>
+                        <span style="opacity:0.5;">同步板块分类 · 待开发</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 

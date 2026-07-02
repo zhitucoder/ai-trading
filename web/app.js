@@ -41,6 +41,7 @@ const app = createApp({
             { id: 'profile', label: '股票画像', icon: '◈' },
             { id: 'debate', label: 'AI多空辩论', icon: '⚖' },
             { id: 'expert', label: '蒸馏专家', icon: '⚗' },
+            { id: 'data_mgmt', label: '数据管理', icon: '⚙' },
         ];
         return { currentPage, pages };
     },
@@ -491,6 +492,12 @@ app.component('profile-page', {
             return 'up';
         }
 
+        function gmTrendClass(item, idx, trend) {
+            if (idx === 0 || item.rate == null) return '';
+            const prev = trend[idx - 1];
+            return prev.rate != null && item.rate >= prev.rate ? 'up' : 'down';
+        }
+
         function goToProfile(code) {
             stockCode.value = code;
             activeTab.value = 'single';
@@ -511,6 +518,21 @@ app.component('profile-page', {
         const filterRevGrowth = ref(null);
         const filterProfitGrowth = ref(null);
         const filterDebtMax = ref(null);
+        const growthTagOptions = [
+            { id: 'biz.annual_rev_growth_1y', label: '营收连增1年' },
+            { id: 'biz.annual_rev_growth_2y', label: '营收连增2年' },
+            { id: 'biz.annual_rev_growth_3y', label: '营收连增3年' },
+            { id: 'biz.annual_rev_growth_4y', label: '营收连增4年' },
+            { id: 'biz.annual_profit_growth_1y', label: '利润连增1年' },
+            { id: 'biz.annual_profit_growth_2y', label: '利润连增2年' },
+            { id: 'biz.annual_profit_growth_3y', label: '利润连增3年' },
+            { id: 'biz.annual_profit_growth_4y', label: '利润连增4年' },
+            { id: 'biz.annual_gm_improve_1y', label: '毛利率提升1年' },
+            { id: 'biz.annual_gm_improve_2y', label: '毛利率连升2年' },
+            { id: 'biz.annual_gm_improve_3y', label: '毛利率连升3年' },
+            { id: 'biz.annual_gm_improve_4y', label: '毛利率连升4年' },
+        ];
+        const selectedGrowthTags = ref([]);
         const searchLoading = ref(false);
         const searchResult = ref(null);
         const profileStatusData = ref(null);
@@ -525,6 +547,12 @@ app.component('profile-page', {
             else selectedStages.value.push(id);
         }
 
+        function toggleGrowthTag(id) {
+            const i = selectedGrowthTags.value.indexOf(id);
+            if (i >= 0) selectedGrowthTags.value.splice(i, 1);
+            else selectedGrowthTags.value.push(id);
+        }
+
         let searchDebounce = null;
         function onFilterChange() {
             if (searchDebounce) clearTimeout(searchDebounce);
@@ -536,7 +564,7 @@ app.component('profile-page', {
             try {
                 const body = {
                     stages: selectedStages.value,
-                    tags: { must: [], must_not: [], any: [] },
+                    tags: { must: selectedGrowthTags.value, must_not: [], any: [] },
                     tech_score_min: filterTechScore.value > 0 ? filterTechScore.value : null,
                     fund_score_min: filterFundScore.value > 0 ? filterFundScore.value : null,
                     revenue_growth_min: filterRevGrowth.value,
@@ -568,6 +596,7 @@ app.component('profile-page', {
             filterRevGrowth.value = null;
             filterProfitGrowth.value = null;
             filterDebtMax.value = null;
+            selectedGrowthTags.value = [];
             searchResult.value = null;
         }
 
@@ -644,12 +673,13 @@ app.component('profile-page', {
 
         return {
             activeTab, stockCode, loading, profile, error,
-            loadProfile, scoreClass, scoreTextClass, rsiClass, debtClass, goToProfile,
+            loadProfile, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile,
             stageOptions, selectedStages, filterTechScore, filterFundScore,
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
+            growthTagOptions, selectedGrowthTags,
             searchLoading, searchResult, profileStatusData,
             refreshing, refreshProgress, refreshToast,
-            toggleStage, onFilterChange, doSearch, resetFilters, triggerRefresh,
+            toggleStage, toggleGrowthTag, onFilterChange, doSearch, resetFilters, triggerRefresh,
             fmt, fmtGrowth, fmtMoney, valClass,
         };
     },
@@ -871,6 +901,112 @@ app.component('expert-page', {
             stockCode, question, loading, error, messages, stockData, finData, chatBottom,
             switchExpert, send, scrollBottom, finClass,
             renderMarkdown, fmt, fmtGrowth, valClass,
+        };
+    },
+});
+
+// ── Data Management ──
+app.component('data-mgmt-page', {
+    template: '#data-mgmt-tpl',
+    setup() {
+        const status = ref({ kline: {}, financial: {}, sector: {} });
+        const klineLoading = ref(false);
+        const klineResult = ref('');
+        const klineError = ref('');
+        const finLoading = ref(false);
+        const finResult = ref('');
+        const finError = ref('');
+
+        const lastSyncLabel = computed(() => {
+            const d = status.value.kline?.latest_date;
+            if (!d) return '暂无数据';
+            const today = new Date();
+            const kDate = new Date(d);
+            const diff = Math.floor((today - kDate) / (1000 * 60 * 60 * 24));
+            if (diff === 0) return '今天';
+            if (diff === 1) return '昨天';
+            if (diff < 7) return diff + '天前';
+            return d;
+        });
+
+        const finDotClass = computed(() => {
+            const d = status.value.financial?.latest_date;
+            return d ? 'dm-dot-online' : 'dm-dot-pending';
+        });
+
+        const finStatusText = computed(() => {
+            const d = status.value.financial?.latest_date;
+            return d ? '已同步' : '待接入';
+        });
+
+        async function loadStatus() {
+            try {
+                const r = await fetch(`${API_BASE}/data/status`);
+                status.value = await r.json();
+            } catch (e) { console.error(e); }
+        }
+
+        async function updateKline() {
+            klineLoading.value = true;
+            klineResult.value = '';
+            klineError.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/data/update-kline`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    klineResult.value = '更新任务已在执行中';
+                } else {
+                    const n = data.total_inserted ?? 0;
+                    if (n > 0) {
+                        klineResult.value = `成功插入 ${n} 条新记录`;
+                    } else {
+                        const latest = data.db_latest || '?';
+                        klineResult.value = `数据已是最新（截至 ${latest}）`;
+                    }
+                    loadStatus();
+                }
+            } catch (e) {
+                klineError.value = e.message;
+            } finally {
+                klineLoading.value = false;
+            }
+        }
+
+        async function updateFinancial() {
+            finLoading.value = true;
+            finResult.value = '';
+            finError.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/data/update-financial`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    finResult.value = '同步任务已在执行中';
+                } else if (data.message) {
+                    finResult.value = data.message;
+                } else {
+                    const n = data.total_inserted ?? 0;
+                    if (n > 0) {
+                        const files = (data.files || []).map(f => f.file.replace('gpcw', '').replace('.dat', '')).join(', ');
+                        finResult.value = `成功同步 ${n} 条记录（${files}）`;
+                    } else {
+                        finResult.value = '财务数据已是最新';
+                    }
+                    loadStatus();
+                }
+            } catch (e) {
+                finError.value = e.message;
+            } finally {
+                finLoading.value = false;
+            }
+        }
+
+        onMounted(loadStatus);
+
+        return {
+            status, klineLoading, klineResult, klineError,
+            finLoading, finResult, finError,
+            lastSyncLabel, finDotClass, finStatusText,
+            updateKline, updateFinancial,
         };
     },
 });

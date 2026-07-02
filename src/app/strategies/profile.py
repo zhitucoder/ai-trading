@@ -40,6 +40,20 @@ BIZ_TAGS_DEF = {
     'biz.consecutive_profit_3q': {'name': '连增3季', 'group': '连续增长'},
     'biz.consecutive_profit_5q': {'name': '连增5季', 'group': '连续增长'},
     'biz.consecutive_revenue_3q': {'name': '营收连增3季', 'group': '连续增长'},
+
+    # ── 年度连续增长 ──
+    'biz.annual_rev_growth_1y': {'name': '营收连增1年', 'group': '连续增长'},
+    'biz.annual_rev_growth_2y': {'name': '营收连增2年', 'group': '连续增长'},
+    'biz.annual_rev_growth_3y': {'name': '营收连增3年', 'group': '连续增长'},
+    'biz.annual_rev_growth_4y': {'name': '营收连增4年', 'group': '连续增长'},
+    'biz.annual_profit_growth_1y': {'name': '净利润连增1年', 'group': '连续增长'},
+    'biz.annual_profit_growth_2y': {'name': '净利润连增2年', 'group': '连续增长'},
+    'biz.annual_profit_growth_3y': {'name': '净利润连增3年', 'group': '连续增长'},
+    'biz.annual_profit_growth_4y': {'name': '净利润连增4年', 'group': '连续增长'},
+    'biz.annual_gm_improve_1y': {'name': '毛利率提升1年', 'group': '连续增长'},
+    'biz.annual_gm_improve_2y': {'name': '毛利率连升2年', 'group': '连续增长'},
+    'biz.annual_gm_improve_3y': {'name': '毛利率连升3年', 'group': '连续增长'},
+    'biz.annual_gm_improve_4y': {'name': '毛利率连升4年', 'group': '连续增长'},
 }
 
 STAGE_DEF = {
@@ -139,6 +153,82 @@ def get_growth_quarters(code, limit=5):
         LIMIT %s
     """, [code, limit])
     return rows
+
+
+def get_annual_financials(code, years=5):
+    rows = query("""
+        SELECT report_date, operating_revenue, operating_cost,
+               net_profit, parent_net_profit
+        FROM fin_income
+        WHERE stock_code = %s AND MONTH(report_date) = 12 AND DAY(report_date) = 31
+        ORDER BY report_date DESC
+        LIMIT %s
+    """, [code, years])
+    return rows
+
+
+def compute_annual_growth(annual_rows):
+    if not annual_rows or len(annual_rows) < 2:
+        return {
+            'gross_margin_trend': [],
+            'annual_revenue_growth': [],
+            'annual_profit_growth': [],
+            'consecutive_revenue_years': 0,
+            'consecutive_profit_years': 0,
+            'consecutive_gm_years': 0,
+        }
+
+    rows = list(reversed(annual_rows))
+    gross_margin_trend = []
+    rev_growths = []
+    profit_growths = []
+    gm_improvements = []
+
+    for row in rows:
+        rev = float(row['operating_revenue']) if row.get('operating_revenue') else 0
+        cost = float(row['operating_cost']) if row.get('operating_cost') else 0
+        year = str(row['report_date'])[:4] if row.get('report_date') else ''
+        gm_rate = (rev - cost) / rev * 100 if rev > 0 else None
+        gross_margin_trend.append({'year': year, 'rate': round(gm_rate, 2) if gm_rate is not None else None})
+
+    for i in range(1, len(rows)):
+        prev_rev_val = float(rows[i - 1]['operating_revenue']) if rows[i - 1].get('operating_revenue') else 0
+        rev_val = float(rows[i]['operating_revenue']) if rows[i].get('operating_revenue') else 0
+        prev_profit_val = float(rows[i - 1]['parent_net_profit']) if rows[i - 1].get('parent_net_profit') else 0
+        profit_val = float(rows[i]['parent_net_profit']) if rows[i].get('parent_net_profit') else 0
+        cur_gm = gross_margin_trend[i]['rate']
+        prev_gm = gross_margin_trend[i - 1]['rate']
+
+        rev_growth = (rev_val - prev_rev_val) / prev_rev_val * 100 if prev_rev_val > 0 else None
+        profit_growth = (profit_val - prev_profit_val) / prev_profit_val * 100 if prev_profit_val > 0 else None
+        rev_growths.append(rev_growth)
+        profit_growths.append(profit_growth)
+        gm_improvements.append(cur_gm is not None and prev_gm is not None and cur_gm > prev_gm)
+
+    def count_consecutive(values):
+        cnt = 0
+        for v in reversed(values):
+            if v is not None and v > 0:
+                cnt += 1
+            else:
+                break
+        return cnt
+
+    annual_rev = [{'year': gross_margin_trend[i + 1]['year'],
+                   'rate': round(rev_growths[i], 2) if rev_growths[i] is not None else None}
+                  for i in range(len(rev_growths))]
+    annual_profit = [{'year': gross_margin_trend[i + 1]['year'],
+                      'rate': round(profit_growths[i], 2) if profit_growths[i] is not None else None}
+                     for i in range(len(profit_growths))]
+
+    return {
+        'gross_margin_trend': gross_margin_trend,
+        'annual_revenue_growth': annual_rev,
+        'annual_profit_growth': annual_profit,
+        'consecutive_revenue_years': count_consecutive(rev_growths),
+        'consecutive_profit_years': count_consecutive(profit_growths),
+        'consecutive_gm_years': count_consecutive(gm_improvements),
+    }
 
 
 def compute_ma(prices, period):
@@ -400,7 +490,7 @@ def compute_stage(klines, ma_values, ind_map):
     s4_any = any(s4_criteria)
 
     # ── S3 ──
-    if n >= 50:
+    if n >= 51:
         recent_volatility = sum(abs(closes[i] - closes[i - 1]) / closes[i - 1]
                                 for i in range(-20, 0) if closes[i - 1] > 0) / 20
         past_volatility = sum(abs(closes[i] - closes[i - 1]) / closes[i - 1]
@@ -508,10 +598,22 @@ def generate_profile(stock_code):
     fin = get_latest_financials(stock_code)
     prev_fin = get_prev_financials(stock_code)
     growth_quarters = get_growth_quarters(stock_code)
+    annual_rows = get_annual_financials(stock_code)
+    annual_growth = compute_annual_growth(annual_rows)
 
     ind_tags, ma_values, ind_map = compute_indicator_tags(klines, fin)
 
     biz_tags = compute_business_tags(ind_map, fin, prev_fin, growth_quarters, klines)
+
+    if annual_growth['consecutive_revenue_years'] >= 1:
+        for n in range(1, min(annual_growth['consecutive_revenue_years'], 4) + 1):
+            biz_tags.append({'id': f'biz.annual_rev_growth_{n}y', 'name': BIZ_TAGS_DEF[f'biz.annual_rev_growth_{n}y']['name']})
+    if annual_growth['consecutive_profit_years'] >= 1:
+        for n in range(1, min(annual_growth['consecutive_profit_years'], 4) + 1):
+            biz_tags.append({'id': f'biz.annual_profit_growth_{n}y', 'name': BIZ_TAGS_DEF[f'biz.annual_profit_growth_{n}y']['name']})
+    if annual_growth['consecutive_gm_years'] >= 1:
+        for n in range(1, min(annual_growth['consecutive_gm_years'], 4) + 1):
+            biz_tags.append({'id': f'biz.annual_gm_improve_{n}y', 'name': BIZ_TAGS_DEF[f'biz.annual_gm_improve_{n}y']['name']})
 
     stage = compute_stage(klines, ma_values, ind_map)
 
@@ -551,4 +653,9 @@ def generate_profile(stock_code):
         'scores': scores,
         'ma_values': ma_values,
         'fin_data': fin_data,
+        'annual_data': {
+            'gross_margin_trend': annual_growth['gross_margin_trend'],
+            'revenue_growth': annual_growth['annual_revenue_growth'],
+            'profit_growth': annual_growth['annual_profit_growth'],
+        },
     }
