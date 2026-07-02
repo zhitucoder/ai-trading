@@ -231,6 +231,81 @@ def compute_annual_growth(annual_rows):
     }
 
 
+def _single_quarter_from_fin_income(code, report_dates):
+    if not report_dates:
+        return {}
+    inc_rows = query("""
+        SELECT report_date, operating_revenue, operating_cost
+        FROM fin_income
+        WHERE stock_code = %s AND (report_date = %s """ +
+        ''.join(["OR report_date = %s "] * (len(report_dates) - 1)) + """)
+        ORDER BY report_date ASC
+    """, [code] + [str(d) for d in report_dates])
+    if not inc_rows:
+        return {}
+    result = {}
+    for i, r in enumerate(inc_rows):
+        d = str(r['report_date'])
+        cumul_rev = float(r['operating_revenue']) if r['operating_revenue'] else 0
+        cumul_cost = float(r['operating_cost']) if r['operating_cost'] else 0
+        if i == 0 or r['report_date'].month == 3:
+            sq_rev, sq_cost = cumul_rev, cumul_cost
+        else:
+            prev = inc_rows[i - 1]
+            prev_rev = float(prev['operating_revenue']) if prev['operating_revenue'] else 0
+            prev_cost = float(prev['operating_cost']) if prev['operating_cost'] else 0
+            sq_rev = cumul_rev - prev_rev
+            sq_cost = cumul_cost - prev_cost
+        result[d] = {'sq_rev': sq_rev, 'sq_cost': sq_cost}
+    return result
+
+
+def get_quarterly_growth(code, quarters=20):
+    rows = query("""
+        SELECT fq.report_date,
+               fq.q_revenue, fq.q_parent_net_profit,
+               fq2.q_revenue AS prev_revenue,
+               fq2.q_parent_net_profit AS prev_profit
+        FROM fin_quarterly fq
+        LEFT JOIN fin_quarterly fq2
+            ON fq2.stock_code = fq.stock_code
+            AND fq2.report_date = DATE_SUB(fq.report_date, INTERVAL 1 YEAR)
+        WHERE fq.stock_code = %s
+        ORDER BY fq.report_date DESC
+        LIMIT %s
+    """, [code, quarters])
+    if not rows or len(rows) < 2:
+        return []
+
+    rows = list(reversed(rows))
+    report_dates = [r['report_date'] for r in rows]
+    sq_map = _single_quarter_from_fin_income(code, report_dates)
+
+    result = []
+    for r in rows:
+        d = str(r['report_date'])
+        rev = float(r['q_revenue']) if r['q_revenue'] else None
+        profit = float(r['q_parent_net_profit']) if r['q_parent_net_profit'] else None
+        prev_rev = float(r['prev_revenue']) if r['prev_revenue'] else None
+        prev_profit = float(r['prev_profit']) if r['prev_profit'] else None
+        rev_growth = (rev - prev_rev) / prev_rev * 100 if rev is not None and prev_rev and prev_rev > 0 else None
+        profit_growth = (profit - prev_profit) / prev_profit * 100 if profit is not None and prev_profit and prev_profit > 0 else None
+
+        sq = sq_map.get(d)
+        gm = None
+        if sq and sq['sq_rev'] > 0:
+            gm = round((sq['sq_rev'] - sq['sq_cost']) / sq['sq_rev'] * 100, 2)
+        result.append({
+            'date': d,
+            'revenue': rev,
+            'profit': profit,
+            'revenue_growth': round(rev_growth, 2) if rev_growth is not None else None,
+            'profit_growth': round(profit_growth, 2) if profit_growth is not None else None,
+            'gross_margin': gm,
+        })
+    return result
+
+
 def compute_ma(prices, period):
     if len(prices) < period:
         return None
@@ -600,6 +675,7 @@ def generate_profile(stock_code):
     growth_quarters = get_growth_quarters(stock_code)
     annual_rows = get_annual_financials(stock_code)
     annual_growth = compute_annual_growth(annual_rows)
+    quarterly_growth = get_quarterly_growth(stock_code)
 
     ind_tags, ma_values, ind_map = compute_indicator_tags(klines, fin)
 
@@ -658,4 +734,5 @@ def generate_profile(stock_code):
             'revenue_growth': annual_growth['annual_revenue_growth'],
             'profit_growth': annual_growth['annual_profit_growth'],
         },
+        'quarterly_growth': quarterly_growth,
     }

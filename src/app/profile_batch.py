@@ -63,7 +63,7 @@ def _batch_insert(rows, conn):
     values = []
     for row in rows:
         values.append(tuple(row[c] for c in cols))
-    sql = f"INSERT IGNORE INTO stock_profiles ({col_names}) VALUES ({placeholders})"
+    sql = f"REPLACE INTO stock_profiles ({col_names}) VALUES ({placeholders})"
     with conn.cursor() as cur:
         cur.executemany(sql, values)
     conn.commit()
