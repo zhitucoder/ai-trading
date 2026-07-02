@@ -550,7 +550,7 @@
                     <div class="table-wrap q-growth-wrap">
                         <table class="q-growth-table">
                             <thead><tr>
-                                <th>季度</th><th>营收</th><th>营收同比</th><th>净利润</th><th>利润同比</th><th>毛利率</th>
+                                <th>季度</th><th>营收</th><th>营收同比</th><th>净利润</th><th>利润同比</th><th>毛利率</th><th>毛利率同比</th>
                             </tr></thead>
                             <tbody>
                                 <tr v-for="q in profile.quarterly_growth.slice(-9).reverse()" :key="q.date">
@@ -560,6 +560,7 @@
                                     <td>{{ fmtMoney(q.profit) }}</td>
                                     <td :class="q.profit_growth != null ? valClass(q.profit_growth) : ''">{{ q.profit_growth != null ? fmtGrowth(q.profit_growth) : '-' }}</td>
                                     <td :class="q.gross_margin != null ? valClass(q.gross_margin - 50) : ''">{{ q.gross_margin != null ? q.gross_margin.toFixed(2) + '%' : '-' }}</td>
+                                    <td :class="q.gross_margin_growth != null ? valClass(q.gross_margin_growth) : ''">{{ q.gross_margin_growth != null ? fmtGrowth(q.gross_margin_growth) : '-' }}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -607,6 +608,14 @@
                         <div><label>营收增长率 ≥</label><input type="number" v-model.number="filterRevGrowth" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                         <div><label>净利润增长率 ≥</label><input type="number" v-model.number="filterProfitGrowth" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                         <div><label>负债率 ≤</label><input type="number" v-model.number="filterDebtMax" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                    </div>
+                </div>
+
+                <div class="screening-section">
+                    <div class="screening-section-title">毛利率同比</div>
+                    <div class="screening-range-row">
+                        <div><label>本季毛利率同比 ≥</label><input type="number" v-model.number="filterGmGrowthQ" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label>连续两年毛利率同比 ≥</label><input type="number" v-model.number="filterGmGrowth2y" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                     </div>
                 </div>
 

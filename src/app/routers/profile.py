@@ -123,6 +123,8 @@ class SearchRequest(BaseModel):
     debt_ratio_max: Optional[float] = None
     price_change_min: Optional[float] = None
     price_change_max: Optional[float] = None
+    gm_growth_q_min: Optional[float] = None
+    gm_growth_2y_min: Optional[float] = None
     page: int = 1
     page_size: int = 50
     sort_by: str = 'tech_score'
@@ -182,6 +184,13 @@ def search_profiles(body: SearchRequest):
     if body.price_change_max is not None:
         conditions.append('p.price_change_pct <= %(price_change_max)s')
         params['price_change_max'] = body.price_change_max
+    if body.gm_growth_q_min is not None:
+        conditions.append("JSON_EXTRACT(p.profile_json, '$.gross_margin_growth_q') >= %(gm_growth_q_min)s")
+        params['gm_growth_q_min'] = body.gm_growth_q_min
+    if body.gm_growth_2y_min is not None:
+        conditions.append("JSON_EXTRACT(p.profile_json, '$.gross_margin_growth_q') >= %(gm_growth_2y_min)s")
+        conditions.append("JSON_EXTRACT(p.profile_json, '$.gm_growth_prev_yr') IS NOT NULL AND JSON_EXTRACT(p.profile_json, '$.gm_growth_prev_yr') >= %(gm_growth_2y_min)s")
+        params['gm_growth_2y_min'] = body.gm_growth_2y_min
 
     sort_col = 'p.tech_score'
     if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct'):

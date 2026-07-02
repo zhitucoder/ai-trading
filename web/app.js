@@ -454,7 +454,7 @@ app.component('profile-page', {
             error.value = '';
             profile.value = null;
             try {
-                const r = await fetch(`${API_BASE}/profile/${stockCode.value}`);
+                    const r = await fetch(`${API_BASE}/profile/${stockCode.value}?refresh=true`);
                 const data = await r.json();
                 if (data.error) error.value = data.error;
                 else profile.value = data;
@@ -518,6 +518,8 @@ app.component('profile-page', {
         const filterRevGrowth = ref(null);
         const filterProfitGrowth = ref(null);
         const filterDebtMax = ref(null);
+        const filterGmGrowthQ = ref(null);
+        const filterGmGrowth2y = ref(null);
         const growthTagOptions = [
             { id: 'biz.annual_rev_growth_1y', label: '营收连增1年' },
             { id: 'biz.annual_rev_growth_2y', label: '营收连增2年' },
@@ -559,7 +561,9 @@ app.component('profile-page', {
             searchDebounce = setTimeout(doSearch, 400);
         }
 
+        let searchSeq = 0;
         async function doSearch() {
+            const seq = ++searchSeq;
             searchLoading.value = true;
             try {
                 const body = {
@@ -567,9 +571,11 @@ app.component('profile-page', {
                     tags: { must: selectedGrowthTags.value, must_not: [], any: [] },
                     tech_score_min: filterTechScore.value > 0 ? filterTechScore.value : null,
                     fund_score_min: filterFundScore.value > 0 ? filterFundScore.value : null,
-                    revenue_growth_min: filterRevGrowth.value,
-                    net_profit_growth_min: filterProfitGrowth.value,
-                    debt_ratio_max: filterDebtMax.value,
+                    revenue_growth_min: filterRevGrowth.value || null,
+                    net_profit_growth_min: filterProfitGrowth.value || null,
+                    debt_ratio_max: filterDebtMax.value || null,
+                    gm_growth_q_min: filterGmGrowthQ.value || null,
+                    gm_growth_2y_min: filterGmGrowth2y.value || null,
                     page: searchResult.value ? searchResult.value.page : 1,
                     page_size: 50,
                     sort_by: 'tech_score',
@@ -581,11 +587,12 @@ app.component('profile-page', {
                     body: JSON.stringify(body),
                 });
                 const data = await r.json();
+                if (seq !== searchSeq) return;
                 if (!data.error) searchResult.value = data;
             } catch (e) {
-                console.error(e);
+                if (seq === searchSeq) console.error(e);
             } finally {
-                searchLoading.value = false;
+                if (seq === searchSeq) searchLoading.value = false;
             }
         }
 
@@ -596,6 +603,8 @@ app.component('profile-page', {
             filterRevGrowth.value = null;
             filterProfitGrowth.value = null;
             filterDebtMax.value = null;
+            filterGmGrowthQ.value = null;
+            filterGmGrowth2y.value = null;
             selectedGrowthTags.value = [];
             searchResult.value = null;
         }
@@ -676,6 +685,7 @@ app.component('profile-page', {
             loadProfile, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile,
             stageOptions, selectedStages, filterTechScore, filterFundScore,
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
+            filterGmGrowthQ, filterGmGrowth2y,
             growthTagOptions, selectedGrowthTags,
             searchLoading, searchResult, profileStatusData,
             refreshing, refreshProgress, refreshToast,

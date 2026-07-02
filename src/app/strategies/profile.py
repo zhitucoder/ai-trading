@@ -97,6 +97,18 @@ def calc_growth(cur, prev):
     return round((float(cur) - float(prev)) / float(prev) * 100, 2)
 
 
+def _find_prev_year_gm_growth(quarterly_growth):
+    if not quarterly_growth or len(quarterly_growth) < 5:
+        return None
+    latest_date = quarterly_growth[-1]['date']
+    target_month = latest_date[5:7]
+    target_year = str(int(latest_date[:4]) - 1)
+    for q in reversed(quarterly_growth):
+        if q['date'].startswith(target_year) and q['date'][5:7] == target_month:
+            return q.get('gross_margin_growth')
+    return None
+
+
 def get_latest_financials(code):
     row = query("""
         SELECT fq.report_date,
@@ -173,6 +185,7 @@ def compute_annual_growth(annual_rows):
             'gross_margin_trend': [],
             'annual_revenue_growth': [],
             'annual_profit_growth': [],
+            'annual_gm_growth': [],
             'consecutive_revenue_years': 0,
             'consecutive_profit_years': 0,
             'consecutive_gm_years': 0,
@@ -183,6 +196,7 @@ def compute_annual_growth(annual_rows):
     rev_growths = []
     profit_growths = []
     gm_improvements = []
+    gm_growth_rates = []
 
     for row in rows:
         rev = float(row['operating_revenue']) if row.get('operating_revenue') else 0
@@ -204,6 +218,8 @@ def compute_annual_growth(annual_rows):
         rev_growths.append(rev_growth)
         profit_growths.append(profit_growth)
         gm_improvements.append(cur_gm is not None and prev_gm is not None and cur_gm > prev_gm)
+        gm_growth = (cur_gm - prev_gm) / prev_gm * 100 if cur_gm is not None and prev_gm is not None and prev_gm > 0 else None
+        gm_growth_rates.append(gm_growth)
 
     def count_consecutive(values):
         cnt = 0
@@ -220,11 +236,15 @@ def compute_annual_growth(annual_rows):
     annual_profit = [{'year': gross_margin_trend[i + 1]['year'],
                       'rate': round(profit_growths[i], 2) if profit_growths[i] is not None else None}
                      for i in range(len(profit_growths))]
+    annual_gm_growth = [{'year': gross_margin_trend[i + 1]['year'],
+                         'rate': round(gm_growth_rates[i], 2) if gm_growth_rates[i] is not None else None}
+                        for i in range(len(gm_growth_rates))]
 
     return {
         'gross_margin_trend': gross_margin_trend,
         'annual_revenue_growth': annual_rev,
         'annual_profit_growth': annual_profit,
+        'annual_gm_growth': annual_gm_growth,
         'consecutive_revenue_years': count_consecutive(rev_growths),
         'consecutive_profit_years': count_consecutive(profit_growths),
         'consecutive_gm_years': count_consecutive(gm_improvements),
@@ -281,6 +301,9 @@ def get_quarterly_growth(code, quarters=20):
     report_dates = [r['report_date'] for r in rows]
     sq_map = _single_quarter_from_fin_income(code, report_dates)
 
+    prev_report_dates = [d.replace(year=d.year - 1) for d in report_dates]
+    prev_sq_map = _single_quarter_from_fin_income(code, prev_report_dates)
+
     result = []
     for r in rows:
         d = str(r['report_date'])
@@ -295,6 +318,17 @@ def get_quarterly_growth(code, quarters=20):
         gm = None
         if sq and sq['sq_rev'] > 0:
             gm = round((sq['sq_rev'] - sq['sq_cost']) / sq['sq_rev'] * 100, 2)
+
+        prev_d = str(r['report_date'].replace(year=r['report_date'].year - 1))
+        prev_sq = prev_sq_map.get(prev_d)
+        prev_gm = None
+        if prev_sq and prev_sq['sq_rev'] > 0:
+            prev_gm = round((prev_sq['sq_rev'] - prev_sq['sq_cost']) / prev_sq['sq_rev'] * 100, 2)
+
+        gm_growth = None
+        if gm is not None and prev_gm is not None and prev_gm > 0:
+            gm_growth = round((gm - prev_gm) / prev_gm * 100, 2)
+
         result.append({
             'date': d,
             'revenue': rev,
@@ -302,6 +336,7 @@ def get_quarterly_growth(code, quarters=20):
             'revenue_growth': round(rev_growth, 2) if rev_growth is not None else None,
             'profit_growth': round(profit_growth, 2) if profit_growth is not None else None,
             'gross_margin': gm,
+            'gross_margin_growth': gm_growth,
         })
     return result
 
@@ -733,6 +768,9 @@ def generate_profile(stock_code):
             'gross_margin_trend': annual_growth['gross_margin_trend'],
             'revenue_growth': annual_growth['annual_revenue_growth'],
             'profit_growth': annual_growth['annual_profit_growth'],
+            'gm_growth': annual_growth['annual_gm_growth'],
         },
+        'gross_margin_growth_q': quarterly_growth[-1]['gross_margin_growth'] if quarterly_growth and len(quarterly_growth) > 0 else None,
+        'gm_growth_prev_yr': _find_prev_year_gm_growth(quarterly_growth),
         'quarterly_growth': quarterly_growth,
     }

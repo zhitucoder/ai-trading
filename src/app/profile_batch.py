@@ -69,20 +69,6 @@ def _batch_insert(rows, conn):
     conn.commit()
 
 
-def _update_progress_log(log_id, computed, total, errors, status='running', conn=None):
-    sql = """UPDATE profile_refresh_log
-             SET computed_stocks = %s, error_stocks = %s,
-                 status = %s
-             WHERE id = %s"""
-    params = [computed, errors, status, log_id]
-    if status in ('done', 'failed'):
-        sql = """UPDATE profile_refresh_log
-                 SET computed_stocks = %s, error_stocks = %s,
-                     status = %s, finished_at = NOW()
-                 WHERE id = %s"""
-    execute(sql, params)
-
-
 def run_batch(report_date=None):
     """全量计算画像并写入 stock_profiles。report_date 为 K 线数据截止日期"""
     import pymysql
@@ -103,9 +89,19 @@ def run_batch(report_date=None):
 
     conn = pymysql.connect(**DB_CONFIG, cursorclass=DictCursor)
     try:
-        execute("INSERT INTO profile_refresh_log (started_at, status, total_stocks, trade_date, fin_report_date) "
+        # 清除同 data_date 的旧数据，避免 REPLACE INTO 因 trade_date 不同产生重复
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM stock_profiles WHERE data_date = %s", [trade_date])
+        conn.commit()
+
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO profile_refresh_log (started_at, status, total_stocks, trade_date, fin_report_date) "
                 "VALUES (NOW(), 'running', %s, %s, %s)",
-                [total, trade_date, str(fin_report_date) if fin_report_date else None])
+                [total, trade_date, str(fin_report_date) if fin_report_date else None]
+            )
+            log_id = cur.lastrowid
+        conn.commit()
 
         computed = 0
         errors = 0
@@ -123,15 +119,25 @@ def run_batch(report_date=None):
                 _batch_insert(batch_rows, conn)
                 batch_rows.clear()
 
+            if computed % 500 == 0:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE profile_refresh_log SET computed_stocks = %s, error_stocks = %s WHERE id = %s",
+                        [computed, errors, log_id]
+                    )
+                    conn.commit()
+
         if batch_rows:
             _batch_insert(batch_rows, conn)
 
         execute("DELETE FROM stock_profiles WHERE data_date < DATE_SUB(%s, INTERVAL 2 DAY)", [trade_date])
 
-        log_entry = query("SELECT MAX(id) AS max_id FROM profile_refresh_log")
-        if log_entry and log_entry[0]['max_id']:
-            execute("UPDATE profile_refresh_log SET status='done', finished_at=NOW() WHERE id = %s",
-                    [log_entry[0]['max_id']])
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE profile_refresh_log SET status='done', computed_stocks=%s, error_stocks=%s, finished_at=NOW() WHERE id = %s",
+                [computed, errors, log_id]
+            )
+            conn.commit()
 
         return {'total': total, 'computed': computed, 'errors': errors}
     finally:
