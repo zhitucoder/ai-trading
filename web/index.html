@@ -546,14 +546,14 @@
                 </div>
 
                 <div class="card" v-if="profile.quarterly_growth && profile.quarterly_growth.length">
-                    <div class="card-title card-title-sm">季度同比增长（近8季）</div>
+                    <div class="card-title card-title-sm">季度同比增长（近9季）</div>
                     <div class="table-wrap q-growth-wrap">
                         <table class="q-growth-table">
                             <thead><tr>
                                 <th>季度</th><th>营收</th><th>营收同比</th><th>净利润</th><th>利润同比</th><th>毛利率</th>
                             </tr></thead>
                             <tbody>
-                                <tr v-for="q in profile.quarterly_growth.slice(-8).reverse()" :key="q.date">
+                                <tr v-for="q in profile.quarterly_growth.slice(-9).reverse()" :key="q.date">
                                     <td class="q-date">{{ q.date.slice(0,7) }}</td>
                                     <td>{{ fmtMoney(q.revenue) }}</td>
                                     <td :class="q.revenue_growth != null ? valClass(q.revenue_growth) : ''">{{ q.revenue_growth != null ? fmtGrowth(q.revenue_growth) : '-' }}</td>
