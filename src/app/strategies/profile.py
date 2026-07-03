@@ -304,27 +304,116 @@ def get_rolling_annual_gm(code, max_years=5):
     if len(sq_list) < max_years * 4:
         return 0
 
-    rolling_gm = []
+    return _count_consecutive_rolling_improvement(sq_list, max_years, 'gm')
+
+
+def get_rolling_annual_profit(code, max_years=5):
+    """基于最新季度往前推4个季度为一年，计算滚动净利润连升年数"""
+    quarters = query("""
+        SELECT report_date, parent_net_profit
+        FROM fin_income
+        WHERE stock_code = %s
+        ORDER BY report_date DESC
+        LIMIT %s
+    """, [code, max_years * 4 + 4])
+    if not quarters or len(quarters) < 8:
+        return 0
+
+    rows = list(reversed(quarters))
+
+    sq_list = []
+    for i, r in enumerate(rows):
+        profit = float(r['parent_net_profit']) if r['parent_net_profit'] else 0
+        if i == 0 or r['report_date'].month == 3:
+            sq_profit = profit
+        else:
+            prev = rows[i - 1]
+            prev_profit = float(prev['parent_net_profit']) if prev['parent_net_profit'] else 0
+            sq_profit = profit - prev_profit
+        sq_list.append({'profit': sq_profit, 'date': str(r['report_date'])})
+
+    if len(sq_list) < max_years * 4:
+        return 0
+
+    return _count_consecutive_rolling_improvement(sq_list, max_years, 'profit')
+
+
+def _count_consecutive_rolling_improvement(sq_list, max_years, metric):
+    """通用滚动年度增长计算"""
+    rolling_values = []
     for y in range(max_years):
         start = -(y + 1) * 4
         end = -y * 4 if y > 0 else None
         chunk = sq_list[start:end]
-        total_rev = sum(q['rev'] for q in chunk)
-        total_cost = sum(q['cost'] for q in chunk)
-        if total_rev > 0:
-            gm = (total_rev - total_cost) / total_rev * 100
-            rolling_gm.append(gm)
+        if metric == 'gm':
+            total = sum(q['rev'] for q in chunk)
+            if total <= 0:
+                rolling_values.append(None)
+                continue
+            val = (total - sum(q['cost'] for q in chunk)) / total * 100
         else:
-            rolling_gm.append(None)
+            val = sum(q['profit'] for q in chunk)
+        rolling_values.append(val)
 
     consecutive = 0
-    for i in range(len(rolling_gm) - 1):
-        if rolling_gm[i] is not None and rolling_gm[i + 1] is not None and rolling_gm[i] > rolling_gm[i + 1]:
+    for i in range(len(rolling_values) - 1):
+        if rolling_values[i] is not None and rolling_values[i + 1] is not None and rolling_values[i] > rolling_values[i + 1]:
             consecutive += 1
         else:
             break
-
     return consecutive
+
+
+def get_rolling_growth(code):
+    """计算滚动年度营收和净利润同比增速（最新4季 / 前4季）"""
+    rev_rows = query("""
+        SELECT report_date, operating_revenue, operating_cost
+        FROM fin_income
+        WHERE stock_code = %s
+        ORDER BY report_date DESC LIMIT 9
+    """, [code])
+    profit_rows = query("""
+        SELECT report_date, parent_net_profit
+        FROM fin_income
+        WHERE stock_code = %s
+        ORDER BY report_date DESC LIMIT 9
+    """, [code])
+
+    rev_growth, profit_growth = None, None
+
+    if rev_rows and len(rev_rows) >= 8:
+        rows = list(reversed(rev_rows))
+        sq = []
+        for i, r in enumerate(rows):
+            v = float(r['operating_revenue']) if r['operating_revenue'] else 0
+            if i == 0 or r['report_date'].month == 3:
+                sq_rev = v
+            else:
+                prev = rows[i-1]
+                sq_rev = v - (float(prev['operating_revenue']) if prev['operating_revenue'] else 0)
+            sq.append(sq_rev)
+        latest_yr = sum(sq[-4:])
+        prev_yr = sum(sq[-8:-4])
+        if prev_yr > 0:
+            rev_growth = (latest_yr - prev_yr) / prev_yr * 100
+
+    if profit_rows and len(profit_rows) >= 8:
+        rows = list(reversed(profit_rows))
+        sq = []
+        for i, r in enumerate(rows):
+            v = float(r['parent_net_profit']) if r['parent_net_profit'] else 0
+            if i == 0 or r['report_date'].month == 3:
+                sq_profit = v
+            else:
+                prev = rows[i-1]
+                sq_profit = v - (float(prev['parent_net_profit']) if prev['parent_net_profit'] else 0)
+            sq.append(sq_profit)
+        latest_yr = sum(sq[-4:])
+        prev_yr = sum(sq[-8:-4])
+        if prev_yr > 0:
+            profit_growth = (latest_yr - prev_yr) / prev_yr * 100
+
+    return rev_growth, profit_growth
 
 
 def _single_quarter_from_fin_income(code, report_dates):
@@ -516,19 +605,21 @@ def compute_indicator_tags(klines, fin):
     return ind_tags, ma_values, ind_map
 
 
-def compute_business_tags(ind_map, fin, prev_fin, growth_quarters, klines):
+def compute_business_tags(ind_map, fin, prev_fin, growth_quarters, klines, rolling_rev_growth=None, rolling_profit_growth=None):
     biz_flags = {}
 
     def has_ind(suffix):
         return ind_map.get(suffix, False)
 
-    rev_growth = None
-    profit_growth = None
+    rev_growth = rolling_rev_growth
+    profit_growth = rolling_profit_growth
     debt = None
 
     if fin:
-        rev_growth = calc_growth(fin.get('q_revenue'), fin.get('prev_revenue'))
-        profit_growth = calc_growth(fin.get('q_parent_net_profit'), fin.get('prev_profit'))
+        if rolling_profit_growth is None:
+            profit_growth = calc_growth(fin.get('q_parent_net_profit'), fin.get('prev_profit'))
+        if rolling_rev_growth is None:
+            rev_growth = calc_growth(fin.get('q_revenue'), fin.get('prev_revenue'))
         ta = fin.get('total_assets')
         tl = fin.get('total_liabilities')
         if ta is not None and tl is not None and float(ta) > 0:
@@ -792,13 +883,18 @@ def generate_profile(stock_code):
 
     ind_tags, ma_values, ind_map = compute_indicator_tags(klines, fin)
 
-    biz_tags = compute_business_tags(ind_map, fin, prev_fin, growth_quarters, klines)
+    rolling_rev_growth, rolling_profit_growth = get_rolling_growth(stock_code)
+    biz_tags = compute_business_tags(ind_map, fin, prev_fin, growth_quarters, klines,
+                                      rolling_rev_growth=rolling_rev_growth,
+                                      rolling_profit_growth=rolling_profit_growth)
 
     if annual_growth['consecutive_revenue_years'] >= 1:
         for n in range(1, min(annual_growth['consecutive_revenue_years'], 4) + 1):
             biz_tags.append({'id': f'biz.annual_rev_growth_{n}y', 'name': BIZ_TAGS_DEF[f'biz.annual_rev_growth_{n}y']['name']})
-    if annual_growth['consecutive_profit_years'] >= 1:
-        for n in range(1, min(annual_growth['consecutive_profit_years'], 4) + 1):
+
+    consecutive_profit = get_rolling_annual_profit(stock_code)
+    if consecutive_profit >= 1:
+        for n in range(1, min(consecutive_profit, 4) + 1):
             biz_tags.append({'id': f'biz.annual_profit_growth_{n}y', 'name': BIZ_TAGS_DEF[f'biz.annual_profit_growth_{n}y']['name']})
 
     consecutive_gm = get_rolling_annual_gm(stock_code)
