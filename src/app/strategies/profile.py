@@ -70,6 +70,25 @@ def get_stock_name(code):
     return r[0]['stock_name'] if r else None
 
 
+def get_stock_sectors(code):
+    rows = query('''
+        SELECT ss.sector_code, s.sector_name, s.category, s.category_cn
+        FROM stock_sectors ss
+        JOIN sectors s ON s.sector_code = ss.sector_code
+        WHERE ss.stock_code = %s
+        ORDER BY s.category, s.level, ss.sector_code
+    ''', [code])
+    result = {'industry': [], 'region': [], 'concept': [], 'style': []}
+    for r in rows:
+        cat = r['category']
+        if cat in result:
+            result[cat].append({
+                'code': r['sector_code'],
+                'name': r['sector_name'],
+            })
+    return result
+
+
 def get_klines(code, days=300):
     rows = query("""
         SELECT trade_date, open_price, high_price, low_price, close_price, volume
@@ -704,6 +723,8 @@ def generate_profile(stock_code):
     if not name:
         return {'error': f'股票代码 {stock_code} 不存在'}
 
+    sectors = get_stock_sectors(stock_code)
+
     klines = get_klines(stock_code)
     if not klines:
         return {'error': f'股票 {stock_code} 无K线数据'}
@@ -765,6 +786,7 @@ def generate_profile(stock_code):
         'latest_price': latest_price,
         'price_change_pct': price_change,
         'volume': latest['volume'],
+        'sectors': sectors,
         'stage': stage,
         'biz_tags': biz_tags,
         'ind_tags': ind_tags,

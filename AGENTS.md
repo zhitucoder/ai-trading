@@ -20,6 +20,7 @@ src/
       fundamental.py ← Financial ratio screening
   import_kline.py    ← Tongdaxin daily K-line import → daily_kline table
   import_financial.py ← Tongdaxin financial data import → 8 fin_* tables
+  import_sectors.py  ← Tongdaxin sector/板块 import → sectors, stock_sectors tables
 web/
   index.html         ← Vue 3 SPA (CDN, no build tool)
   app.js             ← Vue components
@@ -74,6 +75,8 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 | `fin_ratios` | 290k | Financial ratios per report quarter |
 | `fin_income` | 290k | Income statement per quarter |
 | 6 more `fin_*` | 290k each | Balance sheet, cash flow, etc. |
+| `sectors` | 605 | Sector definitions (行业/地区/概念/风格) |
+| `stock_sectors` | 82k | Stock → sector mapping |
 
 ### Table reliability (pytdx field index shifts)
 

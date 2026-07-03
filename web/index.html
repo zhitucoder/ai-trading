@@ -532,6 +532,34 @@
                     </div>
                 </div>
 
+                <div class="card" v-if="profile.sectors">
+                    <div class="card-title">所属板块</div>
+                    <div class="profile-sector-group" v-if="profile.sectors.industry && profile.sectors.industry.length">
+                        <div class="profile-sector-label">行业</div>
+                        <div class="profile-tag-grid">
+                            <div v-for="s in profile.sectors.industry" :key="s.code" class="profile-tag profile-tag-sector profile-tag-industry">{{ s.name }}</div>
+                        </div>
+                    </div>
+                    <div class="profile-sector-group" v-if="profile.sectors.region && profile.sectors.region.length">
+                        <div class="profile-sector-label">地区</div>
+                        <div class="profile-tag-grid">
+                            <div v-for="s in profile.sectors.region" :key="s.code" class="profile-tag profile-tag-sector profile-tag-region">{{ s.name }}</div>
+                        </div>
+                    </div>
+                    <div class="profile-sector-group" v-if="profile.sectors.concept && profile.sectors.concept.length">
+                        <div class="profile-sector-label">概念</div>
+                        <div class="profile-tag-grid">
+                            <div v-for="s in profile.sectors.concept" :key="s.code" class="profile-tag profile-tag-sector profile-tag-concept">{{ s.name }}</div>
+                        </div>
+                    </div>
+                    <div class="profile-sector-group" v-if="profile.sectors.style && profile.sectors.style.length">
+                        <div class="profile-sector-label">风格</div>
+                        <div class="profile-tag-grid">
+                            <div v-for="s in profile.sectors.style" :key="s.code" class="profile-tag profile-tag-sector profile-tag-style">{{ s.name }}</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card" v-if="profile.biz_tags && profile.biz_tags.length">
                     <div class="card-title">业务标签</div>
                     <div class="profile-tag-grid">
