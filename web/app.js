@@ -75,6 +75,17 @@ app.component('screening-page', {
 
         function selectStrategy(id) { selectedStrategy.value = id; result.value = null; error.value = ''; }
 
+        function switchToTurnaround() {
+            tabType.value = 'turnaround';
+            selectedStrategy.value = 'turnaround';
+            revenueThreshold.value = 15;
+            profitThreshold.value = 10;
+            debtThreshold.value = 20;
+            result.value = null;
+            error.value = '';
+            nextTick(() => execute());
+        }
+
         async function execute() {
             if (!selectedStrategy.value) return;
             loading.value = true; error.value = ''; result.value = null;
@@ -98,7 +109,7 @@ app.component('screening-page', {
             strategies, tabType, selectedStrategy, loading, result, error,
             maPeriods, revenueThreshold, profitThreshold, debtThreshold,
             currentStrategies, hasResult,
-            selectStrategy, execute, isSelected,
+            selectStrategy, execute, isSelected, switchToTurnaround,
             fmt, fmtGrowth, fmtMoney, valClass,
         };
     },
@@ -520,6 +531,8 @@ app.component('profile-page', {
         const filterDebtMax = ref(null);
         const filterGmGrowthQ = ref(null);
         const filterGmGrowth2y = ref(null);
+        const filterContractLiabMin = ref(null);
+        const filterContractLiabMax = ref(null);
         const growthTagOptions = [
             { id: 'biz.annual_rev_growth_1y', label: '营收连增1年' },
             { id: 'biz.annual_rev_growth_2y', label: '营收连增2年' },
@@ -537,6 +550,8 @@ app.component('profile-page', {
         const selectedGrowthTags = ref([]);
         const searchLoading = ref(false);
         const searchResult = ref(null);
+        const sortBy = ref('tech_score');
+        const sortOrder = ref('desc');
         const profileStatusData = ref(null);
         const refreshing = ref(false);
         const refreshProgress = ref('');
@@ -576,10 +591,12 @@ app.component('profile-page', {
                     debt_ratio_max: filterDebtMax.value || null,
                     gm_growth_q_min: filterGmGrowthQ.value || null,
                     gm_growth_2y_min: filterGmGrowth2y.value || null,
+                    contract_liab_min: filterContractLiabMin.value || null,
+                    contract_liab_max: filterContractLiabMax.value || null,
                     page: searchResult.value ? searchResult.value.page : 1,
                     page_size: 50,
-                    sort_by: 'tech_score',
-                    sort_order: 'desc',
+                    sort_by: sortBy.value,
+                    sort_order: sortOrder.value,
                 };
                 const r = await fetch(`${API_BASE}/profiles/search`, {
                     method: 'POST',
@@ -596,6 +613,21 @@ app.component('profile-page', {
             }
         }
 
+        function toggleSort(field) {
+            if (sortBy.value === field) {
+                sortOrder.value = sortOrder.value === 'desc' ? 'asc' : 'desc';
+            } else {
+                sortBy.value = field;
+                sortOrder.value = 'desc';
+            }
+            doSearch();
+        }
+
+        function sortArrow(field) {
+            if (sortBy.value !== field) return '';
+            return sortOrder.value === 'desc' ? ' ▼' : ' ▲';
+        }
+
         function resetFilters() {
             selectedStages.value = [];
             filterTechScore.value = 0;
@@ -605,7 +637,11 @@ app.component('profile-page', {
             filterDebtMax.value = null;
             filterGmGrowthQ.value = null;
             filterGmGrowth2y.value = null;
+            filterContractLiabMin.value = null;
+            filterContractLiabMax.value = null;
             selectedGrowthTags.value = [];
+            sortBy.value = 'tech_score';
+            sortOrder.value = 'desc';
             searchResult.value = null;
         }
 
@@ -686,10 +722,12 @@ app.component('profile-page', {
             stageOptions, selectedStages, filterTechScore, filterFundScore,
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
             filterGmGrowthQ, filterGmGrowth2y,
+            filterContractLiabMin, filterContractLiabMax,
             growthTagOptions, selectedGrowthTags,
-            searchLoading, searchResult, profileStatusData,
+            searchLoading, searchResult, profileStatusData, sortBy, sortOrder,
             refreshing, refreshProgress, refreshToast,
             toggleStage, toggleGrowthTag, onFilterChange, doSearch, resetFilters, triggerRefresh,
+            toggleSort, sortArrow,
             fmt, fmtGrowth, fmtMoney, valClass,
         };
     },

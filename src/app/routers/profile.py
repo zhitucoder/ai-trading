@@ -125,6 +125,8 @@ class SearchRequest(BaseModel):
     price_change_max: Optional[float] = None
     gm_growth_q_min: Optional[float] = None
     gm_growth_2y_min: Optional[float] = None
+    contract_liab_min: Optional[float] = None
+    contract_liab_max: Optional[float] = None
     page: int = 1
     page_size: int = 50
     sort_by: str = 'tech_score'
@@ -192,9 +194,19 @@ def search_profiles(body: SearchRequest):
         conditions.append("JSON_EXTRACT(p.profile_json, '$.gm_growth_prev_yr') IS NOT NULL AND JSON_EXTRACT(p.profile_json, '$.gm_growth_prev_yr') >= %(gm_growth_2y_min)s")
         params['gm_growth_2y_min'] = body.gm_growth_2y_min
 
+    if body.contract_liab_min is not None:
+        conditions.append("JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') >= %(contract_liab_min)s")
+        params['contract_liab_min'] = body.contract_liab_min
+    if body.contract_liab_max is not None:
+        conditions.append("(JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') IS NULL OR JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') <= %(contract_liab_max)s)")
+        params['contract_liab_max'] = body.contract_liab_max
+
     sort_col = 'p.tech_score'
-    if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct'):
-        sort_col = f'p.{body.sort_by}'
+    if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct', 'contract_liab_to_assets'):
+        if body.sort_by == 'contract_liab_to_assets':
+            sort_col = "CAST(JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS DECIMAL(10,2))"
+        else:
+            sort_col = f'p.{body.sort_by}'
     sort_dir = 'DESC' if body.sort_order == 'desc' else 'ASC'
     offset = (body.page - 1) * body.page_size
     limit = body.page_size
@@ -211,6 +223,7 @@ def search_profiles(body: SearchRequest):
         SELECT p.stock_code, p.stock_name, p.latest_price, p.price_change_pct,
                p.stage_id, p.stage_confidence, p.tech_score, p.fund_score,
                p.revenue_growth, p.net_profit_growth, p.debt_ratio,
+               JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS contract_liab_to_assets,
                {tag_cols_sql}
         FROM stock_profiles p
         WHERE p.data_date = %(ldate)s AND {where}

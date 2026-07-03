@@ -58,6 +58,9 @@
             <button class="strategy-tab tab-minervini" :class="{ active: tabType === 'minervini' }"
                     @click="tabType = 'minervini'; selectedStrategy = null; result = null"
                     style="color:var(--amber);">⚡ Minervini</button>
+            <button class="strategy-tab" :class="{ active: tabType === 'turnaround' }"
+                    @click="switchToTurnaround"
+                    style="color:var(--green);">↺ 困境反转</button>
         </div>
 
         <div v-if="tabType === 'minervini'" class="card" style="border-color:var(--amber);font-size:13px;line-height:1.7;">
@@ -70,6 +73,20 @@
                 Minervini 的「趋势模板」要求：EPS/营收增长 > 25%、ROE > 17%、
                 价格在 MA50/MA150 上方、距 52 周高点的 75% 以内、近期波幅收敛、成交量放大确认。<br>
                 <span style="color:var(--text-dim);font-size:12px;">参考: 《超级绩效》《股票魔法师》</span>
+            </p>
+        </div>
+
+        <div v-if="tabType === 'turnaround'" class="card" style="border-color:var(--green);font-size:13px;line-height:1.7;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="font-size:20px;">↺</span>
+                <strong style="color:var(--green);">困境反转策略</strong>
+            </div>
+            <p style="color:var(--text-muted);">
+                筛选逻辑：<strong style="color:var(--text);">前期营收下滑 → 当前恢复增长</strong> 或 <strong style="color:var(--text);">亏损转盈利</strong>，
+                且股价在 MA200 附近（偏离 ≤ 20%）。<br>
+                <strong>营收反转</strong>：前一年营收增速 &lt; -10% → 当前 &gt; 15% 且盈利<br>
+                <strong>扭亏为盈</strong>：前一年亏损 → 当前净利润 &gt; 1000万 且营收增长 &gt; 10%<br>
+                <span style="color:var(--text-dim);font-size:12px;">排除 ST / *ST / 退市</span>
             </p>
         </div>
 
@@ -140,6 +157,23 @@
                     <span class="hint">Minervini基准: 15-30天</span>
                 </div>
             </div>
+            <div v-if="tabType === 'turnaround' && s.id === 'turnaround'" class="config-grid">
+                <div class="config-item">
+                    <label>当前营收增速 ≥ (%)</label>
+                    <input v-model.number="revenueThreshold" type="number" step="1">
+                    <span class="hint">默认: 15%</span>
+                </div>
+                <div class="config-item">
+                    <label>前期营收下滑 ≤ (%) / 净利润下限(百万元)</label>
+                    <input v-model.number="profitThreshold" type="number" step="1">
+                    <span class="hint">默认: 10 (下滑上限+净利润下限)</span>
+                </div>
+                <div class="config-item">
+                    <label>偏离MA200 ≤ (%)</label>
+                    <input v-model.number="debtThreshold" type="number" step="1">
+                    <span class="hint">默认: 20%</span>
+                </div>
+            </div>
             <div style="margin-top:12px;">
                 <button class="btn btn-primary" @click="selectStrategy(s.id)" :disabled="isSelected(s.id)">
                     {{ isSelected(s.id) ? '✓ 已选择' : '选择此策略' }}
@@ -186,6 +220,14 @@
                                         <template v-else-if="col === 'ma150'">MA150</template>
                                         <template v-else-if="col === 'tightness'">波幅</template>
                                         <template v-else-if="col === 'volume_ratio'">量比</template>
+                                        <template v-else-if="col === 'cur_rev_growth'">现营收增速</template>
+                                        <template v-else-if="col === 'prev_rev_growth'">前营收增速</template>
+                                        <template v-else-if="col === 'cur_profit_growth'">现净利润增速</template>
+                                        <template v-else-if="col === 'cur_profit'">现净利润</template>
+                                        <template v-else-if="col === 'prev_profit'">前净利润</template>
+                                        <template v-else-if="col === 'operating_revenue'">营业收入</template>
+                                        <template v-else-if="col === 'ma200'">MA200</template>
+                                        <template v-else-if="col === 'ma200_deviation_pct'">偏离MA200</template>
                                         <template v-else>{{ col }}</template>
                                     </th>
                                 </tr>
@@ -222,6 +264,18 @@
                                         </template>
                                         <template v-else-if="col === 'report_date' || col === 'latest_date'">
                                             {{ row[col] ? String(row[col]).substring(0, 10) : '' }}
+                                        </template>
+                                        <template v-else-if="col === 'cur_profit' || col === 'prev_profit' || col === 'operating_revenue'">
+                                            {{ fmtMoney(row[col]) }}
+                                        </template>
+                                        <template v-else-if="col === 'cur_rev_growth' || col === 'prev_rev_growth' || col === 'cur_profit_growth'">
+                                            {{ fmtGrowth(row[col]) }}
+                                        </template>
+                                        <template v-else-if="col === 'ma200'">
+                                            {{ fmt(row[col]) }}
+                                        </template>
+                                        <template v-else-if="col === 'ma200_deviation_pct'">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(1) + '%' : '-' }}
                                         </template>
                                         <template v-else>
                                             {{ row[col] ?? '-' }}
@@ -505,6 +559,7 @@
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_growth_rate != null"><div class="profile-ind-label">营收增长率</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_growth_rate)">{{ fmtGrowth(profile.fin_data.revenue_growth_rate) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.net_profit_growth_rate != null"><div class="profile-ind-label">净利润增长率</div><div class="profile-ind-val" :class="valClass(profile.fin_data.net_profit_growth_rate)">{{ fmtGrowth(profile.fin_data.net_profit_growth_rate) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.debt_ratio != null"><div class="profile-ind-label">资产负债率</div><div class="profile-ind-val" :class="debtClass(profile.fin_data.debt_ratio)">{{ profile.fin_data.debt_ratio.toFixed(2) }}%</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.contract_liab_to_assets != null"><div class="profile-ind-label">合同负债占资产</div><div class="profile-ind-val" :class="valClass(10 - profile.fin_data.contract_liab_to_assets)">{{ profile.fin_data.contract_liab_to_assets.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_3y != null"><div class="profile-ind-label">营收3年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_3y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_3y) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.net_profit_cagr_3y != null"><div class="profile-ind-label">净利润3年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.net_profit_cagr_3y)">{{ fmtGrowth(profile.fin_data.net_profit_cagr_3y) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.q_revenue != null"><div class="profile-ind-label">单季营业收入</div><div class="profile-ind-val accent">{{ fmtMoney(profile.fin_data.q_revenue) }}</div></div>
@@ -609,6 +664,10 @@
                         <div><label>净利润增长率 ≥</label><input type="number" v-model.number="filterProfitGrowth" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                         <div><label>负债率 ≤</label><input type="number" v-model.number="filterDebtMax" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                     </div>
+                    <div class="screening-range-row" style="margin-top:6px;">
+                        <div><label>合同负债占比 ≥</label><input type="number" v-model.number="filterContractLiabMin" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label>合同负债占比 ≤</label><input type="number" v-model.number="filterContractLiabMax" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                    </div>
                 </div>
 
                 <div class="screening-section">
@@ -648,12 +707,13 @@
                                 <th style="width:80px;">代码</th>
                                 <th style="width:80px;">名称</th>
                                 <th style="width:80px;">价格</th>
-                                <th style="width:60px;">涨幅</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('price_change_pct')">涨幅{{ sortArrow('price_change_pct') }}</th>
                                 <th style="width:80px;">阶段</th>
-                                <th style="width:60px;">技术</th>
-                                <th style="width:60px;">基本</th>
-                                <th style="width:80px;">营收增长</th>
-                                <th style="width:80px;">利润增长</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('tech_score')">技术{{ sortArrow('tech_score') }}</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('fund_score')">基本{{ sortArrow('fund_score') }}</th>
+                                <th style="width:80px;cursor:pointer;" @click="toggleSort('revenue_growth')">营收增长{{ sortArrow('revenue_growth') }}</th>
+                                <th style="width:80px;cursor:pointer;" @click="toggleSort('net_profit_growth')">利润增长{{ sortArrow('net_profit_growth') }}</th>
+                                <th style="width:90px;cursor:pointer;" @click="toggleSort('contract_liab_to_assets')">合同负债{{ sortArrow('contract_liab_to_assets') }}</th>
                                 <th>标签</th>
                             </tr>
                         </thead>
@@ -670,6 +730,7 @@
                                 <td :class="scoreTextClass(row.fund_score)">{{ row.fund_score }}</td>
                                 <td :class="valClass(row.revenue_growth)">{{ row.revenue_growth != null ? fmtGrowth(row.revenue_growth) : '-' }}</td>
                                 <td :class="valClass(row.net_profit_growth)">{{ row.net_profit_growth != null ? fmtGrowth(row.net_profit_growth) : '-' }}</td>
+                                <td :class="valClass(10 - parseFloat(row.contract_liab_to_assets))">{{ row.contract_liab_to_assets != null ? parseFloat(row.contract_liab_to_assets).toFixed(2) + '%' : '-' }}</td>
                                 <td style="text-align:left;">
                                     <span v-for="t in (row.active_tags || []).slice(0, 4)" :key="t.id" class="screening-tag">{{ t.name }}</span>
                                     <span v-if="(row.active_tags || []).length > 4" class="screening-tag-more">+{{ row.active_tags.length - 4 }}</span>

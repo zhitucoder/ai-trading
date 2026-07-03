@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from ..strategies.technical import TECHNICAL_STRATEGIES, screen_ma_bullish
 from ..strategies.fundamental import FUNDAMENTAL_STRATEGIES, screen_revenue_growth, screen_profit_growth, screen_debt_ratio, screen_fundamental_all, get_latest_report_date
 from ..strategies.minervini import MINERVINI_STRATEGIES, screen_minervini_eps, screen_minervini_roe, screen_minervini_trend_template, screen_sepa_master
+from ..strategies.turnaround import TURNAROUND_STRATEGIES, screen_turnaround
 from ..database import query
 
 router = APIRouter()
@@ -32,6 +33,9 @@ def list_strategies():
         ],
         'minervini': [
             {'id': k, **v} for k, v in MINERVINI_STRATEGIES.items()
+        ],
+        'turnaround': [
+            {'id': k, **v} for k, v in TURNAROUND_STRATEGIES.items()
         ],
     }
 
@@ -93,6 +97,18 @@ def execute_screening(
     if strategy_id == 'minervini_trend_template':
         rows = screen_minervini_trend_template(revenue_threshold, int(profit_threshold))
         cols = ['latest_price', 'ma50', 'ma150', 'pct_52w_high', 'tightness', 'volume_ratio', 'latest_date']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
+
+    if strategy_id == 'turnaround':
+        rows = screen_turnaround(
+            max_ma200_deviation=debt_threshold,
+            min_rev_growth=revenue_threshold,
+            min_prev_decline=-abs(profit_threshold),
+            min_profit=max(1_000_000, int(abs(profit_threshold) * 1_000_000)),
+        )
+        cols = ['cur_rev_growth', 'prev_rev_growth', 'cur_profit_growth',
+                'cur_profit', 'prev_profit', 'operating_revenue',
+                'close_price', 'ma200', 'ma200_deviation_pct', 'report_date']
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     return {'error': f'Unknown strategy: {strategy_id}'}

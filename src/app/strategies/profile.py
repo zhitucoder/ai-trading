@@ -115,13 +115,16 @@ def get_latest_financials(code):
                fq.q_revenue, fq.q_parent_net_profit,
                fq2.q_revenue AS prev_revenue,
                fq2.q_parent_net_profit AS prev_profit,
-               b.total_assets, b.total_liabilities
+               b.total_assets, b.total_liabilities,
+               c.contract_liab
         FROM fin_quarterly fq
         LEFT JOIN fin_quarterly fq2
             ON fq2.stock_code = fq.stock_code
             AND fq2.report_date = DATE_SUB(fq.report_date, INTERVAL 1 YEAR)
         LEFT JOIN fin_balance_sheet b
             ON b.stock_code = fq.stock_code AND b.report_date = fq.report_date
+        LEFT JOIN fin_contract_bs c
+            ON c.stock_code = fq.stock_code AND c.report_date = fq.report_date
         WHERE fq.stock_code = %s
         ORDER BY fq.report_date DESC
         LIMIT 1
@@ -740,10 +743,14 @@ def generate_profile(stock_code):
         ta = fin.get('total_assets')
         tl = fin.get('total_liabilities')
         debt_ratio = round(float(tl) / float(ta) * 100, 2) if ta is not None and tl is not None and float(ta) > 0 else None
+        cl = fin.get('contract_liab')
+        contract_liab_to_assets = round(float(cl) / float(ta) * 100, 2) if cl is not None and ta is not None and float(ta) > 0 else None
         fin_data = {
             'revenue_growth_rate': rev_growth,
             'net_profit_growth_rate': profit_growth,
             'debt_ratio': debt_ratio,
+            'contract_liab_to_assets': contract_liab_to_assets,
+            'contract_liab_raw': float(cl) if cl is not None else None,
             'q_revenue': float(fin['q_revenue']) if fin.get('q_revenue') is not None else None,
             'q_parent_net_profit': float(fin['q_parent_net_profit']) if fin.get('q_parent_net_profit') is not None else None,
             'report_date': str(fin['report_date']) if fin.get('report_date') else None,
