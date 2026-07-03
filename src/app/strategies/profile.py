@@ -273,6 +273,60 @@ def compute_annual_growth(annual_rows):
     }
 
 
+def get_rolling_annual_gm(code, max_years=5):
+    """基于最新季度往前推4个季度为一年，计算滚动毛利率连升年数"""
+    quarters = query("""
+        SELECT report_date, operating_revenue, operating_cost
+        FROM fin_income
+        WHERE stock_code = %s
+        ORDER BY report_date DESC
+        LIMIT %s
+    """, [code, max_years * 4 + 4])
+    if not quarters or len(quarters) < 8:
+        return 0
+
+    rows = list(reversed(quarters))
+
+    sq_list = []
+    for i, r in enumerate(rows):
+        rev = float(r['operating_revenue']) if r['operating_revenue'] else 0
+        cost = float(r['operating_cost']) if r['operating_cost'] else 0
+        if i == 0 or r['report_date'].month == 3:
+            sq_rev, sq_cost = rev, cost
+        else:
+            prev = rows[i - 1]
+            prev_rev = float(prev['operating_revenue']) if prev['operating_revenue'] else 0
+            prev_cost = float(prev['operating_cost']) if prev['operating_cost'] else 0
+            sq_rev = rev - prev_rev
+            sq_cost = cost - prev_cost
+        sq_list.append({'rev': sq_rev, 'cost': sq_cost, 'date': str(r['report_date'])})
+
+    if len(sq_list) < max_years * 4:
+        return 0
+
+    rolling_gm = []
+    for y in range(max_years):
+        start = -(y + 1) * 4
+        end = -y * 4 if y > 0 else None
+        chunk = sq_list[start:end]
+        total_rev = sum(q['rev'] for q in chunk)
+        total_cost = sum(q['cost'] for q in chunk)
+        if total_rev > 0:
+            gm = (total_rev - total_cost) / total_rev * 100
+            rolling_gm.append(gm)
+        else:
+            rolling_gm.append(None)
+
+    consecutive = 0
+    for i in range(len(rolling_gm) - 1):
+        if rolling_gm[i] is not None and rolling_gm[i + 1] is not None and rolling_gm[i] > rolling_gm[i + 1]:
+            consecutive += 1
+        else:
+            break
+
+    return consecutive
+
+
 def _single_quarter_from_fin_income(code, report_dates):
     if not report_dates:
         return {}
@@ -746,8 +800,10 @@ def generate_profile(stock_code):
     if annual_growth['consecutive_profit_years'] >= 1:
         for n in range(1, min(annual_growth['consecutive_profit_years'], 4) + 1):
             biz_tags.append({'id': f'biz.annual_profit_growth_{n}y', 'name': BIZ_TAGS_DEF[f'biz.annual_profit_growth_{n}y']['name']})
-    if annual_growth['consecutive_gm_years'] >= 1:
-        for n in range(1, min(annual_growth['consecutive_gm_years'], 4) + 1):
+
+    consecutive_gm = get_rolling_annual_gm(stock_code)
+    if consecutive_gm >= 1:
+        for n in range(1, min(consecutive_gm, 4) + 1):
             biz_tags.append({'id': f'biz.annual_gm_improve_{n}y', 'name': BIZ_TAGS_DEF[f'biz.annual_gm_improve_{n}y']['name']})
 
     stage = compute_stage(klines, ma_values, ind_map)
