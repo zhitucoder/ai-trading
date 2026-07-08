@@ -209,3 +209,10 @@ pytdx 财务数据的字段索引发生过偏移。索引 ≤ 97 的字段（利
 2. **revenue_growth_rate is fraction** → divide user-facing threshold by 100
 3. **Screening API returns `stock_code`/`stock_name` in rows but NOT in columns** → frontend renders them as static columns; dynamic columns from API are everything else
 4. **No tests, no linting, no typechecking configured** — run nothing beyond `uvicorn` for dev
+
+---
+
+## 公众号发布
+- 排版：`wechat-copy.js <md> --preset "墨色书香"`
+- 配图：HTML → Playwright 截图 → ImgBB 上传
+- 完整工作流详见 `docs/wechat-publish.md`
