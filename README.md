@@ -4,8 +4,6 @@
 
 <p align="center">
   <img src="assets/hero.gif" alt="AI Trading System Demo" />
-  <br/>
-  <sub>动画由 <a href="https://github.com/alchaincyf/huashu-design">huashu-design</a> skill 制作 | <a href="assets/hero-animation.html">查看动画源文件</a></sub>
 </p>
 
 > A股量化交易系统 — 选股 · 回测 · 个股画像 · AI 多空辩论
@@ -268,9 +266,7 @@ ai-trading/
 
 **自始至终，你一行代码都没写。**
 
-<video src="https://raw.githubusercontent.com/zhitucoder/ai-trading/dev/lession/%E8%AF%BE%E7%A8%8B%E4%BB%8B%E7%BB%8D%E8%A7%86%E9%A2%91.mp4" controls width="100%" style="max-width:720px;border-radius:12px">
-  Your browser does not support the video tag.
-</video>
+[▶ 播放项目效果视频（MP4，需点击下载后观看）](项目效果视频.mp4)
 
 > 💡 这个视频效果也是通过AI生成的——把你的想法告诉AI，它就能做出来。
 
