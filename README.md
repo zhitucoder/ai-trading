@@ -93,7 +93,7 @@ python src/import_shares.py
 
 ## 系统架构
 
-![系统架构图](ai-trading-architecture.png)
+![系统架构图](ai-trading-architecture.svg)
 
 | 层 | 技术栈 |
 |----|--------|
@@ -203,8 +203,7 @@ def serve_spa(path: str = ''):
 ai-trading/
 ├── README.md
 ├── AGENTS.md                    # Claude Code 指令
-├── ai-trading-architecture.png  # 架构图
-├── ai-trading-architecture.svg  # 架构图源文件
+├── ai-trading-architecture.svg  # 架构图
 ├── assets/
 │   ├── hero.gif                 # 演示动画 GIF
 │   ├── hero-animation.html      # 动画源文件
