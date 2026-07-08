@@ -243,7 +243,7 @@ ai-trading/
 
 ## 📚 课程：不写一行代码，用AI从零搭建A股量化系统
 
-> 2025年最火的AI编程新范式——**Vibe Coding**。你不"写"代码，而是"聊"出代码。本课程为**零编程基础**设计，用自然语言描述需求，让AI帮你搭建完整量化系统。
+> 2026年最火的AI编程新范式——**Vibe Coding**。你不"写"代码，而是"聊"出代码。本课程为**零编程基础**设计，用自然语言描述需求，让AI帮你搭建完整量化系统。
 
 ### 13讲从0到1
 
@@ -267,6 +267,12 @@ ai-trading/
 | 蒸馏专家 | 利弗莫尔/Minervini/巴菲特视角辅助决策 |
 
 **自始至终，你一行代码都没写。**
+
+<video src="lession/课程介绍视频.mp4" controls width="100%" style="max-width:720px;border-radius:12px">
+  Your browser does not support the video tag.
+</video>
+
+> 💡 这个视频效果也是通过AI生成的——把你的想法告诉AI，它就能做出来。
 
 👉 对课程感兴趣？添加微信或公众号私信作者咨询
 
