@@ -268,7 +268,7 @@ ai-trading/
 
 **自始至终，你一行代码都没写。**
 
-<video src="lession/课程介绍视频.mp4" controls width="100%" style="max-width:720px;border-radius:12px">
+<video src="https://raw.githubusercontent.com/zhitucoder/ai-trading/dev/lession/%E8%AF%BE%E7%A8%8B%E4%BB%8B%E7%BB%8D%E8%A7%86%E9%A2%91.mp4" controls width="100%" style="max-width:720px;border-radius:12px">
   Your browser does not support the video tag.
 </video>
 
