@@ -176,6 +176,33 @@ pytdx 财务数据的字段索引发生过偏移。索引 ≤ 97 的字段（利
 
 ---
 
+## 张新民财务分析流程
+
+当用户说 **"张新民分析 xx公司"** 时，按以下规则执行：
+
+### 数据时效性
+- **主要基于上一年度年报**（当前为 2025 年年报）
+- **辅助最新季度数据**（当前为 2026Q1）
+- 用年报做主体判断，用最新季度做趋势验证
+
+### 分析框架
+1. 激活 `zhang-xinmin-perspective` skill
+2. 从数据库提取：`fin_income`、`fin_balance_sheet`、`fin_cash_flow`、`fin_quarterly`
+3. 按张新民六维分析：资产质量、利润质量、现金流质量、偿债能力、成长性、关联交易与风险
+4. 输出综合诊断结论
+
+### 输出规则
+- 文件写入 `analysis/` 目录
+- 文件名格式：`{中文公司名}_张新民财务分析.md`
+- 示例：`analysis/贵州茅台_张新民财务分析.md`
+
+### 指标可靠性
+- **使用**：`fin_income`（营收/成本/利润）、`fin_balance_sheet`（资产/负债/权益）、`fin_cash_flow`
+- **计算**：ROE、毛利率、净利率、资产负债率、流动比率等均从原始表计算
+- **避免**：`fin_ratios` 中索引 ≥ 166 的字段（已知损坏）
+
+---
+
 ## Common Pitfalls
 
 1. **Server dies after shell timeout** → always use `setsid` + redirect

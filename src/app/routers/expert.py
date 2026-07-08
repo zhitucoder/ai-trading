@@ -11,6 +11,21 @@ router = APIRouter()
 
 SKILLS_DIR = os.path.expanduser('~/.claude/skills')
 
+
+def _load_env():
+    env_path = Path(__file__).resolve().parent.parent.parent.parent / '.env'
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                k, v = line.split('=', 1)
+                k, v = k.strip(), v.strip()
+                if k and k not in os.environ:
+                    os.environ[k] = v
+
+
+_load_env()
+
 LLM_API_URL = os.environ.get('EXPERT_LLM_URL', 'http://localhost:11434/v1/chat/completions')
 LLM_MODEL = os.environ.get('EXPERT_LLM_MODEL', 'qwen2.5:14b')
 LLM_API_KEY = os.environ.get('EXPERT_LLM_KEY', '')

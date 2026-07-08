@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 660" width="960" height="660">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f0f1a"/>
+      <stop offset="100%" stop-color="#1a1a2e"/>
+    </linearGradient>
+    <style>
+      text{font-family:'SF Mono','Fira Code','Cascadia Code','Courier New','Microsoft YaHei','SimHei',monospace}
+      .t{font-size:22px;font-weight:700;fill:#e2e8f0}
+      .st{font-size:12px;font-weight:500;fill:#64748b}
+      .tag{font-size:10px;font-weight:700;fill:#64748b;letter-spacing:1.2px}
+      .ln{font-size:14px;font-weight:700;fill:#e2e8f0}
+      .ll{font-size:10px;font-weight:500;fill:#94a3b8}
+    </style>
+    <marker id="mp" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#a855f7"/></marker>
+    <marker id="mt" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#14b8a6"/></marker>
+    <marker id="mg" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#6b7280"/></marker>
+  </defs>
+  <rect width="960" height="660" fill="url(#bg)"/>
+<text x="480" y="30" text-anchor="middle" class="t">AI Trading System — 系统架构图</text>
+<text x="480" y="48" text-anchor="middle" class="st">选股 · 回测 · 个股画像 · AI 辩论 · 蒸馏专家 · VCP 形态识别</text>
+<rect x="28" y="72" width="904" height="40" rx="8" fill="none" stroke="#334155" stroke-width="1" stroke-dasharray="5,4"/>
+<text x="42" y="88" text-anchor="start" class="tag">01  //  USER</text>
+<text x="42" y="106" text-anchor="start" class="ln">浏览器</text>
+<rect x="590" y="80" width="180" height="24" rx="12" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+<rect x="598" y="84" width="6" height="6" rx="3" fill="#ef4444" stroke="#475569" stroke-width="1"/>
+<rect x="608" y="84" width="6" height="6" rx="3" fill="#f59e0b" stroke="#475569" stroke-width="1"/>
+<rect x="618" y="84" width="6" height="6" rx="3" fill="#22c55e" stroke="#475569" stroke-width="1"/>
+<text x="680" y="96" text-anchor="middle" class="ln" fill="#94a3b8">Desktop / Mobile → http://host:9000</text>
+<line x1="480" y1="112" x2="480" y2="140" stroke="#a855f7" stroke-width="2" marker-end="url(#mp)"/>
+<rect x="459.0" y="115" width="42" height="20" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" opacity="0.95"/>
+<text x="480" y="129" text-anchor="middle" font-size="11" font-weight="600" fill="#cbd5e1">HTTP</text>
+<rect x="28" y="140" width="904" height="86" rx="8" fill="none" stroke="#334155" stroke-width="1" stroke-dasharray="5,4"/>
+<text x="42" y="156" text-anchor="start" class="tag">02  //  FRONTEND SPA</text>
+<text x="42" y="174" text-anchor="start" class="ln">Vue 3 · CDN · 无构建工具</text>
+<rect x="46" y="184" width="112" height="28" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="102.0" y="202" text-anchor="middle" fill="#a855f7">选股</text>
+<rect x="172" y="184" width="112" height="28" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="228.0" y="202" text-anchor="middle" fill="#a855f7">回测</text>
+<rect x="298" y="184" width="112" height="28" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="354.0" y="202" text-anchor="middle" fill="#a855f7">个股画像</text>
+<rect x="424" y="184" width="112" height="28" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="480.0" y="202" text-anchor="middle" fill="#a855f7">AI 辩论</text>
+<rect x="550" y="184" width="112" height="28" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="606.0" y="202" text-anchor="middle" fill="#a855f7">VCP 形态</text>
+<rect x="676" y="184" width="112" height="28" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="732.0" y="202" text-anchor="middle" fill="#a855f7">蒸馏专家</text>
+<rect x="802" y="184" width="112" height="28" rx="6" fill="#1e1b4b" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="858.0" y="202" text-anchor="middle" fill="#a855f7">数据管理</text>
+<text x="480" y="216" text-anchor="middle" class="tag">web/index.html · web/app.js · web/style.css</text>
+<line x1="480" y1="226" x2="480" y2="254" stroke="#a855f7" stroke-width="2" marker-end="url(#mp)"/>
+<rect x="427.5" y="229" width="105" height="20" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" opacity="0.95"/>
+<text x="480" y="243" text-anchor="middle" font-size="11" font-weight="600" fill="#cbd5e1">HTTP REST API</text>
+<rect x="28" y="254" width="904" height="86" rx="8" fill="none" stroke="#334155" stroke-width="1" stroke-dasharray="5,4"/>
+<text x="42" y="270" text-anchor="start" class="tag">03  //  BACKEND API</text>
+<text x="42" y="288" text-anchor="start" class="ln">FastAPI · uvicorn · Python 3.12</text>
+<rect x="46" y="298" width="95" height="28" rx="6" fill="#3b1c1c" stroke="#ef4444" stroke-width="1.2"/>
+<text x="93.5" y="316" text-anchor="middle" fill="#f87171">screening</text>
+<rect x="156" y="298" width="95" height="28" rx="6" fill="#3b1c1c" stroke="#ef4444" stroke-width="1.2"/>
+<text x="203.5" y="316" text-anchor="middle" fill="#f87171">backtest</text>
+<rect x="267" y="298" width="95" height="28" rx="6" fill="#3b1c1c" stroke="#ef4444" stroke-width="1.2"/>
+<text x="314.5" y="316" text-anchor="middle" fill="#f87171">profile</text>
+<rect x="377" y="298" width="95" height="28" rx="6" fill="#3b1c1c" stroke="#ef4444" stroke-width="1.2"/>
+<text x="424.5" y="316" text-anchor="middle" fill="#f87171">debate</text>
+<rect x="488" y="298" width="95" height="28" rx="6" fill="#3b1c1c" stroke="#ef4444" stroke-width="1.2"/>
+<text x="535.5" y="316" text-anchor="middle" fill="#f87171">vcp</text>
+<rect x="598" y="298" width="95" height="28" rx="6" fill="#3b1c1c" stroke="#ef4444" stroke-width="1.2"/>
+<text x="645.5" y="316" text-anchor="middle" fill="#f87171">expert</text>
+<rect x="709" y="298" width="95" height="28" rx="6" fill="#3b1c1c" stroke="#ef4444" stroke-width="1.2"/>
+<text x="756.5" y="316" text-anchor="middle" fill="#f87171">data_mgmt</text>
+<rect x="819" y="298" width="95" height="28" rx="6" fill="#3b1c1c" stroke="#ef4444" stroke-width="1.2"/>
+<text x="866.5" y="316" text-anchor="middle" fill="#f87171">health</text>
+<text x="480" y="330" text-anchor="middle" class="tag">SPA catch-all · CORS 全开 · src/app/main.py</text>
+<line x1="480" y1="340" x2="480" y2="366" stroke="#14b8a6" stroke-width="2" marker-end="url(#mt)"/>
+<rect x="452.0" y="342" width="56" height="20" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" opacity="0.95"/>
+<text x="480" y="356" text-anchor="middle" font-size="11" font-weight="600" fill="#cbd5e1">SQL 查询</text>
+<rect x="28" y="366" width="904" height="106" rx="8" fill="none" stroke="#334155" stroke-width="1" stroke-dasharray="5,4"/>
+<text x="42" y="382" text-anchor="start" class="tag">04  //  DATA STORE &amp; STRATEGIES</text>
+<text x="42" y="400" text-anchor="start" class="ln">MySQL (ai_trading) + 策略引擎</text>
+<rect x="46" y="412" width="420" height="56" rx="8" fill="#042f2e" stroke="#14b8a6" stroke-width="1"/>
+<text x="256" y="430" text-anchor="middle" class="ln" fill="#5eead4">MySQL — ai_trading</text>
+<text x="256" y="448" text-anchor="middle" class="tag">10M K线 · 290K 财务 · 5.5K 股票 · 605 板块</text>
+<rect x="58" y="448" width="55" height="16" rx="4" fill="#134e4a" stroke="#14b8a6" stroke-width="1"/>
+<text x="85.5" y="460" text-anchor="middle" class="tag" fill="#5eead4">stocks</text>
+<rect x="118" y="448" width="89" height="16" rx="4" fill="#134e4a" stroke="#14b8a6" stroke-width="1"/>
+<text x="162.5" y="460" text-anchor="middle" class="tag" fill="#5eead4">daily_kline</text>
+<rect x="212" y="448" width="82" height="16" rx="4" fill="#134e4a" stroke="#14b8a6" stroke-width="1"/>
+<text x="253.0" y="460" text-anchor="middle" class="tag" fill="#5eead4">fin_income</text>
+<rect x="299" y="448" width="76" height="16" rx="4" fill="#134e4a" stroke="#14b8a6" stroke-width="1"/>
+<text x="337" y="460" text-anchor="middle" font-size="9" fill="#5eead4">fin_balance</text>
+<rect x="380" y="448" width="76" height="16" rx="4" fill="#134e4a" stroke="#14b8a6" stroke-width="1"/>
+<text x="418" y="460" text-anchor="middle" font-size="9" fill="#5eead4">fin_cashflow</text>
+<rect x="494" y="412" width="420" height="56" rx="8" fill="#422006" stroke="#eab308" stroke-width="1"/>
+<text x="704" y="430" text-anchor="middle" class="ln" fill="#fbbf24">策略引擎 — Strategies</text>
+<text x="704" y="448" text-anchor="middle" class="tag">纯计算逻辑 · 被 Router 调用 · 不暴露 HTTP</text>
+<rect x="506" y="448" width="72" height="16" rx="4" fill="#451a03" stroke="#eab308" stroke-width="1"/>
+<text x="542" y="460" text-anchor="middle" font-size="9" fill="#fde68a">technical</text>
+<rect x="583" y="448" width="82" height="16" rx="4" fill="#451a03" stroke="#eab308" stroke-width="1"/>
+<text x="624" y="460" text-anchor="middle" font-size="9" fill="#fde68a">fundamental</text>
+<rect x="670" y="448" width="66" height="16" rx="4" fill="#451a03" stroke="#eab308" stroke-width="1"/>
+<text x="703" y="460" text-anchor="middle" font-size="9" fill="#fde68a">minervini</text>
+<rect x="741" y="448" width="56" height="16" rx="4" fill="#451a03" stroke="#eab308" stroke-width="1"/>
+<text x="769" y="460" text-anchor="middle" font-size="9" fill="#fde68a">profile</text>
+<rect x="802" y="448" width="76" height="16" rx="4" fill="#451a03" stroke="#eab308" stroke-width="1"/>
+<text x="840" y="460" text-anchor="middle" font-size="9" fill="#fde68a">turnaround</text>
+<line x1="480" y1="472" x2="480" y2="494" stroke="#6b7280" stroke-width="1.5" marker-end="url(#mg)" stroke-dasharray="4,3"/>
+<rect x="462.0" y="472" width="36" height="20" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" opacity="0.95"/>
+<text x="480" y="486" text-anchor="middle" font-size="11" font-weight="600" fill="#cbd5e1">通达信</text>
+<rect x="28" y="494" width="904" height="70" rx="8" fill="none" stroke="#334155" stroke-width="1" stroke-dasharray="5,4"/>
+<text x="42" y="510" text-anchor="start" class="tag">05  //  DATA IMPORT</text>
+<text x="42" y="528" text-anchor="start" class="ln">pytdx ← 通达信</text>
+<rect x="55" y="532" width="185" height="24" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+<text x="147" y="549" text-anchor="middle" class="tag" fill="#94a3b8">import_kline.py</text>
+<rect x="268" y="532" width="185" height="24" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+<text x="360" y="549" text-anchor="middle" class="tag" fill="#94a3b8">import_financial.py</text>
+<rect x="481" y="532" width="185" height="24" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+<text x="573" y="549" text-anchor="middle" class="tag" fill="#94a3b8">import_sectors.py</text>
+<rect x="694" y="532" width="185" height="24" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+<text x="786" y="549" text-anchor="middle" class="tag" fill="#94a3b8">import_shares.py</text>
+<rect x="148.0" y="578" width="664" height="32" rx="6" fill="#111827" stroke="#334155" stroke-width="1"/>
+<line x1="162.0" y1="594" x2="182.0" y2="594" stroke="#a855f7" stroke-width="1.8" marker-end="url(#mp)"/>
+<text x="192.0" y="598" text-anchor="start" class="ll">HTTP 请求/响应</text>
+<line x1="382.0" y1="594" x2="402.0" y2="594" stroke="#14b8a6" stroke-width="1.8" marker-end="url(#mt)"/>
+<text x="412.0" y="598" text-anchor="start" class="ll">SQL 查询/写入</text>
+<line x1="602.0" y1="594" x2="622.0" y2="594" stroke="#6b7280" stroke-width="1.8" marker-end="url(#mg)"/>
+<text x="632.0" y="598" text-anchor="start" class="ll">数据导入</text>
+</svg>

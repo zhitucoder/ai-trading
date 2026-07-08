@@ -12,7 +12,7 @@
     <aside class="sidebar">
         <div class="logo">AI<span>Trade</span></div>
         <nav>
-            <a v-for="p in pages" :key="p.id"
+            <a v-for="p in navPages" :key="p.id"
                :class="{ active: currentPage === p.id }"
                @click="currentPage = p.id">
                 <span class="icon">{{ p.icon }}</span>
@@ -25,8 +25,10 @@
     <div class="main">
         <screening-page v-if="currentPage === 'screening'"></screening-page>
         <vcp-page v-else-if="currentPage === 'vcp'"></vcp-page>
+        <bt-strategies-page v-else-if="currentPage === 'bt_strategies'"></bt-strategies-page>
         <position-bt-page v-else-if="currentPage === 'position_bt'"></position-bt-page>
         <ma-bt-page v-else-if="currentPage === 'ma_bt'"></ma-bt-page>
+        <quant-breakout-bt-page v-else-if="currentPage === 'quant_breakout_bt'"></quant-breakout-bt-page>
         <profile-page v-else-if="currentPage === 'profile'"></profile-page>
         <debate-page v-else-if="currentPage === 'debate'"></debate-page>
         <expert-page v-else-if="currentPage === 'expert'"></expert-page>
@@ -34,6 +36,42 @@
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
+
+<template id="bt-strategies-tpl">
+    <div class="topbar">
+        <h2>回测策略</h2>
+        <span class="badge">历史信号验证</span>
+    </div>
+    <div class="content">
+        <div class="card" style="cursor:pointer;" @click="$root.currentPage = 'position_bt'">
+            <div class="card-title">
+                <span style="font-size:24px;margin-right:10px;">⟳</span> 建仓回测
+                <span class="hint">自定义买卖交易 → 计算持仓盈亏、最大回撤</span>
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                支持逐笔买卖交易，自动匹配交易日，基于均价成本法计算逐日盈亏。
+            </div>
+        </div>
+        <div class="card" style="cursor:pointer;" @click="$root.currentPage = 'ma_bt'">
+            <div class="card-title">
+                <span style="font-size:24px;margin-right:10px;">∿</span> 均线回测
+                <span class="hint">金叉买入/死叉卖出 → 胜率/收益/回撤</span>
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                短均线上穿长均线买入，下穿卖出；支持任意周期组合，计算交易明细和策略指标。
+            </div>
+        </div>
+        <div class="card" style="cursor:pointer;" @click="$root.currentPage = 'quant_breakout_bt'">
+            <div class="card-title">
+                <span style="font-size:24px;margin-right:10px;">↗</span> 底部突破回测
+                <span class="hint">横盘整理N日 + 大阳线突破 → 历史信号验证</span>
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                条件：N日内每日涨跌幅 ≤ ±4%，箱体振幅 ≤ 12%，今日涨幅 ≥ 7%。回测指定股票所有历史信号。
+            </div>
+        </div>
+    </div>
+</template>
 
 <!-- Screening Template -->
 <template id="screening-tpl">
@@ -102,6 +140,19 @@
                 <div class="config-item">
                     <label>均线周期（逗号分隔）</label>
                     <input v-model="maPeriods" placeholder="5,10,20,60">
+                </div>
+            </div>
+            <div v-if="tabType === 'technical' && s.id === 'quantitative_breakout'" class="config-grid">
+                <div class="config-item">
+                    <label>横盘观察天数 (N)</label>
+                    <input v-model.number="consolidationDays" type="number" min="5" max="120">
+                    <span class="hint">默认 20 天</span>
+                </div>
+                <div class="config-item">
+                    <span class="hint" style="font-size:12px;color:var(--text-dim);">
+                        条件①：N日内每日涨跌幅 ≤ ±4%，箱体振幅 ≤ 12%<br>
+                        条件②：今日大阳线突破，涨幅 ≥ 7%
+                    </span>
                 </div>
             </div>
             <div v-if="tabType === 'fundamental' && s.id === 'fundamental_all'" class="config-grid">
@@ -228,6 +279,10 @@
                                         <template v-else-if="col === 'operating_revenue'">营业收入</template>
                                         <template v-else-if="col === 'ma200'">MA200</template>
                                         <template v-else-if="col === 'ma200_deviation_pct'">偏离MA200</template>
+                                        <template v-else-if="col === 'breakout_price'">突破价</template>
+                                        <template v-else-if="col === 'breakout_pct'">突破涨幅</template>
+                                        <template v-else-if="col === 'range_pct'">箱体振幅</template>
+                                        <template v-else-if="col === 'breakout_date'">突破日期</template>
                                         <template v-else>{{ col }}</template>
                                     </th>
                                 </tr>
@@ -276,6 +331,18 @@
                                         </template>
                                         <template v-else-if="col === 'ma200_deviation_pct'">
                                             {{ row[col] != null ? Number(row[col]).toFixed(1) + '%' : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'breakout_price'">
+                                            {{ fmt(row[col]) }}
+                                        </template>
+                                        <template v-else-if="col === 'breakout_pct'">
+                                            {{ row[col] != null ? fmtGrowth(row[col]) : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'range_pct'">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(2) + '%' : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'breakout_date'">
+                                            {{ row[col] ? String(row[col]).substring(0, 10) : '' }}
                                         </template>
                                         <template v-else>
                                             {{ row[col] ?? '-' }}
@@ -458,6 +525,147 @@
                             </tbody>
                         </table>
             </div>
+        </div>
+    </div>
+</template>
+
+<template id="quant-breakout-bt-tpl">
+    <div class="topbar">
+        <h2>底部突破回测</h2>
+        <span class="badge">量化策略</span>
+    </div>
+    <div class="profile-tabs" style="margin-bottom:12px;">
+        <button :class="{ active: qTab === 'single' }" @click="qTab = 'single'">单股回测</button>
+        <button :class="{ active: qTab === 'market' }" @click="qTab = 'market'">全市场回测</button>
+    </div>
+    <div class="content" v-show="qTab === 'single'">
+        <div class="card">
+            <div class="card-title">策略参数</div>
+            <div class="form-row">
+                <div class="config-item"><label>股票代码</label><input v-model="qStockCode" placeholder="002421" @keyup.enter="runQbt"></div>
+                <div class="config-item"><label>横盘天数</label><input v-model.number="qNDays" type="number" min="5" max="120"></div>
+                <div class="config-item"><label>开始日期</label><input v-model="qStartDate" type="date"></div>
+                <div class="config-item"><label>结束日期</label><input v-model="qEndDate" type="date"></div>
+                <div class="config-item"><label>&nbsp;</label><button class="btn btn-primary" @click="runQbt" :disabled="qLoading">{{ qLoading ? '运行中...' : '▶ 运行回测' }}</button></div>
+            </div>
+            <div style="font-size:12px;color:var(--text-dim);margin-top:8px;line-height:1.6;">
+                条件①：N日内每日涨跌幅 ≤ ±4%，箱体振幅 ≤ 12%<br>
+                条件②：今日涨幅 ≥ 7%（大阳线突破）
+            </div>
+        </div>
+
+        <div v-if="qResult.signals" class="card">
+            <div class="result-bar">
+                <span class="count" v-if="qResult.stock_name">{{ qResult.stock_code }} {{ qResult.stock_name }} — 共 <strong>{{ qResult.total_signals }}</strong> 次信号</span>
+                <span class="count" v-else>共 <strong>{{ qResult.total_signals }}</strong> 次信号</span>
+            </div>
+            <div class="table-wrap" v-if="qResult.signals.length">
+                <table>
+                    <thead><tr>
+                        <th style="width:36px;">#</th>
+                        <th>触发日期</th>
+                        <th>突破价</th>
+                        <th>突破涨幅</th>
+                        <th>箱体振幅</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr v-for="(s, i) in qResult.signals" :key="i">
+                            <td>{{ i + 1 }}</td>
+                            <td>{{ s.trade_date }}</td>
+                            <td>{{ fmt(s.signal_price) }}</td>
+                            <td :class="valClass(s.breakout_pct)">{{ fmtGrowth(s.breakout_pct) }}</td>
+                            <td>{{ s.range_pct != null ? s.range_pct + '%' : '-' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div v-else class="placeholder"><p style="font-size:13px;color:var(--text-muted);">没有触发信号</p></div>
+        </div>
+
+        <div v-if="qError" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;">
+            {{ qError }}
+        </div>
+    </div>
+
+    <div class="content" v-show="qTab === 'market'">
+        <div class="card">
+            <div class="form-row">
+                <div class="config-item"><label>回溯月数</label>
+                    <select v-model.number="mktMonths" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);color:var(--text);">
+                        <option :value="1">1 个月</option>
+                        <option :value="3">3 个月</option>
+                        <option :value="6">6 个月</option>
+                        <option :value="12">12 个月</option>
+                        <option :value="24">24 个月</option>
+                    </select>
+                </div>
+                <div class="config-item"><label>&nbsp;</label><button class="btn btn-primary" @click="runMktBt" :disabled="mktLoading">{{ mktLoading ? '回测运行中（约1-2分钟）...' : '▶ 全市场回测' }}</button></div>
+            </div>
+            <div class="mkt-progress" v-if="mktLoading" style="padding:20px 0;text-align:center;">
+                <span class="spinner" style="display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;"></span>
+                <p style="margin-top:10px;color:var(--text-muted);font-size:13px;">正在进行全市场回测，正在扫描所有股票的横盘突破信号...</p>
+            </div>
+        </div>
+
+        <div v-if="mktResult.summary" class="card">
+            <div class="card-title">回测统计</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;padding:12px 0;">
+                <div class="stat-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center;">
+                    <div style="font-size:22px;font-weight:700;color:var(--accent);">{{ mktResult.summary.total_signals }}</div>
+                    <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">总信号数</div>
+                </div>
+                <div class="stat-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center;">
+                    <div style="font-size:22px;font-weight:700;color:var(--text);">{{ mktResult.summary.win_rate }}%</div>
+                    <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">胜率</div>
+                </div>
+                <div class="stat-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center;">
+                    <div style="font-size:22px;font-weight:700;color:var(--green);">{{ fmtGrowth(mktResult.summary.avg_return) }}</div>
+                    <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">平均收益</div>
+                </div>
+                <div class="stat-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center;">
+                    <div style="font-size:22px;font-weight:700;color:var(--green);">{{ fmtGrowth(mktResult.summary.max_return) }}</div>
+                    <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">最大收益</div>
+                </div>
+                <div class="stat-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center;">
+                    <div style="font-size:22px;font-weight:700;color:var(--red);">{{ fmtGrowth(mktResult.summary.min_return) }}</div>
+                    <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">最大亏损</div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="mktResult.signals" class="card">
+            <div class="result-bar">
+                <span class="count">共 <strong>{{ mktResult.total_signals }}</strong> 个底部突破信号</span>
+                <span style="font-size:12px;color:var(--text-dim);">回溯 {{ mktResult.months }} 个月</span>
+            </div>
+            <div class="table-wrap" v-if="mktResult.signals.length">
+                <table>
+                    <thead><tr>
+                        <th>触发日期</th>
+                        <th>代码</th>
+                        <th>名称</th>
+                        <th>突破价</th>
+                        <th>涨幅</th>
+                        <th>箱体振幅</th>
+                        <th>1月后收益</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr v-for="(s, i) in mktResult.signals" :key="i">
+                            <td>{{ s.trade_date }}</td>
+                            <td>{{ s.stock_code }}</td>
+                            <td>{{ s.stock_name }}</td>
+                            <td>{{ fmt(s.signal_price) }}</td>
+                            <td :class="valClass(s.breakout_pct)">{{ fmtGrowth(s.breakout_pct) }}</td>
+                            <td>{{ s.range_pct != null ? s.range_pct + '%' : '-' }}</td>
+                            <td :class="valClass(s.return_1m_pct)">{{ s.return_1m_pct != null ? fmtGrowth(s.return_1m_pct) : '-' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div v-if="mktError" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;">
+            {{ mktError }}
         </div>
     </div>
 </template>

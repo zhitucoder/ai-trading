@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Trading System</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+body{background:#0f0f1a;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Inter',system-ui,sans-serif;overflow:hidden}
+.slide{position:absolute;width:600px;height:400px;border-radius:20px;padding:40px;display:flex;flex-direction:column;justify-content:center;opacity:0;transform:translateY(20px) scale(0.97);transition:none}
+.slide.active{opacity:1;transform:translateY(0) scale(1)}
+.slide.exit{opacity:0;transform:translateY(-20px) scale(0.97)}
+.badge{display:inline-block;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:16px}
+h1{font-size:36px;font-weight:800;margin-bottom:8px;line-height:1.2}
+.sub{font-size:16px;font-weight:400;margin-bottom:20px;line-height:1.6;opacity:0.7}
+.features{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.feature{padding:6px 16px;border-radius:12px;font-size:13px;font-weight:600}
+/* Slide 1: Hero */
+.s1{background:linear-gradient(135deg,#0f0f1a 0%,#1a1a2e 100%);border:1px solid rgba(99,102,241,0.3)}
+.s1 h1{color:#e2e8f0}.s1 .sub{color:#94a3b8}.s1 .badge{background:rgba(99,102,241,0.2);color:#818cf8;border:1px solid rgba(99,102,241,0.3)}
+.s1 .feature{background:rgba(99,102,241,0.12);color:#a5b4fc}
+/* Slide 2: Screening */
+.s2{background:linear-gradient(135deg,#0c1929 0%,#132337 100%);border:1px solid rgba(56,189,248,0.3)}
+.s2 h1{color:#7dd3fc}.s2 .sub{color:#94a3b8}.s2 .badge{background:rgba(56,189,248,0.2);color:#38bdf8;border:1px solid rgba(56,189,248,0.3)}
+.s2 .feature{background:rgba(56,189,248,0.12);color:#7dd3fc}
+/* Slide 3: Backtest */
+.s3{background:linear-gradient(135deg,#0c1a12 0%,#132a1a 100%);border:1px solid rgba(52,211,153,0.3)}
+.s3 h1{color:#6ee7b7}.s3 .sub{color:#94a3b8}.s3 .badge{background:rgba(52,211,153,0.2);color:#34d399;border:1px solid rgba(52,211,153,0.3)}
+.s3 .feature{background:rgba(52,211,153,0.12);color:#6ee7b7}
+/* Slide 4: Profile & AI Debate */
+.s4{background:linear-gradient(135deg,#1c0f1c 0%,#2d1b2d 100%);border:1px solid rgba(192,132,252,0.3)}
+.s4 h1{color:#c4b5fd}.s4 .sub{color:#94a3b8}.s4 .badge{background:rgba(192,132,252,0.2);color:#c084fc;border:1px solid rgba(192,132,252,0.3)}
+.s4 .feature{background:rgba(192,132,252,0.12);color:#c4b5fd}
+/* Slide 5: Data */
+.s5{background:linear-gradient(135deg,#141018 0%,#1f1828 100%);border:1px solid rgba(251,191,36,0.3)}
+.s5 h1{color:#fde68a}.s5 .sub{color:#94a3b8}.s5 .badge{background:rgba(251,191,36,0.2);color:#fbbf24;border:1px solid rgba(251,191,36,0.3)}
+.s5 .feature{background:rgba(251,191,36,0.12);color:#fde68a}
+/* tagline */
+.tagline{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);font-size:11px;color:rgba(148,163,184,0.4);letter-spacing:2px;text-transform:uppercase}
+.icon{font-size:32px;margin-bottom:12px}
+</style>
+</head>
+<body>
+
+<div class="slide s1 active" id="s1">
+  <div class="icon">📊</div>
+  <div class="badge">AI Trading System</div>
+  <h1>智能股票分析系统</h1>
+  <div class="sub">A股量化选股 · 回测 · 个股画像 · AI 多空辩论<br>基于 FastAPI + MySQL + Vue 3</div>
+  <div class="features">
+    <span class="feature">量化选股</span>
+    <span class="feature">策略回测</span>
+    <span class="feature">个股画像</span>
+    <span class="feature">AI 辩论</span>
+    <span class="feature">VCP 形态</span>
+  </div>
+</div>
+
+<div class="slide s2" id="s2">
+  <div class="icon">🔍</div>
+  <div class="badge">量化选股</div>
+  <h1>多策略筛选</h1>
+  <div class="sub">MA多头排列 · 财务指标筛选 ·<br>Minervini SEPA · 困境反转 · 组合策略</div>
+  <div class="features">
+    <span class="feature">MA Bullish</span>
+    <span class="feature">Fundamental</span>
+    <span class="feature">Minervini</span>
+    <span class="feature">Turnaround</span>
+    <span class="feature">Combined</span>
+  </div>
+</div>
+
+<div class="slide s3" id="s3">
+  <div class="icon">📈</div>
+  <div class="badge">策略回测</div>
+  <h1>全周期验证</h1>
+  <div class="sub">MA金叉死叉交易系统 · 自定义持仓回测<br>10M+ K线数据 · 精确逐笔盈亏计算</div>
+  <div class="features">
+    <span class="feature">MA Crossover</span>
+    <span class="feature">Position P&amp;L</span>
+    <span class="feature">Drawdown</span>
+    <span class="feature">K-line Chart</span>
+    <span class="feature">Lightweight Charts</span>
+  </div>
+</div>
+
+<div class="slide s4" id="s4">
+  <div class="icon">🧠</div>
+  <div class="badge">个股分析</div>
+  <h1>深度画像 + AI 辩论</h1>
+  <div class="sub">张新民财务分析 · 九大维度个股画像<br>多空双Agent 辩论 · 自动化报告生成</div>
+  <div class="features">
+    <span class="feature">Financial Profile</span>
+    <span class="feature">Bull v.s. Bear</span>
+    <span class="feature">VCP Pattern</span>
+    <span class="feature">Expert Query</span>
+    <span class="feature">Report Export</span>
+  </div>
+</div>
+
+<div class="slide s5" id="s5">
+  <div class="icon">🗄️</div>
+  <div class="badge">数据引擎</div>
+  <h1>通达信数据导入</h1>
+  <div class="sub">日K线 · 财务报表 · 板块分类 · 股本信息<br>5500+ 股票 · 10M K线 · 290K 财务记录</div>
+  <div class="features">
+    <span class="feature">K-line Import</span>
+    <span class="feature">Financial Import</span>
+    <span class="feature">Sector Import</span>
+    <span class="feature">Share Info</span>
+    <span class="feature">10M+ Rows</span>
+  </div>
+</div>
+
+<div class="tagline">AI-Powered Stock Analysis · FastAPI + MySQL + Vue 3</div>
+
+<script>
+const slides = ['s1','s2','s3','s4','s5'];
+let current = 0;
+
+function showSlide(idx){
+  const prev = (idx - 1 + slides.length) % slides.length;
+  const next = idx;
+  document.getElementById(slides[prev]).classList.remove('active','exit');
+  document.getElementById(slides[next]).classList.remove('active','exit');
+  // force reflow
+  void document.getElementById(slides[next]).offsetWidth;
+  document.getElementById(slides[next]).classList.add('active');
+}
+
+// Pre-set initial state
+document.getElementById('s1').classList.add('active');
+
+// Start cycling
+let i = 1;
+setInterval(() => {
+  showSlide(i);
+  i = (i + 1) % slides.length;
+}, 3000);
+</script>
+
+</body>
+</html>

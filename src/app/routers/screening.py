@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from ..strategies.technical import TECHNICAL_STRATEGIES, screen_ma_bullish
+from ..strategies.technical import TECHNICAL_STRATEGIES, screen_ma_bullish, screen_quantitative_breakout
 from ..strategies.fundamental import FUNDAMENTAL_STRATEGIES, screen_revenue_growth, screen_profit_growth, screen_debt_ratio, screen_fundamental_all, get_latest_report_date
 from ..strategies.minervini import MINERVINI_STRATEGIES, screen_minervini_eps, screen_minervini_roe, screen_minervini_trend_template, screen_sepa_master
 from ..strategies.turnaround import TURNAROUND_STRATEGIES, screen_turnaround
@@ -47,8 +47,14 @@ def execute_screening(
     revenue_threshold: float = Query(20.0, description='营收增长率下限(%)'),
     profit_threshold: float = Query(20.0, description='净利润增长率下限(%)'),
     debt_threshold: float = Query(50.0, description='资产负债率上限(%)'),
+    consolidation_days: int = Query(20, description='横盘观察天数'),
 ):
     periods = [int(p.strip()) for p in ma_periods.split(',') if p.strip()]
+
+    if strategy_id == 'quantitative_breakout':
+        rows = screen_quantitative_breakout(consolidation_days)
+        cols = ['breakout_price', 'breakout_pct', 'range_pct', 'breakout_date']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'ma_bullish':
         rows = screen_ma_bullish(periods)

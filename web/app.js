@@ -36,14 +36,14 @@ const app = createApp({
         const pages = [
             { id: 'screening', label: '选股策略', icon: '⊞' },
             { id: 'vcp', label: 'VCP波动收缩', icon: '◐' },
-            { id: 'position_bt', label: '建仓回测', icon: '⟳' },
-            { id: 'ma_bt', label: '均线回测', icon: '∿' },
+            { id: 'bt_strategies', label: '回测策略', icon: '⇄' },
             { id: 'profile', label: '股票画像', icon: '◈' },
             { id: 'debate', label: 'AI多空辩论', icon: '⚖' },
             { id: 'expert', label: '蒸馏专家', icon: '⚗' },
             { id: 'data_mgmt', label: '数据管理', icon: '⚙' },
         ];
-        return { currentPage, pages };
+        const navPages = computed(() => pages);
+        return { currentPage, pages, navPages };
     },
 });
 
@@ -57,6 +57,7 @@ app.component('screening-page', {
         const result = ref(null);
         const error = ref('');
         const maPeriods = ref('5,10,20,60');
+        const consolidationDays = ref(20);
         const revenueThreshold = ref(20);
         const profitThreshold = ref(20);
         const debtThreshold = ref(50);
@@ -95,6 +96,7 @@ app.component('screening-page', {
             params.set('revenue_threshold', revenueThreshold.value);
             params.set('profit_threshold', profitThreshold.value);
             params.set('debt_threshold', debtThreshold.value);
+            params.set('consolidation_days', consolidationDays.value);
             try {
                 const r = await fetch(`${API_BASE}/screening/execute?${params}`, { method: 'POST' });
                 const data = await r.json();
@@ -107,7 +109,7 @@ app.component('screening-page', {
 
         return {
             strategies, tabType, selectedStrategy, loading, result, error,
-            maPeriods, revenueThreshold, profitThreshold, debtThreshold,
+            maPeriods, consolidationDays, revenueThreshold, profitThreshold, debtThreshold,
             currentStrategies, hasResult,
             selectStrategy, execute, isSelected, switchToTurnaround,
             fmt, fmtGrowth, fmtMoney, valClass,
@@ -443,6 +445,80 @@ app.component('ma-bt-page', {
         return {
             maStockCode, maStartDate, maEndDate, maShort, maLong, maAmount,
             maLoading, maResult, maChartRef, runMaBt, fmt, fmtMoney,
+        };
+    },
+});
+
+app.component('bt-strategies-page', {
+    template: '#bt-strategies-tpl',
+});
+
+app.component('quant-breakout-bt-page', {
+    template: '#quant-breakout-bt-tpl',
+    setup() {
+        const qTab = ref('single');
+        const qStockCode = ref('002421');
+        const qNDays = ref(20);
+        const today = new Date();
+        const qEndDate = ref(today.toISOString().split('T')[0]);
+        const qStartDate = ref(new Date(today.getFullYear() - 2, 0, 1).toISOString().split('T')[0]);
+        const qLoading = ref(false);
+        const qResult = ref({});
+        const qError = ref('');
+
+        const mktMonths = ref(6);
+        const mktLoading = ref(false);
+        const mktResult = ref({});
+        const mktError = ref('');
+
+        async function runQbt() {
+            if (!qStockCode.value || !qStartDate.value || !qEndDate.value) return;
+            qLoading.value = true;
+            qResult.value = {};
+            qError.value = '';
+            try {
+                const params = new URLSearchParams({
+                    stock_code: qStockCode.value,
+                    n_days: qNDays.value,
+                    start_date: qStartDate.value,
+                    end_date: qEndDate.value,
+                });
+                const r = await fetch(`${API_BASE}/backtest/quantitative-breakout?${params}`);
+                const data = await r.json();
+                if (data.error) qError.value = data.error;
+                else qResult.value = data;
+            } catch (e) {
+                qError.value = '请求失败: ' + e.message;
+            } finally {
+                qLoading.value = false;
+            }
+        }
+
+        async function runMktBt() {
+            mktLoading.value = true;
+            mktResult.value = {};
+            mktError.value = '';
+            try {
+                const params = new URLSearchParams({
+                    months: mktMonths.value,
+                });
+                const r = await fetch(`${API_BASE}/backtest/quantitative-breakout/market?${params}`);
+                if (!r.ok) throw new Error('查询失败');
+                const data = await r.json();
+                if (data.error) mktError.value = data.error;
+                else mktResult.value = data;
+            } catch (e) {
+                mktError.value = '请求失败: ' + e.message;
+            } finally {
+                mktLoading.value = false;
+            }
+        }
+
+        return {
+            qTab, qStockCode, qNDays, qStartDate, qEndDate,
+            qLoading, qResult, qError, runQbt,
+            mktMonths, mktLoading, mktResult, mktError, runMktBt,
+            fmt, fmtGrowth, valClass,
         };
     },
 });

@@ -310,6 +310,133 @@ def ma_backtest(
     }
 
 
+@router.get('/backtest/quantitative-breakout')
+def quantitative_breakout_backtest(
+    stock_code: str = Query(...),
+    n_days: int = Query(20, description='横盘观察天数'),
+    start_date: str = Query(...),
+    end_date: str = Query(...),
+):
+    sql = """
+    WITH prices AS (
+        SELECT trade_date, close_price, high_price, low_price,
+               LAG(close_price) OVER (ORDER BY trade_date) AS prev_close
+        FROM daily_kline
+        WHERE stock_code = %(stock_code)s
+          AND trade_date >= DATE_SUB(%(start_date)s, INTERVAL %(n_days)s + 10 DAY)
+          AND trade_date <= %(end_date)s
+    ),
+    daily_chg AS (
+        SELECT trade_date, close_price, high_price, low_price,
+               (close_price - prev_close) / prev_close * 100 AS change_pct
+        FROM prices
+        WHERE prev_close IS NOT NULL
+    ),
+    signal_check AS (
+        SELECT trade_date, close_price, change_pct,
+               MAX(CASE WHEN ABS(change_pct) > 4.0 THEN 1 ELSE 0 END)
+                   OVER (ORDER BY trade_date ROWS BETWEEN %(n_days)s PRECEDING AND 1 PRECEDING) AS consol_violation,
+               MAX(high_price)
+                   OVER (ORDER BY trade_date ROWS BETWEEN %(n_days)s PRECEDING AND 1 PRECEDING) AS n_day_high,
+               MIN(low_price)
+                   OVER (ORDER BY trade_date ROWS BETWEEN %(n_days)s PRECEDING AND 1 PRECEDING) AS n_day_low,
+               ROW_NUMBER() OVER (ORDER BY trade_date) AS rn
+        FROM daily_chg
+    )
+    SELECT trade_date, ROUND(close_price, 2) AS signal_price,
+           ROUND(change_pct, 2) AS breakout_pct,
+           ROUND((n_day_high - n_day_low) / n_day_low * 100, 2) AS range_pct
+    FROM signal_check
+    WHERE rn > %(n_days)s
+      AND change_pct >= 7.0
+      AND consol_violation = 0
+      AND (n_day_high - n_day_low) / n_day_low * 100 <= 12.0
+      AND trade_date >= %(start_date)s
+      AND trade_date <= %(end_date)s
+    ORDER BY trade_date DESC
+    """
+    rows = query(sql, {'stock_code': stock_code, 'n_days': n_days, 'start_date': start_date, 'end_date': end_date})
+    name = get_stock_name(stock_code)
+    return {
+        'stock_code': stock_code,
+        'stock_name': name,
+        'n_days': n_days,
+        'signals': rows,
+        'total_signals': len(rows),
+    }
+
+
+@router.get('/backtest/quantitative-breakout/market')
+def quantitative_breakout_market_backtest(
+    months: int = Query(6, description='回溯月数', ge=1, le=24),
+):
+    sql = """
+    WITH breakout_stocks AS (
+        SELECT DISTINCT k1.stock_code
+        FROM daily_kline k1
+        JOIN daily_kline k2 ON k2.stock_code = k1.stock_code AND k2.trade_date = DATE_SUB(k1.trade_date, INTERVAL 1 DAY)
+        WHERE k1.trade_date >= DATE_SUB((SELECT MAX(trade_date) FROM daily_kline), INTERVAL %(months)s MONTH)
+          AND k1.close_price / k2.close_price >= 1.07
+    ),
+    prices AS (
+        SELECT k.stock_code, k.trade_date, k.close_price,
+               LAG(k.close_price) OVER (PARTITION BY k.stock_code ORDER BY k.trade_date) AS prev_close,
+               LEAD(k.close_price, 21) OVER (PARTITION BY k.stock_code ORDER BY k.trade_date) AS future_close_1m,
+               k.high_price, k.low_price
+        FROM daily_kline k
+        WHERE k.stock_code IN (SELECT stock_code FROM breakout_stocks)
+          AND k.trade_date >= DATE_SUB((SELECT MAX(trade_date) FROM daily_kline), INTERVAL %(months)s + 1 MONTH)
+    ),
+    daily_chg AS (
+        SELECT stock_code, trade_date, close_price, high_price, low_price, future_close_1m,
+               (close_price - prev_close) / prev_close * 100 AS change_pct
+        FROM prices WHERE prev_close IS NOT NULL
+    ),
+    signal_check AS (
+        SELECT stock_code, trade_date, close_price, change_pct, future_close_1m,
+               MAX(CASE WHEN ABS(change_pct) > 4.0 THEN 1 ELSE 0 END)
+                   OVER (PARTITION BY stock_code ORDER BY trade_date ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS consol_violation,
+               MAX(high_price)
+                   OVER (PARTITION BY stock_code ORDER BY trade_date ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS n_day_high,
+               MIN(low_price)
+                   OVER (PARTITION BY stock_code ORDER BY trade_date ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS n_day_low,
+               ROW_NUMBER() OVER (PARTITION BY stock_code ORDER BY trade_date) AS rn
+        FROM daily_chg
+    )
+    SELECT s.stock_code, st.stock_name, s.trade_date, ROUND(s.close_price, 2) AS signal_price,
+           ROUND(s.change_pct, 2) AS breakout_pct,
+           ROUND((s.n_day_high - s.n_day_low) / s.n_day_low * 100, 2) AS range_pct,
+           ROUND((s.future_close_1m / s.close_price - 1) * 100, 2) AS return_1m_pct
+    FROM signal_check s
+    JOIN stocks st ON st.stock_code = s.stock_code
+    WHERE s.rn > 20
+      AND s.change_pct >= 7.0
+      AND s.consol_violation = 0
+      AND (s.n_day_high - s.n_day_low) / s.n_day_low * 100 <= 12.0
+      AND s.future_close_1m IS NOT NULL
+    ORDER BY s.trade_date DESC, s.stock_code
+    """
+    rows = query(sql, {'months': months})
+    returns = [r['return_1m_pct'] for r in rows if r['return_1m_pct'] is not None]
+    win = sum(1 for r in returns if r > 0)
+    loss = sum(1 for r in returns if r <= 0)
+    total = len(returns)
+    return {
+        'months': months,
+        'total_signals': len(rows),
+        'summary': {
+            'total_signals': total,
+            'win_count': win,
+            'loss_count': loss,
+            'win_rate': round(win / total * 100, 2) if total > 0 else 0,
+            'avg_return': round(sum(returns) / total, 2) if total > 0 else 0,
+            'max_return': round(max(returns), 2) if total > 0 else 0,
+            'min_return': round(min(returns), 2) if total > 0 else 0,
+        },
+        'signals': rows,
+    }
+
+
 @router.get('/kline_range/{stock_code}')
 def get_kline_range(stock_code: str, start_date: str, end_date: str):
     name = get_stock_name(stock_code)
