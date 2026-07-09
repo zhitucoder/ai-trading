@@ -281,14 +281,7 @@ ai-trading/
 
 | 平台 | 链接 |
 |------|------|
-| 📺 B站 | [浩哥讲大模型与AI应用](https://space.bilibili.com/1235336642) |
-| 📕 小红书 | [知途程序员知识体系]|
-| 💬 CSDN | [星星之火](https://blog.csdn.net/spark_dev) |
 | 📮 公众号 | 微信搜「跟老K玩转AI编程」或扫码关注 ↓ |
-
-<img src="assets/wechat-qrcode.png" alt="公众号二维码" width="360">
-| 📮 公众号 | 微信搜「知途程序员知识体系」或扫码关注 ↓ |
-
 <img src="assets/跟老K玩转AI编程-wechat-code.png" alt="跟老K玩转AI编程" width="360">
 
 <div align="center">
