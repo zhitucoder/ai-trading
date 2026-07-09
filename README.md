@@ -270,21 +270,24 @@ ai-trading/
 
 > 💡 这个视频效果也是通过AI生成的——把你的想法告诉AI，它就能做出来。
 
-👉 对课程感兴趣？添加微信或公众号私信作者咨询
+👉 对课程感兴趣？扫码关注公众号「跟老K玩转AI编程」私信咨询
 
+<img src="assets/跟老K玩转AI编程-wechat-code.png" alt="跟老K玩转AI编程" width="360">
 
 
 **zhituCodder** — AI Native Coder，独立开发者
 
 | 平台 | 链接 |
 |------|------|
-| 🌐 官网 |  |
 | 📺 B站 | [浩哥讲大模型与AI应用](https://space.bilibili.com/1235336642) |
-| 📕 小红书 | [知途程序员]|
+| 📕 小红书 | [知途程序员知识体系]|
 | 💬 CSDN | [星星之火](https://blog.csdn.net/spark_dev) |
-| 📮 公众号 | 微信搜「知途程序员知识体系」或扫码关注 ↓ |
+| 📮 公众号 | 微信搜「跟老K玩转AI编程」或扫码关注 ↓ |
 
 <img src="assets/wechat-qrcode.png" alt="公众号二维码" width="360">
+| 📮 公众号 | 微信搜「知途程序员知识体系」或扫码关注 ↓ |
+
+<img src="assets/跟老K玩转AI编程-wechat-code.png" alt="跟老K玩转AI编程" width="360">
 
 <div align="center">
 
