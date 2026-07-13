@@ -213,6 +213,9 @@ pytdx 财务数据的字段索引发生过偏移。索引 ≤ 97 的字段（利
 ---
 
 ## 公众号发布
-- 排版：`wechat-copy.js <md> --preset "墨色书香"`
-- 配图：HTML → Playwright 截图 → ImgBB 上传
-- 完整工作流详见 `docs/wechat-publish.md`
+- **文章格式规范（必读）**：`docs/article-format.md` — 写作规范、排版要求、表格截图风格、封面规范等全部在此
+- **排版命令**：`cd analysis/ && node /home/rick/.claude/skills/wechat-article-typeset/wechat-copy.js "文件名.md" --preset "墨色书香"`
+- **配图规则**：所有图片用 base64 data URI 直接嵌入，**不准用 ImgBB 图床**
+- **表格处理**：所有表格和结构化代码块都要转为截图（暗调风格），不得保留文本表格
+- **封面图**：暗黑调 #1a1a2e，文字居中，保存到 `analysis/images/`
+- 详细发布工作流参见 `docs/wechat-publish.md`
