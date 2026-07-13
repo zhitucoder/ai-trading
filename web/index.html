@@ -32,6 +32,7 @@
         <profile-page v-else-if="currentPage === 'profile'"></profile-page>
         <debate-page v-else-if="currentPage === 'debate'"></debate-page>
         <expert-page v-else-if="currentPage === 'expert'"></expert-page>
+        <query-page v-else-if="currentPage === 'query'"></query-page>
         <data-mgmt-page v-else-if="currentPage === 'data_mgmt'"></data-mgmt-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
@@ -1446,6 +1447,60 @@
                         <span style="opacity:0.5;">同步板块分类 · 待开发</span>
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="query-tpl">
+    <div class="topbar">
+        <h2>智能问数</h2>
+        <span class="badge">AI Agent</span>
+    </div>
+    <div class="query-container">
+        <div class="query-messages" ref="msgBox">
+            <div v-for="(msg, i) in messages" :key="i" class="query-msg" :class="msg.role">
+                <div class="query-avatar">{{ msg.role === 'user' ? '👤' : '✦' }}</div>
+                <div class="query-bubble">
+                    <div class="query-text" v-html="renderMarkdown(msg.content)"></div>
+                    <div v-for="(sec, si) in msg.sections" :key="si">
+                        <div v-if="sec.type === 'table'" class="query-table-wrap">
+                            <table class="query-table">
+                                <thead><tr><th v-for="h in sec.data.headers" :key="h">{{ h }}</th></tr></thead>
+                                <tbody><tr v-for="(row, ri) in sec.data.rows" :key="ri">
+                                    <td v-for="(cell, ci) in row" :key="ci" :class="cellClass(cell)">{{ cell }}</td>
+                                </tr></tbody>
+                            </table>
+                        </div>
+                        <div v-if="sec.type === 'chart'" class="query-chart-wrap">
+                            <div class="chart-label">{{ sec.stock_name || 'K线图' }}</div>
+                            <div :data-chart="'c_' + i + '_' + si" class="kline-chart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div v-if="loading" class="query-msg assistant">
+                <div class="query-avatar">✦</div>
+                <div class="query-bubble query-thinking">
+                    <span class="dot-pulse"></span> 思考中...
+                </div>
+            </div>
+        </div>
+        <div class="query-input-bar">
+            <div class="query-suggestions" v-if="messages.length === 0">
+                <button class="chip" @click="ask('贵州茅台最近股价多少？')">茅台股价</button>
+                <button class="chip" @click="ask('筛选营收增长>20%且ROE>15%的股票')">财务筛选</button>
+                <button class="chip" @click="ask('有哪些板块？')">板块列表</button>
+                <button class="chip" @click="ask('盐湖股份和盐湖提锂有关吗？')">公司查询</button>
+            </div>
+            <div class="query-input-row">
+                <input class="query-input" v-model="inputText"
+                       @keydown.enter="ask(inputText)"
+                       placeholder="输入问题，如：贵州茅台最近股价多少？"
+                       :disabled="loading">
+                <button class="btn btn-primary query-send" @click="ask(inputText)" :disabled="loading || !inputText.trim()">
+                    {{ loading ? '...' : '发送' }}
+                </button>
             </div>
         </div>
     </div>

@@ -40,6 +40,7 @@ const app = createApp({
             { id: 'profile', label: '股票画像', icon: '◈' },
             { id: 'debate', label: 'AI多空辩论', icon: '⚖' },
             { id: 'expert', label: '蒸馏专家', icon: '⚗' },
+            { id: 'query', label: '智能问数', icon: '✦' },
             { id: 'data_mgmt', label: '数据管理', icon: '⚙' },
         ];
         const navPages = computed(() => pages);
@@ -1132,6 +1133,131 @@ app.component('data-mgmt-page', {
             lastSyncLabel, finDotClass, finStatusText,
             updateKline, updateFinancial,
         };
+    },
+});
+
+app.component('query-page', {
+    template: '#query-tpl',
+    setup() {
+        const messages = ref([]);
+        const inputText = ref('');
+        const loading = ref(false);
+        const msgBox = ref(null);
+
+        function renderMarkdown(text) {
+            if (!text) return '';
+            let html = text
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+                    const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    return `<pre class="code-block"><code>${escaped}</code></pre>`;
+                })
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                .replace(/\n/g, '<br>');
+            return html;
+        }
+
+        function cellClass(val) {
+            if (val == null) return '';
+            const n = Number(val);
+            if (isNaN(n)) return '';
+            if (n > 0) return 'up';
+            if (n < 0) return 'down';
+            return '';
+        }
+
+        function scrollBottom() {
+            nextTick(() => {
+                const el = msgBox.value;
+                if (el) el.scrollTop = el.scrollHeight;
+            });
+        }
+
+        async function ask(text) {
+            if (!text || !text.trim() || loading.value) return;
+            const q = text.trim();
+            inputText.value = '';
+            messages.value.push({ role: 'user', content: q, sections: [] });
+            loading.value = true;
+            scrollBottom();
+
+            try {
+                const hist = messages.value.filter(m => m.role === 'user' || m.role === 'assistant')
+                    .map(m => ({
+                        question: m.role === 'user' ? m.content : '',
+                        answer: m.role === 'assistant' ? m.content : '',
+                    }));
+                const resp = await fetch('/api/query/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: q, history: hist }),
+                });
+                const data = await resp.json();
+                messages.value.push({ role: 'assistant', content: data.answer || '暂无回复', sections: data.sections || [] });
+            } catch (e) {
+                messages.value.push({ role: 'assistant', content: '请求失败: ' + e.message, sections: [] });
+            } finally {
+                loading.value = false;
+                scrollBottom();
+            }
+        }
+
+        watch(messages, () => {
+            nextTick(() => {
+                document.querySelectorAll('.kline-chart').forEach(el => {
+                    if (el._chart) return;
+                    const chartId = el.getAttribute('data-chart');
+                    if (!chartId) return;
+                    try {
+                        const parts = chartId.split('_');
+                        const msgIdx = parseInt(parts[1]);
+                        const secIdx = parseInt(parts[2]);
+                        const msg = messages.value[msgIdx];
+                        if (!msg || !msg.sections[secIdx] || msg.sections[secIdx].type !== 'chart') return;
+                        const chartData = msg.sections[secIdx].data;
+                        if (!chartData || chartData.length < 3) return;
+
+                        el._chart = LightweightCharts.createChart(el, {
+                            width: el.parentElement.clientWidth - 20,
+                            height: 340,
+                            layout: { background: { color: '#131322' }, textColor: '#8e8ea0' },
+                            grid: { vertLines: { color: '#1e1e35' }, horzLines: { color: '#1e1e35' } },
+                            timeScale: { borderColor: '#2a2a40', timeVisible: true },
+                            rightPriceScale: { borderColor: '#2a2a40' },
+                        });
+                        el._candleSeries = el._chart.addCandlestickSeries({
+                            upColor: '#26a69a', downColor: '#ef5350',
+                            borderUpColor: '#26a69a', borderDownColor: '#ef5350',
+                            wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+                        });
+                        el._candleSeries.setData(chartData.map(d => ({
+                            time: d.date.replace(/-/g, ''),
+                            open: d.open,
+                            high: d.high,
+                            low: d.low,
+                            close: d.close,
+                        })));
+                        const volSeries = el._chart.addHistogramSeries({
+                            color: '#3a6ea5', priceFormat: { type: 'volume' },
+                            priceScaleId: 'volume',
+                        });
+                        el._chart.priceScale('volume').applyOptions({
+                            scaleMargins: { top: 0.8, bottom: 0 },
+                        });
+                        volSeries.setData(chartData.map(d => ({
+                            time: d.date.replace(/-/g, ''),
+                            value: d.volume,
+                            color: d.close >= d.open ? '#26a69a66' : '#ef535066',
+                        })));
+                        el._chart.timeScale().fitContent();
+                    } catch (e) { console.error('Chart render error:', e); }
+                });
+            });
+        }, { deep: true });
+
+        return { messages, inputText, loading, msgBox, renderMarkdown, cellClass, ask };
     },
 });
 
