@@ -274,7 +274,7 @@ ai-trading/
 
 👉 对课程感兴趣？ 私信咨询
 
-![alt text](image.png)
+<img src="image.png" alt="公众号二维码" width="220" />
 
 **zhituCodder** — AI Native Coder，独立开发者
 
