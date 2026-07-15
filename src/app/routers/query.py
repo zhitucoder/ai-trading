@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from ..database import query as db_query
+from ..security.prompt_guard import get_guard
 import os, json, re
 from pathlib import Path
 from datetime import datetime, date, timedelta
@@ -249,6 +250,15 @@ def detect_response_type(text):
 
 @router.post('/ask', response_model=AskResponse)
 def ask_question(req: AskRequest):
+    guard = get_guard()
+    guard_res = guard.check(req.question)
+    if not guard_res.is_safe:
+        return AskResponse(
+            answer=guard.refusal(guard_res),
+            error='PROMPT_BLOCKED',
+            note='输入命中安全策略，已拦截，未调用大模型。',
+        )
+
     agent = get_agent()
     if not agent:
         return AskResponse(
