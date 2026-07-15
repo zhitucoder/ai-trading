@@ -281,6 +281,7 @@ ai-trading/
 
 | 平台 | 链接 |
 |------|------|
+| 📺 雪球 | [浩哥AI量化财报](https://xueqiu.com/u/haoai) |
 | 📮 公众号 | 微信搜「跟老K玩转AI编程」或扫码关注 ↓ |
 <img src="assets/跟老K玩转AI编程-wechat-code.png" alt="跟老K玩转AI编程" width="360">
 
