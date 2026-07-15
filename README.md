@@ -272,18 +272,15 @@ ai-trading/
 
 > 💡 这个视频效果也是通过AI生成的——把你的想法告诉AI，它就能做出来。
 
-👉 对课程感兴趣？扫码关注公众号「跟老K玩转AI编程」私信咨询
+👉 对课程感兴趣？ 私信咨询
 
-<img src="assets/跟老K玩转AI编程-wechat-code.png" alt="跟老K玩转AI编程" width="360">
-
+![alt text](image.png)
 
 **zhituCodder** — AI Native Coder，独立开发者
 
 | 平台 | 链接 |
 |------|------|
 | 📺 雪球 | [浩哥AI量化财报](https://xueqiu.com/u/haoai) |
-| 📮 公众号 | 微信搜「跟老K玩转AI编程」或扫码关注 ↓ |
-<img src="assets/跟老K玩转AI编程-wechat-code.png" alt="跟老K玩转AI编程" width="360">
 
 <div align="center">
 
