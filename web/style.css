@@ -675,6 +675,7 @@ tbody tr:last-child td { border-bottom: none; }
 .screening-count strong { color: var(--accent); }
 .screening-row { cursor: pointer; }
 .screening-row:hover td { background: var(--bg-hover); }
+.screening-row-active td { background: var(--accent-dim) !important; }
 .screening-tag {
     display: inline-block;
     padding: 1px 8px;
@@ -701,6 +702,11 @@ tbody tr:last-child td { border-bottom: none; }
 .stage-badge.stage-s4 { background: rgba(239,68,68,0.15); color: var(--red); }
 .stage-badge.stage-s3 { background: rgba(245,158,11,0.15); color: var(--amber); }
 .stage-badge.stage-s1 { background: rgba(100,116,139,0.15); color: var(--text-muted); }
+.stage-badge-industry { background: var(--accent-dim); color: var(--accent); }
+.stage-badge-concept { background: rgba(16,185,129,0.15); color: var(--green); }
+.stage-badge-high { background: rgba(16,185,129,0.15); color: var(--green); }
+.stage-badge-medium { background: rgba(245,158,11,0.15); color: var(--amber); }
+.stage-badge-low { background: rgba(239,68,68,0.15); color: var(--red); }
 .btn-sm { padding: 6px 14px; font-size: 12px; }
 
 /* ── AI Debate ── */

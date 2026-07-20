@@ -34,6 +34,8 @@
         <expert-page v-else-if="currentPage === 'expert'"></expert-page>
         <query-page v-else-if="currentPage === 'query'"></query-page>
         <data-mgmt-page v-else-if="currentPage === 'data_mgmt'"></data-mgmt-page>
+        <strong-page v-else-if="currentPage === 'strong'"></strong-page>
+        <strong-stocks-page v-else-if="currentPage === 'strong_stocks'"></strong-stocks-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
@@ -717,6 +719,14 @@
                     <div class="profile-header-right">
                         <div class="profile-price">{{ fmt(profile.latest_price) }}</div>
                         <div class="profile-change" :class="valClass(profile.price_change_pct)">{{ fmtGrowth(profile.price_change_pct) }}</div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top:12px;">
+                    <div class="card-title">营收·净利润·增长率·股价趋势</div>
+                    <div style="position:relative;width:100%;height:280px;">
+                        <canvas ref="finChartCanvas" style="width:100%;height:100%;"></canvas>
+                        <div v-if="finChartLoading" class="chart-loading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#888;font-size:13px;">加载中...</div>
                     </div>
                 </div>
 
@@ -1503,6 +1513,296 @@
                 </button>
             </div>
         </div>
+    </div>
+</template>
+
+<!-- ── Strong Sector Page ── -->
+<template id="strong-tpl">
+    <div class="topbar">
+        <h2>强势板块排名</h2>
+        <span class="badge">相对涨幅</span>
+    </div>
+    <div class="content">
+        <div class="card" v-if="indexData">
+            <div style="display:flex;align-items:center;gap:16px;font-size:13px;">
+                <strong style="color:var(--accent);">{{ indexData.name }}</strong>
+                <span style="color:var(--text-dim);">{{ indexData.code }}</span>
+                <span>今日 <b :class="valClass(indexData.today)">{{ fmtGrowth(indexData.today) }}</b></span>
+                <span>30日 <b :class="valClass(indexData.m30)">{{ fmtGrowth(indexData.m30) }}</b></span>
+                <span>YTD <b :class="valClass(indexData.ytd)">{{ fmtGrowth(indexData.ytd) }}</b></span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                <div style="display:flex;gap:4px;">
+                    <button class="btn btn-sm" :class="category==='all'?'btn-primary':'btn-outline'" @click="category='all';loadSectors()">全部</button>
+                    <button class="btn btn-sm" :class="category==='industry'?'btn-primary':'btn-outline'" @click="category='industry';loadSectors()">行业</button>
+                    <button class="btn btn-sm" :class="category==='concept'?'btn-primary':'btn-outline'" @click="category='concept';loadSectors()">概念</button>
+                </div>
+                <div v-if="category==='industry'" style="display:flex;gap:4px;">
+                    <button class="btn btn-sm" :class="industryLevel==='all'?'btn-primary':'btn-outline'" @click="industryLevel='all';loadSectors()">全部</button>
+                    <button class="btn btn-sm" :class="industryLevel==='1'?'btn-primary':'btn-outline'" @click="industryLevel='1';loadSectors()">一级</button>
+                    <button class="btn btn-sm" :class="industryLevel==='2'?'btn-primary':'btn-outline'" @click="industryLevel='2';loadSectors()">二级</button>
+                </div>
+                <div style="display:flex;gap:4px;">
+                    <button class="btn btn-sm" :class="prosperityFilter==='all'?'btn-primary':'btn-outline'" @click="prosperityFilter='all';loadSectors()">全部景气</button>
+                    <button class="btn btn-sm" :class="prosperityFilter==='high'?'btn-primary':'btn-outline'" @click="prosperityFilter='high';loadSectors()" style="color:var(--green);">高</button>
+                    <button class="btn btn-sm" :class="prosperityFilter==='medium'?'btn-primary':'btn-outline'" @click="prosperityFilter='medium';loadSectors()" style="color:var(--amber);">中</button>
+                    <button class="btn btn-sm" :class="prosperityFilter==='low'?'btn-primary':'btn-outline'" @click="prosperityFilter='low';loadSectors()" style="color:var(--red);">低</button>
+                </div>
+                <div v-if="category==='industry'" style="display:flex;gap:4px;">
+                    <button class="btn btn-sm" :class="finQuarter==='annual'?'btn-primary':'btn-outline'" @click="finQuarter='annual';loadSectors()">年报</button>
+                    <button class="btn btn-sm" :class="finQuarter==='q1'?'btn-primary':'btn-outline'" @click="finQuarter='q1';loadSectors()">一季</button>
+                    <button class="btn btn-sm" :class="finQuarter==='q2'?'btn-primary':'btn-outline'" @click="finQuarter='q2';loadSectors()">中报</button>
+                    <button class="btn btn-sm" :class="finQuarter==='q3'?'btn-primary':'btn-outline'" @click="finQuarter='q3';loadSectors()">三季</button>
+                </div>
+                <div style="flex:1;"></div>
+                <span style="font-size:12px;color:var(--text-dim);">共 {{ sectors.length }} 个板块</span>
+            </div>
+        </div>
+
+        <div v-if="loading" class="loading"><div class="spinner"></div><span>加载中...</span></div>
+        <div v-if="error" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;">{{ error }}</div>
+
+        <div v-if="!loading && sectors.length" class="card" style="padding:0;">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:40px;">#</th>
+                            <th style="cursor:pointer;" @click="toggleSort('sector_name')">板块{{ sortArrow('sector_name') }}</th>
+                            <th>类型</th>
+                            <th style="cursor:pointer;" @click="toggleSort('prosperity_score')">景气度{{ sortArrow('prosperity_score') }}</th>
+                            <th style="cursor:pointer;text-align:right;" @click="toggleSort('today')" title="板块涨跌幅 = (最新收盘 - 前一交易日收盘) / 前一交易日收盘 × 100%">今日{{ sortArrow('today') }}</th>
+                            <th style="cursor:pointer;text-align:right;" @click="toggleSort('m30')" title="30日涨跌幅 = (最新收盘 - 30日前收盘) / 30日前收盘 × 100%">30日{{ sortArrow('m30') }}</th>
+                            <th style="cursor:pointer;text-align:right;" @click="toggleSort('ytd')" title="YTD涨跌幅 = (最新收盘 - 年初收盘) / 年初收盘 × 100%">YTD{{ sortArrow('ytd') }}</th>
+                            <th style="cursor:pointer;text-align:right;" @click="toggleSort('relative_today')" title="相对今日 = 板块今日涨幅 − 上证综指今日涨幅">相对今日{{ sortArrow('relative_today') }}</th>
+                            <th style="cursor:pointer;text-align:right;" @click="toggleSort('relative_m30')" title="相对30日 = 板块30日涨幅 − 上证综指30日涨幅">相对30日{{ sortArrow('relative_m30') }}</th>
+                            <th style="cursor:pointer;text-align:right;" @click="toggleSort('relative_ytd')" title="相对YTD = 板块YTD涨幅 − 上证综指YTD涨幅">相对YTD{{ sortArrow('relative_ytd') }}</th>
+                            <th v-if="showFinCols" style="cursor:pointer;text-align:right;" @click="toggleSort('total_revenue')">营收{{ sortArrow('total_revenue') }}</th>
+                            <th v-if="showFinCols" style="cursor:pointer;text-align:right;" @click="toggleSort('total_net_profit')">净利{{ sortArrow('total_net_profit') }}</th>
+                            <th v-if="showFinCols" style="cursor:pointer;text-align:right;" @click="toggleSort('revenue_growth')">营收增速{{ sortArrow('revenue_growth') }}</th>
+                            <th v-if="showFinCols" style="cursor:pointer;text-align:right;" @click="toggleSort('net_profit_growth')">净利增速{{ sortArrow('net_profit_growth') }}</th>
+                            <th style="width:50px;">对比</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(s, i) in sectors" :key="s.sector_code" class="screening-row" @click="goToSector(s.sector_code)" style="cursor:pointer;">
+                            <td>{{ i + 1 }}</td>
+                            <td><strong>{{ s.sector_name }}</strong><br><span style="font-size:11px;color:var(--text-dim);">{{ s.sector_code }}</span></td>
+                            <td><span class="stage-badge" :class="s.category==='industry'?'stage-badge-industry':'stage-badge-concept'" style="font-size:11px;">{{ s.category_cn }}</span></td>
+                            <td><span class="stage-badge" :class="{'stage-badge-high': s.prosperity==='high', 'stage-badge-medium': s.prosperity==='medium', 'stage-badge-low': s.prosperity==='low'}" style="font-size:11px;">{{ s.prosperity==='high'?'高':s.prosperity==='medium'?'中':'低' }}</span></td>
+                            <td style="text-align:right;" :class="valClass(s.today)">{{ fmtGrowth(s.today) }}</td>
+                            <td style="text-align:right;" :class="valClass(s.m30)">{{ fmtGrowth(s.m30) }}</td>
+                            <td style="text-align:right;" :class="valClass(s.ytd)">{{ fmtGrowth(s.ytd) }}</td>
+                            <td style="text-align:right;" :class="valClass(s.relative_today)">{{ fmtGrowth(s.relative_today) }}</td>
+                            <td style="text-align:right;" :class="valClass(s.relative_m30)">{{ fmtGrowth(s.relative_m30) }}</td>
+                            <td style="text-align:right;font-weight:600;" :class="valClass(s.relative_ytd)">{{ fmtGrowth(s.relative_ytd) }}</td>
+                            <td v-if="showFinCols" style="text-align:right;font-size:11px;" :class="valClass(s.revenue_growth)">{{ s.total_revenue ? fmtMoney(s.total_revenue) : '-' }}</td>
+                            <td v-if="showFinCols" style="text-align:right;font-size:11px;" :class="valClass(s.net_profit_growth)">{{ s.total_net_profit ? fmtMoney(s.total_net_profit) : '-' }}</td>
+                            <td v-if="showFinCols" style="text-align:right;font-size:11px;" :class="valClass(s.revenue_growth)">{{ s.revenue_growth != null ? fmtGrowth(s.revenue_growth) : '-' }}</td>
+                            <td v-if="showFinCols" style="text-align:right;font-size:11px;" :class="valClass(s.net_profit_growth)">{{ s.net_profit_growth != null ? fmtGrowth(s.net_profit_growth) : '-' }}</td>
+                            <td @click.stop>
+                                <button class="btn btn-sm btn-outline" @click="addChartCode(s.sector_code)" title="添加到K线对比" style="font-size:11px;padding:2px 6px;">+</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">指数K线对比</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+                <span v-for="c in chartCodes" :key="c"
+                      style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:12px;background:var(--bg-hover);border:1px solid var(--border);">
+                    {{ c === '000001' ? '上证综指' : (sectors.find(s => s.sector_code === c)?.sector_name || c) }}
+                    <span v-if="c !== '000001'" style="cursor:pointer;color:var(--text-dim);" @click="removeChartCode(c)">x</span>
+                </span>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:10px;">
+                <button class="btn btn-sm" :class="chartDays===30?'btn-primary':'btn-outline'" @click="chartDays=30;loadChart()">1月</button>
+                <button class="btn btn-sm" :class="chartDays===60?'btn-primary':'btn-outline'" @click="chartDays=60;loadChart()">2月</button>
+                <button class="btn btn-sm" :class="chartDays===120?'btn-primary':'btn-outline'" @click="chartDays=120;loadChart()">半年</button>
+                <button class="btn btn-sm" :class="chartDays===250?'btn-primary':'btn-outline'" @click="chartDays=250;loadChart()">1年</button>
+                <button class="btn btn-sm" :class="chartDays===500?'btn-primary':'btn-outline'" @click="chartDays=500;loadChart()">2年</button>
+            </div>
+            <div id="strong-kline-chart" style="width:100%;"></div>
+        </div>
+
+        <div class="card" v-show="sectors.length && financeData">
+            <div class="card-title" style="display:flex;align-items:center;gap:10px;">
+                <span style="cursor:pointer;font-size:18px;color:var(--accent);" @click="prevFinance()">◀</span>
+                <span style="cursor:pointer;color:var(--accent);" @click="goToSector(financeData?.sector_code)" title="查看成分股">{{ financeData?.sector_name || '加载中' }} <span style="font-size:11px;color:var(--text-dim);">{{ financeData?.sector_code }}</span> 业绩与股价</span>
+                <span style="cursor:pointer;font-size:18px;color:var(--accent);" @click="nextFinance()">▶</span>
+                <span style="font-size:11px;color:var(--text-dim);margin-left:auto;">{{ financeIndex+1 }}/{{ sectors.length }}</span>
+                <div style="position:relative;margin-left:10px;">
+                    <input type="text" v-model="finSearch" placeholder="搜索板块代码/名称" style="width:160px;background:var(--bg-card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px;outline:none;">
+                    <div v-if="finSearch && filteredSectors.length" style="position:absolute;top:100%;left:0;right:0;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;max-height:200px;overflow-y:auto;z-index:10;">
+                        <div v-for="s in filteredSectors" :key="s.sector_code" style="padding:4px 8px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between;" @click="selectFinSector(s.sector_code)" @mouseover="s._hover=true" @mouseout="s._hover=false" :style="{background:s._hover?'var(--bg-hover)':'transparent'}">
+                            <span>{{ s.sector_name }}</span>
+                            <span style="color:var(--text-dim);">{{ s.sector_code }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div v-if="latestFin" style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-bottom:8px;">
+                <span>营收 <b>{{ fmtMoney(latestFin.total_revenue) }}</b></span>
+                <span>净利 <b>{{ fmtMoney(latestFin.total_net_profit) }}</b></span>
+                <span>营收增速 <b :class="valClass(latestFin.revenue_growth)">{{ fmtGrowth(latestFin.revenue_growth) }}</b></span>
+                <span>净利增速 <b :class="valClass(latestFin.net_profit_growth)">{{ fmtGrowth(latestFin.net_profit_growth) }}</b></span>
+            </div>
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+                <button class="btn btn-sm" :class="finQuarter==='annual'?'btn-primary':'btn-outline'" @click="finQuarter='annual';redrawFinance()">年度</button>
+                <button class="btn btn-sm" :class="finQuarter==='q1'?'btn-primary':'btn-outline'" @click="finQuarter='q1';redrawFinance()">一季度</button>
+                <button class="btn btn-sm" :class="finQuarter==='q2'?'btn-primary':'btn-outline'" @click="finQuarter='q2';redrawFinance()">二季度</button>
+                <button class="btn btn-sm" :class="finQuarter==='q3'?'btn-primary':'btn-outline'" @click="finQuarter='q3';redrawFinance()">三季度</button>
+            </div>
+            <div id="finance-chart" style="width:100%;height:300px;position:relative;">
+                <div id="finance-tooltip" style="display:none;position:absolute;pointer-events:none;z-index:5;background:#151929;border:1px solid #2a2a40;border-radius:6px;padding:8px 12px;font-size:12px;line-height:1.6;min-width:140px;"></div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- ── Strong Stocks Page (Sector Detail) ── -->
+<template id="strong-stocks-tpl">
+    <div class="topbar">
+        <h2 v-if="mode==='c'" style="cursor:pointer;" @click="goBack">← {{ sectorData?.name || '板块' }}</h2>
+        <h2 v-else>★ 强势个股跨板比较</h2>
+        <span class="badge" v-if="mode==='c' && sectorData">{{ sectorData.category_cn }}</span>
+        <span class="badge" v-if="mode==='c' && sectorData" style="background:var(--green);">YTD {{ fmtGrowth(sectorData.ytd) }}</span>
+        <div v-if="mode==='d'" style="display:flex;gap:6px;margin-left:auto;">
+            <button v-for="cat in ['all','industry','concept']" :key="cat"
+                    class="btn btn-sm" :class="topCategory===cat?'btn-primary':'btn-outline'"
+                    @click="topCategory=cat; loadTopStocks()">
+                {{ cat==='all'?'全部':cat==='industry'?'行业':'概念' }}
+            </button>
+            <select v-model="topN" @change="loadTopStocks()" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:2px 8px;font-size:12px;">
+                <option :value="3">Top 3</option>
+                <option :value="5">Top 5</option>
+                <option :value="10">Top 10</option>
+            </select>
+        </div>
+    </div>
+    <div class="content">
+        <div v-if="loading" class="loading"><div class="spinner"></div><span>加载中...</span></div>
+        <div v-if="error" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;">{{ error }}</div>
+
+        <!-- Page D: 强势个股跨板比较 -->
+        <template v-if="mode==='d'">
+            <div v-if="!loading && topSectors.length" class="card" style="padding:0;">
+                <div class="table-wrap" style="padding:12px;">
+                    <div v-for="sec in topSectors" :key="sec.sector_code" style="margin-bottom:16px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                            <span style="font-weight:600;font-size:14px;">{{ sec.sector_name }}</span>
+                            <span class="badge" :style="{background: sec.sector_ytd>=0?'var(--green)':'var(--red)'}">
+                                YTD {{ fmtGrowth(sec.sector_ytd) }}
+                            </span>
+                        </div>
+                        <div v-for="(st, si) in sec.stocks" :key="st.stock_code"
+                             style="display:flex;align-items:center;gap:10px;padding:4px 0;font-size:13px;cursor:pointer;"
+                             @click="openSectorStock(sec.sector_code, st.stock_code)">
+                            <span style="width:20px;text-align:right;color:var(--text-dim);">{{ si+1 }}</span>
+                            <span style="width:60px;font-weight:600;">{{ st.stock_code }}</span>
+                            <span style="width:80px;">{{ st.stock_name }}</span>
+                            <span :style="{color:st.relative_ytd>=0?'var(--green)':'var(--red)'}" style="width:70px;text-align:right;font-weight:600;">
+                                {{ fmtGrowth(st.relative_ytd) }}
+                            </span>
+                            <div style="flex:1;height:14px;background:var(--bg-hover);border-radius:3px;overflow:hidden;">
+                                <div :style="{width: barWidth(st.relative_ytd, sec)+'%', background: st.relative_ytd>=0?'var(--green)':'var(--red)'}"
+                                     style="height:100%;border-radius:3px;transition:width .3s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Page C: 板块成分股 -->
+        <template v-if="mode==='c'">
+            <div class="card" v-if="sectorData && indexRef">
+                <div style="display:flex;gap:20px;font-size:13px;flex-wrap:wrap;">
+                    <div>
+                        <span style="color:var(--text-dim);">板块</span>
+                        <b :class="valClass(sectorData.today)" style="margin-left:6px;">今日 {{ fmtGrowth(sectorData.today) }}</b>
+                        <b :class="valClass(sectorData.m30)" style="margin-left:8px;">30日 {{ fmtGrowth(sectorData.m30) }}</b>
+                        <b :class="valClass(sectorData.ytd)" style="margin-left:8px;">YTD {{ fmtGrowth(sectorData.ytd) }}</b>
+                    </div>
+                    <div style="color:var(--text-dim);">|</div>
+                    <div>
+                        <span style="color:var(--text-dim);">上证综指</span>
+                        <span style="margin-left:6px;">今日 {{ fmtGrowth(indexRef.today) }}</span>
+                        <span style="margin-left:8px;">30日 {{ fmtGrowth(indexRef.m30) }}</span>
+                        <span style="margin-left:8px;">YTD {{ fmtGrowth(indexRef.ytd) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" v-if="sectorFinData && sectorFinData.finance && sectorFinData.finance.length" style="font-size:12px;">
+                <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                    <span>营收 <b>{{ fmtMoney(sectorFinData.finance[sectorFinData.finance.length-1].total_revenue) }}</b></span>
+                    <span>净利 <b>{{ fmtMoney(sectorFinData.finance[sectorFinData.finance.length-1].total_net_profit) }}</b></span>
+                    <span>营收增速 <b :class="valClass(sectorFinData.finance[sectorFinData.finance.length-1].revenue_growth)">{{ fmtGrowth(sectorFinData.finance[sectorFinData.finance.length-1].revenue_growth) }}</b></span>
+                    <span>净利增速 <b :class="valClass(sectorFinData.finance[sectorFinData.finance.length-1].net_profit_growth)">{{ fmtGrowth(sectorFinData.finance[sectorFinData.finance.length-1].net_profit_growth) }}</b></span>
+                </div>
+            </div>
+
+            <div v-if="!loading && stocks.length" class="card" style="padding:0;">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:40px;">#</th>
+                                <th>代码</th>
+                                <th>名称</th>
+                                <th style="text-align:right;">现价</th>
+                                <th style="cursor:pointer;text-align:right;" @click="toggleSort('today')">今日{{ sortArrow('today') }}</th>
+                                <th style="cursor:pointer;text-align:right;" @click="toggleSort('m30')">30日{{ sortArrow('m30') }}</th>
+                                <th style="cursor:pointer;text-align:right;" @click="toggleSort('ytd')">YTD{{ sortArrow('ytd') }}</th>
+                                <th style="cursor:pointer;text-align:right;" @click="toggleSort('relative_ytd')">相对YTD{{ sortArrow('relative_ytd') }}</th>
+                                <th style="cursor:pointer;text-align:right;" @click="toggleSort('sector_relative_ytd')">超板块{{ sortArrow('sector_relative_ytd') }}</th>
+                                <th style="width:60px;">K线</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(s, i) in stocks" :key="s.stock_code"
+                                class="screening-row" :class="{'screening-row-active': selectedStocks.includes(s.stock_code)}"
+                                @click="toggleStock(s.stock_code)" style="cursor:pointer;">
+                                <td>{{ i + 1 }}</td>
+                                <td><strong style="color:var(--accent);cursor:pointer;" @click.stop="goToStock(s.stock_code)">{{ s.stock_code }}</strong></td>
+                                <td style="cursor:pointer;color:var(--accent);" @click.stop="goToStock(s.stock_code)">{{ s.stock_name }}</td>
+                                <td style="text-align:right;">{{ fmt(s.latest_price) }}</td>
+                                <td style="text-align:right;" :class="valClass(s.today)">{{ fmtGrowth(s.today) }}</td>
+                                <td style="text-align:right;" :class="valClass(s.m30)">{{ fmtGrowth(s.m30) }}</td>
+                                <td style="text-align:right;" :class="valClass(s.ytd)">{{ fmtGrowth(s.ytd) }}</td>
+                            <td style="text-align:right;font-weight:600;" :class="valClass(s.relative_ytd)">{{ fmtGrowth(s.relative_ytd) }}</td>
+                                <td style="text-align:right;" :class="valClass(s.sector_relative_ytd)">{{ fmtGrowth(s.sector_relative_ytd) }}</td>
+                                <td>
+                                    <button class="btn btn-sm" :class="selectedStocks.includes(s.stock_code)?'btn-primary':'btn-outline'"
+                                            @click.stop="toggleStock(s.stock_code)" style="font-size:11px;padding:2px 6px;">
+                                        {{ selectedStocks.includes(s.stock_code) ? '✓' : '+' }}
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+        </div>
+
+        <div class="card">
+                <div class="card-title">成分股K线对比</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+                    <span v-for="(s, i) in chartSeries" :key="s.code"
+                          style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:12px;"
+                          :style="{background: CHART_COLORS[i % CHART_COLORS.length] + '22', border: '1px solid ' + CHART_COLORS[i % CHART_COLORS.length] + '66', color: CHART_COLORS[i % CHART_COLORS.length]}">
+                        {{ s.name }}
+                    </span>
+                </div>
+                <div id="stock-kline-chart" style="width:100%;"></div>
+            </div>
+        </template>
     </div>
 </template>
 
