@@ -93,8 +93,9 @@
 ## 三、文件管理
 
 ### 3.1 封面图片
-- 个股分析：保存到 `analysis/images/{股票代码}-cover.png`
-  - 例如：`analysis/images/cssb-cover.png`
+- 保存到 `/mnt/d/pic/` 目录
+- 文件名格式：`{股票中文名称}_{股票代码}_cover.png`
+  - 例如：`荣盛石化_002493_cover.png`
 - 专题文章：保存到 `analysis/images/{主题简称}-cover.png`
   - 例如：`analysis/images/fee-cover.png`（财务费用专题）
 
@@ -125,3 +126,4 @@
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07 | 初始版本 |
+| 2026-07-18 | 封面命名改为 `{股票中文名称}_{股票代码}_cover.png`，保存到 `/mnt/d/pic/` |

@@ -1,5 +1,11 @@
 #!/home/rick/miniconda3/envs/aitrading/bin/python
-"""导入通达信日K线数据到 MySQL"""
+"""导入通达信日K线数据到 MySQL
+
+分类规则:
+  - daily_kline: 股票/ETF/债券等可交易品种
+  - sector_kline: 通达信板块指数(880xxx/881xxx)
+  - 排除: 上证指数(sh000xxx)、深证指数(sz399xxx)、B股指数(sh900xxx)
+"""
 
 import os
 import struct
@@ -13,6 +19,24 @@ DB_CONFIG = dict(host='127.0.0.1', port=3306, user='root',
 
 RECORD_FMT = '<IIIIIfII'
 RECORD_SIZE = 32
+
+
+def classify_file(exchange, code):
+    """返回 'stock' / 'sector' / 'skip'"""
+    if exchange == 'sh':
+        if code.startswith('880') or code.startswith('881'):
+            return 'sector'
+        if code.startswith('000') or code.startswith('900'):
+            return 'skip'
+        return 'stock'
+    elif exchange == 'sz':
+        if code.startswith('399'):
+            return 'skip'
+        return 'stock'
+    elif exchange == 'bj':
+        return 'stock'
+    return 'skip'
+
 
 def parse_day_file(filepath):
     code = os.path.splitext(os.path.basename(filepath))[0][2:]
@@ -37,6 +61,7 @@ def main():
     cursor = conn.cursor()
 
     cursor.execute("DROP TABLE IF EXISTS daily_kline")
+    cursor.execute("DROP TABLE IF EXISTS sector_kline")
     cursor.execute("""
         CREATE TABLE daily_kline (
             id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -52,9 +77,30 @@ def main():
             KEY idx_date (trade_date),
             KEY idx_code (stock_code)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-          COMMENT='A股日K线数据（通达信导入，含上交所/深交所/北交所）'
+          COMMENT='A股日K线数据（仅股票/ETF/债券，不含指数和板块）'
+    """)
+    cursor.execute("""
+        CREATE TABLE sector_kline (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            sector_code VARCHAR(10) NOT NULL COMMENT '板块指数代码(880xxx/881xxx)',
+            trade_date DATE NOT NULL COMMENT '交易日期',
+            open_price DECIMAL(10,2) NOT NULL COMMENT '开盘价',
+            high_price DECIMAL(10,2) NOT NULL COMMENT '最高价',
+            low_price DECIMAL(10,2) NOT NULL COMMENT '最低价',
+            close_price DECIMAL(10,2) NOT NULL COMMENT '收盘价',
+            volume BIGINT NOT NULL COMMENT '成交量(股)',
+            amount DECIMAL(16,2) NOT NULL COMMENT '成交额(元)',
+            UNIQUE KEY uk_sector_date (sector_code, trade_date),
+            KEY idx_date (trade_date),
+            KEY idx_code (sector_code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+          COMMENT='通达信板块指数日K线(880xxx行业/概念 + 881xxx风格/地区)'
     """)
     conn.commit()
+
+    stock_sql = """INSERT IGNORE INTO daily_kline
+                   (stock_code, trade_date, open_price, high_price, low_price, close_price, volume, amount)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
 
     for exchange in ['sh', 'sz', 'bj']:
         day_dir = os.path.join(DATA_DIR, exchange, 'lday')
@@ -63,27 +109,40 @@ def main():
         files = sorted([f for f in os.listdir(day_dir) if f.endswith('.day')])
         print(f'{exchange}: {len(files)} files')
 
-        batch = []
+        stock_batch = []
+        sector_batch = []
+        skipped = 0
+
         for fname in files:
-            fpath = os.path.join(day_dir, fname)
-            records = parse_day_file(fpath)
-            batch.extend(records)
+            code = fname[2:-4]
+            cat = classify_file(exchange, code)
+            if cat == 'skip':
+                skipped += 1
+                continue
+            records = parse_day_file(os.path.join(day_dir, fname))
+            if cat == 'sector':
+                sector_batch.extend(records)
+            else:
+                stock_batch.extend(records)
 
-        print(f'  total records: {len(batch)}')
+        print(f'  stock: {len(stock_batch)} records, sector: {len(sector_batch)} records, skipped: {skipped}')
 
-        if not batch:
-            continue
+        if stock_batch:
+            for i in range(0, len(stock_batch), 5000):
+                chunk = stock_batch[i:i + 5000]
+                cursor.executemany(stock_sql, chunk)
+                conn.commit()
+                print(f'  daily_kline: {min(i + 5000, len(stock_batch))}/{len(stock_batch)}')
 
-        sql = """INSERT IGNORE INTO daily_kline
-                 (stock_code, trade_date, open_price, high_price, low_price, close_price, volume, amount)
-                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
-
-        CHUNK = 5000
-        for i in range(0, len(batch), CHUNK):
-            chunk = batch[i:i + CHUNK]
-            cursor.executemany(sql, chunk)
-            conn.commit()
-            print(f'  inserted {min(i + CHUNK, len(batch))}/{len(batch)}')
+        if sector_batch:
+            sector_sql = """INSERT IGNORE INTO sector_kline
+                            (sector_code, trade_date, open_price, high_price, low_price, close_price, volume, amount)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
+            for i in range(0, len(sector_batch), 5000):
+                chunk = sector_batch[i:i + 5000]
+                cursor.executemany(sector_sql, chunk)
+                conn.commit()
+                print(f'  sector_kline: {min(i + 5000, len(sector_batch))}/{len(sector_batch)}')
 
     cursor.close()
     conn.close()

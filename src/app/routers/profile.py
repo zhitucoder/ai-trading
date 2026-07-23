@@ -59,6 +59,44 @@ def profiles_status():
     }
 
 
+# ── 财务趋势图数据 ──
+@router.get('/profile/{stock_code}/fin-chart')
+def profile_fin_chart(stock_code: str):
+    rev_rows = query("""
+        SELECT report_date, operating_revenue, net_profit
+        FROM fin_income
+        WHERE stock_code = %s AND DATE_FORMAT(report_date,'%%m-%%d')='12-31'
+          AND report_date >= '2018-01-01'
+        ORDER BY report_date
+    """, [stock_code])
+
+    kline_rows = query("""
+        SELECT YEAR(trade_date) yr, ROUND(AVG(close_price),2) avg_price
+        FROM daily_kline
+        WHERE stock_code = %s AND trade_date >= '2018-01-01'
+        GROUP BY yr ORDER BY yr
+    """, [stock_code])
+
+    kline_map = {r['yr']: float(r['avg_price']) for r in kline_rows}
+
+    years, revenues, profits, growth_rates, prices = [], [], [], [], []
+    prev_np = None
+    for r in rev_rows:
+        yr = r['report_date'].year
+        rev = float(r['operating_revenue'] or 0) / 1e8
+        np = float(r['net_profit'] or 0) / 1e8
+        growth = round((np - prev_np) / prev_np * 100, 1) if prev_np and prev_np != 0 else None
+        years.append(yr)
+        revenues.append(round(rev, 1))
+        profits.append(round(np, 2))
+        growth_rates.append(growth)
+        prices.append(float(kline_map.get(yr, 0)))
+        prev_np = np
+
+    return {'years': years, 'revenues': revenues, 'profits': profits,
+            'growth_rates': growth_rates, 'prices': prices}
+
+
 # ── 触发刷新 ──
 @router.post('/profiles/refresh')
 def trigger_refresh():

@@ -1,3 +1,4 @@
+import math
 from ..database import query
 from datetime import datetime, timedelta
 
@@ -512,16 +513,6 @@ def compute_ma(prices, period):
     return sum(prices[-period:]) / period
 
 
-def compute_ma_series(prices, period):
-    result = []
-    for i in range(len(prices)):
-        if i + 1 < period:
-            result.append(None)
-        else:
-            result.append(sum(prices[i + 1 - period:i + 1]) / period)
-    return result
-
-
 def compute_rsi(prices, period=14):
     if len(prices) < period + 1:
         return None
@@ -701,7 +692,90 @@ def compute_business_tags(ind_map, fin, prev_fin, growth_quarters, klines, rolli
     return biz_tags
 
 
-def compute_stage(klines, ma_values, ind_map):
+# ── Stage helpers ──
+
+def ma_slope(series, period=20):
+    """MA斜率: 当前值对比N天前的变化率"""
+    if not series or len(series) < period:
+        return 0
+    curr = series[-1]
+    prev = series[-period]
+    if curr is None or prev is None or prev == 0:
+        return 0
+    return (curr - prev) / prev
+
+
+def vcp_detect(high_prices, low_prices, lookback=20):
+    """检测VCP波动收缩: 返回收缩次数和收缩幅度"""
+    n = len(high_prices)
+    if n < lookback:
+        return 0, 0
+    recent = list(zip(high_prices[-lookback:], low_prices[-lookback:]))
+    mid = lookback // 2
+    first_half = recent[:mid]
+    second_half = recent[mid:]
+    range1 = max(h for h, _ in first_half) - min(l for _, l in first_half)
+    range2 = max(h for h, _ in second_half) - min(l for _, l in second_half)
+    if range1 <= 0:
+        return 0, 0
+    contraction_count = 0
+    for i in range(3, len(recent) - 3):
+        left_range = max(recent[i-3][0], recent[i-2][0], recent[i-1][0]) - min(recent[i-3][1], recent[i-2][1], recent[i-1][1])
+        right_range = max(recent[i+1][0], recent[i+2][0], recent[i+3][0]) - min(recent[i+1][1], recent[i+2][1], recent[i+3][1])
+        if left_range > 0 and right_range < left_range * 0.7:
+            contraction_count += 1
+    tightness = range2 / range1 if range1 > 0 else 0
+    return contraction_count, tightness
+
+
+def compute_rs_rank(stock_code, all_returns=None):
+    """计算个股相对强度百分位(0-99)"""
+    if all_returns is None:
+        rows = query("""
+            SELECT a.stock_code,
+                   (a.close_price - b.close_price) / b.close_price AS ret
+            FROM (
+                SELECT stock_code, close_price
+                FROM daily_kline
+                WHERE trade_date = (SELECT MAX(trade_date) FROM daily_kline)
+            ) a
+            JOIN (
+                SELECT stock_code, close_price
+                FROM daily_kline
+                WHERE trade_date = DATE_SUB((SELECT MAX(trade_date) FROM daily_kline), INTERVAL 250 DAY)
+            ) b ON a.stock_code = b.stock_code
+            WHERE b.close_price > 0
+        """)
+        rets = [(r['stock_code'], float(r['ret'])) for r in rows if r['ret'] is not None]
+    else:
+        rets = all_returns
+
+    stock_ret = None
+    for code, ret in rets:
+        if code == stock_code:
+            stock_ret = ret
+            break
+    if stock_ret is None:
+        return 50
+
+    sorted_rets = sorted(rets, key=lambda x: x[1])
+    rank = sum(1 for _, r in sorted_rets if r < stock_ret)
+    total = len(sorted_rets)
+    return int(rank / total * 100) if total > 0 else 50
+
+
+def compute_ma_series(closes, period):
+    """计算移动平均序列"""
+    result = []
+    for i in range(len(closes)):
+        if i < period - 1:
+            result.append(None)
+        else:
+            result.append(sum(closes[i - period + 1:i + 1]) / period)
+    return result
+
+
+def compute_stage(klines, ma_values, ind_map, rs_score=50):
     closes = [k['close'] for k in klines]
     high_prices = [k['high'] for k in klines]
     low_prices = [k['low'] for k in klines]
@@ -712,92 +786,156 @@ def compute_stage(klines, ma_values, ind_map):
     ma50 = ma_values.get('ma50')
     ma150 = ma_values.get('ma150')
     ma200 = ma_values.get('ma200')
-    ma200_series = compute_ma_series(closes, 200)
 
     year_data = klines[-250:] if n >= 250 else klines
     high_52w = max(k['high'] for k in year_data) if year_data else 0
     low_52w = min(k['low'] for k in year_data) if year_data else 0
 
-    # ── S2 Trend Template (all must be true) ──
-    s2_criteria = []
-    s2_criteria.append(latest_close > (ma150 or 0) and latest_close > (ma200 or 0))
-    s2_criteria.append((ma150 or 0) > (ma200 or 0))
-
+    ma200_series = compute_ma_series(closes, 200)
+    ma50_series = compute_ma_series(closes, 50)
     ma200_curr = ma200_series[-1] if len(ma200_series) >= 1 and ma200_series[-1] is not None else None
-    ma200_past = ma200_series[-22] if len(ma200_series) >= 22 and ma200_series[-22] is not None else None
-    s2_criteria.append(ma200_curr is not None and ma200_past is not None and ma200_curr > ma200_past)
+    ma200_20d_ago = ma200_series[-22] if len(ma200_series) >= 22 and ma200_series[-22] is not None else None
+    ma50_curr = ma50_series[-1] if len(ma50_series) >= 1 and ma50_series[-1] is not None else None
 
-    s2_criteria.append(latest_close > (ma50 or 0))
-    s2_criteria.append((ma50 or 0) > (ma150 or 0) and (ma50 or 0) > (ma200 or 0))
-    s2_criteria.append(low_52w > 0 and latest_close >= low_52w * 1.3)
-    s2_criteria.append(high_52w > 0 and latest_close >= high_52w * 0.75)
+    # MA slopes
+    ma200_slope_60d = ma_slope(ma200_series, 60) if len(ma200_series) >= 60 else 0
+    ma50_slope_20d = ma_slope(ma50_series, 20) if len(ma50_series) >= 20 else 0
 
-    s2_met = sum(1 for c in s2_criteria if c)
-    s2_all_met = s2_met == 7
+    # VCP
+    vcp_count, vcp_tightness = vcp_detect(high_prices, low_prices)
 
-    # ── S1S2 ──
-    s1s2_criteria = []
-    s1s2_criteria.append(latest_close > (ma150 or 0) and latest_close > (ma200 or 0))
-    s1s2_criteria.append((ma150 or 0) > (ma200 or 0))
-    s1s2_criteria.append(ma200_curr is not None and ma200_past is not None and ma200_curr > ma200_past)
+    # Volume
+    volumes = [k['volume'] for k in klines]
+    vol_ma50 = sum(volumes[-50:]) / 50 if len(volumes) >= 50 else 0
+    vol_ratio = volumes[-1] / vol_ma50 if vol_ma50 > 0 else 0
 
+    # 52w price range ratio
+    range_52w = (high_52w - low_52w) / latest_close if latest_close > 0 else 0
+
+    # Return from 52w low
+    pct_off_low = (latest_close - low_52w) / low_52w if low_52w > 0 else 0
+    pct_off_high = (latest_close - high_52w) / high_52w if high_52w > 0 else 0
+
+    # Higher high / higher low checks
     if n >= 100:
-        recent_high = max(closes[-50:])
-        prev_high = max(closes[-100:-50])
-        recent_low = min(closes[-50:])
-        prev_low = min(closes[-100:-50])
-        s1s2_criteria.append(recent_high > prev_high)
-        s1s2_criteria.append(recent_low > prev_low)
+        recent_high_20 = max(closes[-20:])
+        prev_high_20 = max(closes[-40:-20])
+        recent_low_20 = min(closes[-20:])
+        prev_low_20 = min(closes[-40:-20])
+        higher_high = recent_high_20 > prev_high_20
+        higher_low = recent_low_20 > prev_low_20
     else:
-        s1s2_criteria.append(False)
-        s1s2_criteria.append(False)
+        higher_high = higher_low = False
 
-    s1s2_met = sum(1 for c in s1s2_criteria if c)
-    s1s2_all_met = s1s2_met == len(s1s2_criteria)
+    # 52w高点和低点
+    near_52w_high = pct_off_high >= -0.10
+    near_52w_low = pct_off_low <= 0.10
+    return_12m = pct_off_low if low_52w > 0 else 0
 
-    # ── S4 ──
-    s4_below_ma200_pct = 0
-    if len(ma200_series) >= 50:
-        below = sum(1 for i in range(-50, 0) if ma200_series[i] is not None and closes[i] < ma200_series[i])
-        s4_below_ma200_pct = below / 50
-    s4_criteria = []
-    s4_criteria.append(s4_below_ma200_pct >= 0.6)
-    s4_criteria.append(ma200_curr is not None and ma200_past is not None and ma200_curr < ma200_past)
-    s4_criteria.append(low_52w > 0 and latest_close < low_52w * 1.1)
-    s4_any = any(s4_criteria)
+    # ── S2 criteria (12条) ──
+    s2 = []
+    s2.append(latest_close > (ma150 or 0) and latest_close > (ma200 or 0))
+    s2.append((ma150 or 0) > (ma200 or 0))
+    s2.append(ma200_curr is not None and ma200_20d_ago is not None and ma200_curr > ma200_20d_ago)
+    s2.append(latest_close > (ma50 or 0))
+    s2.append((ma50 or 0) > (ma150 or 0) and (ma50 or 0) > (ma200 or 0))
+    s2.append(pct_off_low >= 0.30)
+    s2.append(pct_off_high >= -0.25)
+    s2.append(vol_ratio >= 1.5)
+    s2.append(vcp_count >= 2)
+    s2.append(rs_score >= 70)
+    s2.append(higher_high)
+    s2.append(higher_low)
+    s2_met = sum(1 for c in s2 if c)
+    s2_all = s2_met >= 10
 
-    # ── S3 ──
+    # ── S3 criteria ──
+    s3 = []
+    s3_qualified = return_12m >= 0.50
+    s3.append(near_52w_high)
+    s3.append(return_12m >= 0.50)
     if n >= 51:
-        recent_volatility = sum(abs(closes[i] - closes[i - 1]) / closes[i - 1]
-                                for i in range(-20, 0) if closes[i - 1] > 0) / 20
-        past_volatility = sum(abs(closes[i] - closes[i - 1]) / closes[i - 1]
-                              for i in range(-50, -20) if closes[i - 1] > 0) / 30
-        s3_volatile = past_volatility > 0 and recent_volatility > past_volatility * 1.5
-
-        ma200_flat = True
-        if ma200_curr is not None and ma200_past is not None:
-            change_pct = abs(ma200_curr - ma200_past) / ma200_past
-            ma200_flat = change_pct < 0.02
+        recent_vol = sum(abs(closes[i] - closes[i - 1]) / closes[i - 1]
+                         for i in range(-20, 0) if closes[i - 1] > 0) / 20
+        past_vol = sum(abs(closes[i] - closes[i - 1]) / closes[i - 1]
+                       for i in range(-50, -20) if closes[i - 1] > 0) / 30
+        vol_ratio_atr = recent_vol / past_vol if past_vol > 0 else 0
     else:
-        s3_volatile = False
-        ma200_flat = False
+        vol_ratio_atr = 0
+    s3.append(vol_ratio_atr > 1.5)
+    s3.append(vol_ratio < 0.7 and latest_close < (ma50 or 999999))
+    s3.append(ma50_slope_20d < -0.01)
+    s3.append(latest_close < (ma50 or 0) and latest_close < (ma50_series[-2] if len(ma50_series) >= 2 and ma50_series[-2] is not None else 999999))
+    s3.append(not higher_high)
+    s3_all = s3_qualified and sum(1 for c in s3 if c) >= 4
 
-    # ── Determine stage (priority: S2 → S1S2 → S4 → S3 → S1) ──
-    if s2_all_met:
+    # ── S4 criteria ──
+    s4 = []
+    s4.append(latest_close < (ma200 or 0))
+    if len(ma200_series) >= 50:
+        below_ma200_pct = sum(1 for i in range(-50, 0) if ma200_series[i] is not None and closes[i] < ma200_series[i]) / 50
+    else:
+        below_ma200_pct = 1 if latest_close < (ma200 or 0) else 0
+    s4.append(below_ma200_pct >= 0.6)
+    s4.append(ma200_slope_60d < -0.02)
+    s4.append(near_52w_low)
+    s4.append(rs_score < 30)
+    s4.append((ma50 or 0) < (ma150 or 0) and (ma50 or 0) < (ma200 or 0))
+    s4.append(not higher_low)
+    s4_met = sum(1 for c in s4 if c)
+    s4_all = s4_met >= 5 or (s4_met >= 3 and latest_close < (ma200 or 0) and ma200_slope_60d < -0.02)
+
+    # ── S1S2 criteria ──
+    s1s2 = []
+    s1s2.append(latest_close > (ma150 or 0) and latest_close > (ma200 or 0))
+    s1s2.append((ma150 or 0) > (ma200 or 0))
+    s1s2.append(ma200_curr is not None and ma200_20d_ago is not None and ma200_curr > ma200_20d_ago)
+    if n >= 100:
+        s1s2.append(higher_high)
+        s1s2.append(higher_low)
+    else:
+        s1s2.append(False)
+        s1s2.append(False)
+    s1s2_met = sum(1 for c in s1s2 if c)
+    s1s2_all = s1s2_met >= 4
+
+    # ── S1 criteria ──
+    s1 = []
+    s1.append(latest_close < (ma200 or 0) or latest_close < (ma50 or 0))
+    s1.append(abs(ma200_slope_60d) < 0.05)
+    s1.append(range_52w < 0.35)
+    s1.append(vol_ratio < 1.0)
+    s1.append(pct_off_low >= 0.05)
+    s1.append(pct_off_high <= -0.15)
+    s1_met = sum(1 for c in s1 if c)
+
+    # ── Priority: S2 > S3 > S4 > S1S2 > S1 ──
+    if s2_all:
         stage_id = 'stage.s2'
-        confidence = min(95, int(s2_met / 7 * 100) + 10)
-    elif s1s2_all_met:
-        stage_id = 'stage.s1s2'
-        confidence = int(s1s2_met / len(s1s2_criteria) * 100)
-    elif s4_any:
-        stage_id = 'stage.s4'
-        confidence = 75
-    elif s3_volatile or ma200_flat:
+        base = s2_met / 12 * 80 + 10
+        extra = 0
+        if rs_score >= 90: extra += 10
+        if vol_ratio >= 2.0: extra += 5
+        if vcp_tightness < 0.1: extra += 5
+        confidence = min(99, int(base + extra))
+    elif s3_all:
         stage_id = 'stage.s3'
-        confidence = 60
+        base = sum(1 for c in s3 if c) / 7 * 80 + 10
+        extra = 5 if vol_ratio_atr > 2.0 else 0
+        confidence = min(99, int(base + extra))
+    elif s4_all:
+        stage_id = 'stage.s4'
+        base = s4_met / 7 * 80 + 10
+        confidence = min(99, int(base))
+    elif s1s2_all:
+        stage_id = 'stage.s1s2'
+        base = s1s2_met / 5 * 80 + 10
+        extra = 5 if rs_score >= 60 else 0
+        confidence = min(99, int(base + extra))
     else:
         stage_id = 'stage.s1'
-        confidence = 50
+        base = s1_met / 6 * 80 + 10
+        confidence = min(80, int(base))
 
     stage_def = STAGE_DEF.get(stage_id, {})
     return {
@@ -902,7 +1040,8 @@ def generate_profile(stock_code):
         for n in range(1, min(consecutive_gm, 4) + 1):
             biz_tags.append({'id': f'biz.annual_gm_improve_{n}y', 'name': BIZ_TAGS_DEF[f'biz.annual_gm_improve_{n}y']['name']})
 
-    stage = compute_stage(klines, ma_values, ind_map)
+    rs_score = compute_rs_rank(stock_code)
+    stage = compute_stage(klines, ma_values, ind_map, rs_score=rs_score)
 
     scores = compute_scores(biz_tags, stage)
 

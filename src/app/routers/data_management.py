@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from pytdx.crawler.history_financial_crawler import HistoryFinancialCrawler
 from ..database import get_conn, query
 from ...import_financial import FIELD_MAP, safe
+from ...import_kline import classify_file
 
 router = APIRouter()
 
@@ -38,10 +39,26 @@ def _parse_day_file_after(filepath, since):
     return records
 
 
+def _get_latest_dates(cursor):
+    """获取 daily_kline 和 sector_kline 的最新日期"""
+    cursor.execute("SELECT MAX(trade_date) AS d FROM daily_kline")
+    row = cursor.fetchone()
+    stock_date = row['d'] if row and row['d'] else date(2000, 1, 1)
+
+    cursor.execute("SELECT MAX(trade_date) AS d FROM sector_kline")
+    row = cursor.fetchone()
+    sector_date = row['d'] if row and row['d'] else date(2000, 1, 1)
+
+    return stock_date, sector_date
+
+
 @router.get('/data/status')
 def data_status():
     kline = query("SELECT MAX(trade_date) AS max_date, COUNT(DISTINCT stock_code) AS stock_count FROM daily_kline")
     kline_row = kline[0] if kline else {}
+
+    sector = query("SELECT MAX(trade_date) AS max_date, COUNT(DISTINCT sector_code) AS sector_count FROM sector_kline")
+    sector_row = sector[0] if sector else {}
 
     fin = query("SELECT MAX(report_date) AS d, COUNT(*) AS cnt FROM fin_income")
     fin_row = fin[0] if fin else {}
@@ -50,6 +67,10 @@ def data_status():
         'kline': {
             'latest_date': str(kline_row.get('max_date') or ''),
             'stock_count': kline_row.get('stock_count') or 0,
+        },
+        'sector_kline': {
+            'latest_date': str(sector_row.get('max_date') or ''),
+            'sector_count': sector_row.get('sector_count') or 0,
         },
         'financial': {
             'latest_date': str(fin_row.get('d') or ''),
@@ -68,12 +89,17 @@ def update_kline():
         conn = get_conn()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT MAX(trade_date) AS d FROM daily_kline")
-        row = cursor.fetchone()
-        db_latest = row['d'] if row and row['d'] else date(2000, 1, 1)
-        since = db_latest
+        stock_latest, sector_latest = _get_latest_dates(cursor)
 
-        total_inserted = 0
+        stock_sql = """INSERT IGNORE INTO daily_kline
+                       (stock_code, trade_date, open_price, high_price, low_price, close_price, volume, amount)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
+        sector_sql = """INSERT IGNORE INTO sector_kline
+                        (sector_code, trade_date, open_price, high_price, low_price, close_price, volume, amount)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
+
+        total_stock = 0
+        total_sector = 0
         total_errors = 0
         exchanges = []
 
@@ -83,40 +109,58 @@ def update_kline():
                 continue
 
             files = sorted([f for f in os.listdir(day_dir) if f.endswith('.day')])
-            batch = []
+            stock_batch = []
+            sector_batch = []
+            skipped = 0
+
             for fname in files:
+                code = fname[2:-4]
+                cat = classify_file(exchange, code)
+                if cat == 'skip':
+                    skipped += 1
+                    continue
+
+                since = sector_latest if cat == 'sector' else stock_latest
                 try:
                     records = _parse_day_file_after(os.path.join(day_dir, fname), since)
-                    batch.extend(records)
+                    if cat == 'sector':
+                        sector_batch.extend(records)
+                    else:
+                        stock_batch.extend(records)
                 except Exception:
                     total_errors += 1
 
-            if not batch:
-                exchanges.append({'exchange': exchange, 'files': len(files), 'new_records': 0})
-                continue
+            if stock_batch:
+                for i in range(0, len(stock_batch), 5000):
+                    chunk = stock_batch[i:i + 5000]
+                    cursor.executemany(stock_sql, chunk)
+                    conn.commit()
+            if sector_batch:
+                for i in range(0, len(sector_batch), 5000):
+                    chunk = sector_batch[i:i + 5000]
+                    cursor.executemany(sector_sql, chunk)
+                    conn.commit()
 
-            sql = """INSERT IGNORE INTO daily_kline
-                     (stock_code, trade_date, open_price, high_price, low_price, close_price, volume, amount)
-                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
-
-            CHUNK = 5000
-            for i in range(0, len(batch), CHUNK):
-                chunk = batch[i:i + CHUNK]
-                cursor.executemany(sql, chunk)
-                conn.commit()
-
-            exchanges.append({'exchange': exchange, 'files': len(files), 'candidates': len(batch)})
-            total_inserted += len(batch)
+            exchanges.append({
+                'exchange': exchange,
+                'files': len(files),
+                'stock_records': len(stock_batch),
+                'sector_records': len(sector_batch),
+                'skipped': skipped,
+            })
+            total_stock += len(stock_batch)
+            total_sector += len(sector_batch)
 
         cursor.close()
         conn.close()
 
         return {
             'status': 'ok',
-            'total_inserted': total_inserted,
+            'stock_inserted': total_stock,
+            'sector_inserted': total_sector,
             'errors': total_errors,
             'exchanges': exchanges,
-            'db_latest': str(db_latest),
+            'db_latest': {'stock': str(stock_latest), 'sector': str(sector_latest)},
         }
     finally:
         _update_lock.release()
