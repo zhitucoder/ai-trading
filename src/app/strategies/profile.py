@@ -47,10 +47,20 @@ BIZ_TAGS_DEF = {
     'biz.annual_rev_growth_2y': {'name': '营收连增2年', 'group': '连续增长'},
     'biz.annual_rev_growth_3y': {'name': '营收连增3年', 'group': '连续增长'},
     'biz.annual_rev_growth_4y': {'name': '营收连增4年', 'group': '连续增长'},
+    'biz.annual_rev_growth_5y': {'name': '营收连增5年', 'group': '连续增长'},
+    'biz.annual_rev_growth_6y': {'name': '营收连增6年', 'group': '连续增长'},
+    'biz.annual_rev_growth_7y': {'name': '营收连增7年', 'group': '连续增长'},
+    'biz.annual_rev_growth_8y': {'name': '营收连增8年', 'group': '连续增长'},
+    'biz.annual_rev_growth_9y': {'name': '营收连增9年', 'group': '连续增长'},
     'biz.annual_profit_growth_1y': {'name': '净利润连增1年', 'group': '连续增长'},
     'biz.annual_profit_growth_2y': {'name': '净利润连增2年', 'group': '连续增长'},
     'biz.annual_profit_growth_3y': {'name': '净利润连增3年', 'group': '连续增长'},
     'biz.annual_profit_growth_4y': {'name': '净利润连增4年', 'group': '连续增长'},
+    'biz.annual_profit_growth_5y': {'name': '净利润连增5年', 'group': '连续增长'},
+    'biz.annual_profit_growth_6y': {'name': '净利润连增6年', 'group': '连续增长'},
+    'biz.annual_profit_growth_7y': {'name': '净利润连增7年', 'group': '连续增长'},
+    'biz.annual_profit_growth_8y': {'name': '净利润连增8年', 'group': '连续增长'},
+    'biz.annual_profit_growth_9y': {'name': '净利润连增9年', 'group': '连续增长'},
     'biz.annual_gm_improve_1y': {'name': '毛利率提升1年', 'group': '连续增长'},
     'biz.annual_gm_improve_2y': {'name': '毛利率连升2年', 'group': '连续增长'},
     'biz.annual_gm_improve_3y': {'name': '毛利率连升3年', 'group': '连续增长'},
@@ -190,7 +200,7 @@ def get_growth_quarters(code, limit=5):
     return rows
 
 
-def get_annual_financials(code, years=5):
+def get_annual_financials(code, years=10):
     rows = query("""
         SELECT report_date, operating_revenue, operating_cost,
                net_profit, parent_net_profit
@@ -302,13 +312,14 @@ def get_rolling_annual_gm(code, max_years=5):
             sq_cost = cost - prev_cost
         sq_list.append({'rev': sq_rev, 'cost': sq_cost, 'date': str(r['report_date'])})
 
-    if len(sq_list) < max_years * 4:
+    actual_years = min(max_years, len(sq_list) // 4)
+    if actual_years < 2:
         return 0
 
-    return _count_consecutive_rolling_improvement(sq_list, max_years, 'gm')
+    return _count_consecutive_rolling_improvement(sq_list, actual_years, 'gm')
 
 
-def get_rolling_annual_profit(code, max_years=5):
+def get_rolling_annual_profit(code, max_years=10):
     """基于最新季度往前推4个季度为一年，计算滚动净利润连升年数"""
     quarters = query("""
         SELECT report_date, parent_net_profit
@@ -333,10 +344,11 @@ def get_rolling_annual_profit(code, max_years=5):
             sq_profit = profit - prev_profit
         sq_list.append({'profit': sq_profit, 'date': str(r['report_date'])})
 
-    if len(sq_list) < max_years * 4:
+    actual_years = min(max_years, len(sq_list) // 4)
+    if actual_years < 2:
         return 0
 
-    return _count_consecutive_rolling_improvement(sq_list, max_years, 'profit')
+    return _count_consecutive_rolling_improvement(sq_list, actual_years, 'profit')
 
 
 def _count_consecutive_rolling_improvement(sq_list, max_years, metric):
@@ -1027,12 +1039,12 @@ def generate_profile(stock_code):
                                       rolling_profit_growth=rolling_profit_growth)
 
     if annual_growth['consecutive_revenue_years'] >= 1:
-        for n in range(1, min(annual_growth['consecutive_revenue_years'], 4) + 1):
+        for n in range(1, min(annual_growth['consecutive_revenue_years'], 9) + 1):
             biz_tags.append({'id': f'biz.annual_rev_growth_{n}y', 'name': BIZ_TAGS_DEF[f'biz.annual_rev_growth_{n}y']['name']})
 
-    consecutive_profit = get_rolling_annual_profit(stock_code)
+    consecutive_profit = annual_growth['consecutive_profit_years']
     if consecutive_profit >= 1:
-        for n in range(1, min(consecutive_profit, 4) + 1):
+        for n in range(1, min(consecutive_profit, 9) + 1):
             biz_tags.append({'id': f'biz.annual_profit_growth_{n}y', 'name': BIZ_TAGS_DEF[f'biz.annual_profit_growth_{n}y']['name']})
 
     consecutive_gm = get_rolling_annual_gm(stock_code)

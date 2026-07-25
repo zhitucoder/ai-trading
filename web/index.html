@@ -29,6 +29,7 @@
         <position-bt-page v-else-if="currentPage === 'position_bt'"></position-bt-page>
         <ma-bt-page v-else-if="currentPage === 'ma_bt'"></ma-bt-page>
         <quant-breakout-bt-page v-else-if="currentPage === 'quant_breakout_bt'"></quant-breakout-bt-page>
+        <volume-surge-bt-page v-else-if="currentPage === 'volume_surge_bt'"></volume-surge-bt-page>
         <profile-page v-else-if="currentPage === 'profile'"></profile-page>
         <debate-page v-else-if="currentPage === 'debate'"></debate-page>
         <expert-page v-else-if="currentPage === 'expert'"></expert-page>
@@ -73,6 +74,15 @@
                 条件：N日内每日涨跌幅 ≤ ±4%，箱体振幅 ≤ 12%，今日涨幅 ≥ 7%。回测指定股票所有历史信号。
             </div>
         </div>
+        <div class="card" style="cursor:pointer;" @click="$root.currentPage = 'volume_surge_bt'">
+            <div class="card-title">
+                <span style="font-size:24px;margin-right:10px;">◉</span> 三阶倍量柱回测
+                <span class="hint">三阶倍量柱+王者倍量柱 → 买入持有N天</span>
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                买点：出现3阶倍量柱（第三个是王者倍量柱），卖点：买点出现后N天。支持单股和全市场回测。
+            </div>
+        </div>
     </div>
 </template>
 
@@ -102,6 +112,9 @@
             <button class="strategy-tab" :class="{ active: tabType === 'turnaround' }"
                     @click="switchToTurnaround"
                     style="color:var(--green);">↺ 困境反转</button>
+            <button class="strategy-tab" :class="{ active: tabType === 'volume_surge' }"
+                    @click="tabType = 'volume_surge'; selectedStrategy = null; result = null"
+                    style="color:#f59e0b;">◉ 倍量柱</button>
         </div>
 
         <div v-if="tabType === 'minervini'" class="card" style="border-color:var(--amber);font-size:13px;line-height:1.7;">
@@ -228,28 +241,82 @@
                     <span class="hint">默认: 20%</span>
                 </div>
             </div>
+            <div v-if="tabType === 'volume_surge' && s.id === 'volume_surge_three_stage'" class="config-grid">
+                <div class="config-item">
+                    <label>回溯月数</label>
+                    <input v-model.number="lookbackMonths" type="number" min="1" max="12">
+                    <span class="hint">默认: 2 个月</span>
+                </div>
+                <div class="config-item">
+                    <label>成交量放大倍数下限</label>
+                    <input v-model.number="volumeRatioMin" type="number" step="0.1" min="1.1">
+                    <span class="hint">默认: 1.5 倍</span>
+                </div>
+                <div class="config-item">
+                    <label>成交量放大倍数上限</label>
+                    <input v-model.number="volumeRatioMax" type="number" step="0.5" min="2">
+                    <span class="hint">默认: 4.0 倍</span>
+                </div>
+                <div class="config-item">
+                    <label>王者缩量天数</label>
+                    <input v-model.number="shrinkDays" type="number" min="1" max="10">
+                    <span class="hint">默认: 3 天</span>
+                </div>
+            </div>
+            <div v-if="tabType === 'volume_surge' && s.id === 'volume_surge_consecutive_king'" class="config-grid">
+                <div class="config-item">
+                    <label>回溯月数</label>
+                    <input v-model.number="lookbackMonths" type="number" min="1" max="12">
+                    <span class="hint">默认: 2 个月</span>
+                </div>
+                <div class="config-item">
+                    <label>成交量放大倍数下限</label>
+                    <input v-model.number="volumeRatioMin" type="number" step="0.1" min="1.1">
+                    <span class="hint">默认: 1.5 倍</span>
+                </div>
+                <div class="config-item">
+                    <label>成交量放大倍数上限</label>
+                    <input v-model.number="volumeRatioMax" type="number" step="0.5" min="2">
+                    <span class="hint">默认: 4.0 倍</span>
+                </div>
+                <div class="config-item">
+                    <label>王者缩量天数</label>
+                    <input v-model.number="shrinkDays" type="number" min="1" max="10">
+                    <span class="hint">默认: 3 天</span>
+                </div>
+                <div class="config-item">
+                    <label>最小间隔天数</label>
+                    <input v-model.number="minGapDays" type="number" min="1" max="30">
+                    <span class="hint">默认: 3 天</span>
+                </div>
+                <div class="config-item">
+                    <label>最大间隔天数</label>
+                    <input v-model.number="maxGapDays" type="number" min="3" max="60">
+                    <span class="hint">默认: 10 天</span>
+                </div>
+            </div>
             <div style="margin-top:12px;">
-                <button class="btn btn-primary" @click="selectStrategy(s.id)" :disabled="isSelected(s.id)">
-                    {{ isSelected(s.id) ? '✓ 已选择' : '选择此策略' }}
+                <button class="btn btn-primary" @click="selectStrategy(s.id)" :disabled="isSelected(s.id) && loading">
+                    <span v-if="isSelected(s.id) && loading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                    {{ isSelected(s.id) ? (loading ? '筛选中...' : '✓ 已选择') : '选择此策略' }}
                 </button>
             </div>
         </div>
 
-        <!-- Execute -->
-        <div v-if="selectedStrategy" class="card" style="display:flex;align-items:center;gap:16px;">
-            <span style="font-size:13px;color:var(--text-muted);">
-                已选策略: <strong style="color:var(--accent);">{{ currentStrategies.find(s=>s.id===selectedStrategy)?.name || selectedStrategy }}</strong>
-            </span>
-            <button class="btn btn-primary" @click="execute" :disabled="loading">
-                <span v-if="loading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
-                {{ loading ? '筛选中...' : '▶ 执行筛选' }}
-            </button>
-        </div>
+        <div v-if="error" style="color:var(--red);font-size:13px;margin:8px 0;">{{ error }}</div>
 
         <!-- Results -->
         <div v-if="result" class="card">
-            <div class="result-bar">
+            <div class="result-bar" style="flex-wrap:wrap;gap:8px;">
                 <span class="count">共筛选出 <strong>{{ result.total }}</strong> 只股票</span>
+                <template v-if="tabType === 'volume_surge' && industryOptions.length > 0">
+                    <span style="color:var(--text-muted);font-size:12px;margin-left:8px;">行业筛选:</span>
+                    <select v-model="industryFilter" class="industry-select">
+                        <option value="all">全部行业</option>
+                        <option v-for="ind in industryOptions" :key="ind" :value="ind">{{ ind }}</option>
+                    </select>
+                    <span style="color:var(--text-muted);font-size:12px;">显示 {{ filteredRows.length }} / {{ result.total }} 只</span>
+                </template>
             </div>
             <div class="table-wrap" v-if="result.rows && result.rows.length">
                         <table>
@@ -286,12 +353,35 @@
                                         <template v-else-if="col === 'breakout_pct'">突破涨幅</template>
                                         <template v-else-if="col === 'range_pct'">箱体振幅</template>
                                         <template v-else-if="col === 'breakout_date'">突破日期</template>
+                                        <template v-else-if="col === 'surge1_date'">第一阶日期</template>
+                                        <template v-else-if="col === 'surge1_close'">第一阶收盘</template>
+                                        <template v-else-if="col === 'surge1_ratio'">第一阶量比</template>
+                                        <template v-else-if="col === 'surge2_date'">第二阶日期</template>
+                                        <template v-else-if="col === 'surge2_close'">第二阶收盘</template>
+                                        <template v-else-if="col === 'surge2_ratio'">第二阶量比</template>
+                                        <template v-else-if="col === 'surge3_date'">第三阶日期</template>
+                                        <template v-else-if="col === 'surge3_close'">第三阶收盘</template>
+                                        <template v-else-if="col === 'surge3_ratio'">第三阶量比</template>
+                                        <template v-else-if="col === 'king_confirmed'">王者确认</template>
+                                        <template v-else-if="col === 'king1_date'">第一王者日期</template>
+                                        <template v-else-if="col === 'king1_close'">第一王者收盘</template>
+                                        <template v-else-if="col === 'king1_ratio'">第一王者量比</template>
+                                        <template v-else-if="col === 'king2_date'">第二王者日期</template>
+                                        <template v-else-if="col === 'king2_close'">第二王者收盘</template>
+                                        <template v-else-if="col === 'king2_ratio'">第二王者量比</template>
+                                        <template v-else-if="col === 'gap_days'">间隔天数</template>
+                                        <template v-else-if="col === 'consecutive_king_confirmed'">连续王者</template>
+                                        <template v-else-if="col === 'industry_sectors'">行业板块</template>
+                                        <template v-else-if="col === 'concept_sectors'">概念板块</template>
                                         <template v-else>{{ col }}</template>
                                     </th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="(row, i) in result.rows" :key="i">
+                                <tr v-for="(row, i) in (tabType === 'volume_surge' ? filteredRows : result.rows)" :key="i"
+                                    :style="tabType === 'volume_surge' ? 'cursor:pointer;' : ''"
+                                    :class="selectedStock && selectedStock.stock_code === row.stock_code ? 'selected-row' : ''"
+                                    @click="tabType === 'volume_surge' ? selectStock(row) : null">
                                     <td>{{ i + 1 }}</td>
                                     <td><strong>{{ row.stock_code }}</strong></td>
                                     <td>{{ row.stock_name }}</td>
@@ -347,6 +437,26 @@
                                         <template v-else-if="col === 'breakout_date'">
                                             {{ row[col] ? String(row[col]).substring(0, 10) : '' }}
                                         </template>
+                                        <template v-else-if="col.startsWith('surge') && col.includes('_date')">
+                                            {{ row[col] ? String(row[col]).substring(0, 10) : '' }}
+                                        </template>
+                                        <template v-else-if="col.startsWith('surge') && col.includes('_close')">
+                                            {{ fmt(row[col]) }}
+                                        </template>
+                                        <template v-else-if="col.startsWith('surge') && col.includes('_ratio')">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(2) + 'x' : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'king_confirmed'">
+                                            <span style="color:var(--green);font-weight:600;">✓ 王者</span>
+                                        </template>
+                                        <template v-else-if="col === 'industry_sectors'">
+                                            <span v-if="row[col]" class="sector-tag sector-industry" :title="row[col]">{{ row[col].split(',')[0] }}<span v-if="row[col].split(',').length > 1" style="color:var(--text-dim);">+{{ row[col].split(',').length - 1 }}</span></span>
+                                            <span v-else style="color:var(--text-dim);">-</span>
+                                        </template>
+                                        <template v-else-if="col === 'concept_sectors'">
+                                            <span v-if="row[col]" class="sector-tag sector-concept" :title="row[col]">{{ row[col].split(',')[0] }}<span v-if="row[col].split(',').length > 1" style="color:var(--text-dim);">+{{ row[col].split(',').length - 1 }}</span></span>
+                                            <span v-else style="color:var(--text-dim);">-</span>
+                                        </template>
                                         <template v-else>
                                             {{ row[col] ?? '-' }}
                                         </template>
@@ -357,6 +467,56 @@
             </div>
             <div v-else class="placeholder" style="height:100px;">
                 <p style="font-size:13px;color:var(--text-muted);">没有符合条件的股票</p>
+            </div>
+        </div>
+
+        <div v-if="selectedStock && tabType === 'volume_surge'" class="card" style="margin-top:12px;">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="display:flex;align-items:center;gap:12px;">
+                    <button class="nav-arrow" :disabled="!hasPrev" @click="prevStock" title="上一支 (←)">◀</button>
+                    <strong style="color:var(--accent);">{{ selectedStock.stock_name }}</strong>
+                    <span style="color:var(--text-muted);">{{ selectedStock.stock_code }}</span>
+                    <span style="color:var(--text-muted);font-size:11px;">{{ currentStockIndex + 1 }}/{{ filteredRows.length }}</span>
+                    <span v-if="detailLoading" style="color:var(--text-muted);font-size:12px;">加载中...</span>
+                    <button class="nav-arrow" :disabled="!hasNext" @click="nextStock" title="下一支 (→)">▶</button>
+                </span>
+                <button class="btn btn-outline btn-sm" @click="closeDetail">✕ 关闭</button>
+            </div>
+
+            <div v-if="stockDetail && stockDetail.surges && stockDetail.surges.length > 0" style="margin-bottom:12px;">
+                <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-muted);margin-bottom:8px;">
+                    <span><span style="color:#f59e0b;">●</span> 倍量柱 ({{ stockDetail.surges.length }}个)</span>
+                    <span><span style="color:#3b82f6;">▲1</span> 第一阶</span>
+                    <span><span style="color:#8b5cf6;">▲2</span> 第二阶</span>
+                    <span><span style="color:#ef4444;">▲王</span> 王者倍量柱(第三阶)</span>
+                </div>
+                <div v-if="stockDetail.three_stage_kings && stockDetail.three_stage_kings.length > 0" style="font-size:12px;">
+                    <span style="color:var(--green);font-weight:600;">✓ 发现 {{ stockDetail.three_stage_kings.length }} 个三阶倍量柱+王者倍量柱信号</span>
+                </div>
+            </div>
+
+            <div ref="detailChartRef" style="width:100%;height:420px;"></div>
+
+            <div v-if="stockDetail && stockDetail.surges && stockDetail.surges.length > 0" style="margin-top:12px;">
+                <div class="card-title" style="font-size:13px;">倍量柱记录</div>
+                <div class="table-wrap" style="max-height:200px;overflow-y:auto;">
+                    <table>
+                        <thead><tr>
+                            <th>日期</th>
+                            <th>收盘价</th>
+                            <th>量比</th>
+                            <th>成交量</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr v-for="(s, i) in stockDetail.surges" :key="i">
+                                <td>{{ s.trade_date ? String(s.trade_date).substring(0, 10) : '' }}</td>
+                                <td>{{ fmt(s.close_price) }}</td>
+                                <td style="color:#f59e0b;">{{ s.vol_ratio }}x</td>
+                                <td>{{ fmtMoney(s.volume) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -673,6 +833,202 @@
     </div>
 </template>
 
+<!-- ── Volume Surge Backtest Template ── -->
+<template id="volume-surge-bt-tpl">
+    <div class="topbar">
+        <h2>三阶倍量柱回测</h2>
+        <span class="badge">王者倍量柱策略</span>
+    </div>
+    <div class="content">
+        <div class="card" style="border-color:#f59e0b;font-size:13px;line-height:1.7;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="font-size:20px;">◉</span>
+                <strong style="color:#f59e0b;">三阶倍量柱 + 王者倍量柱</strong>
+            </div>
+            <p style="color:var(--text-muted);">
+                <strong style="color:var(--text);">倍量柱</strong>：当天成交量是上一天的1.5~4倍<br>
+                <strong style="color:var(--text);">三阶倍量柱</strong>：2个月内出现3个倍量柱，最后一个收盘价高于前两个<br>
+                <strong style="color:var(--text);">王者倍量柱</strong>：倍量柱后三天呈现量缩价升特征<br>
+                <strong style="color:var(--text);">买点</strong>：出现三阶倍量柱（第三个是王者倍量柱）→ 买入<br>
+                <strong style="color:var(--text);">卖点</strong>：买点出现后N天卖出
+            </p>
+        </div>
+
+        <div class="card">
+            <div class="card-title">单股回测</div>
+            <div class="config-grid">
+                <div class="config-item">
+                    <label>股票代码</label>
+                    <input v-model="vsStockCode" placeholder="600519" @keyup.enter="runSingleBt">
+                </div>
+                <div class="config-item">
+                    <label>回溯月数</label>
+                    <input v-model.number="vsLookback" type="number" min="1" max="12">
+                </div>
+                <div class="config-item">
+                    <label>持有天数</label>
+                    <input v-model.number="vsHoldDays" type="number" min="1" max="60">
+                </div>
+                <div class="config-item">
+                    <label>倍量柱下限</label>
+                    <input v-model.number="vsVolMin" type="number" step="0.1" min="1.1">
+                </div>
+                <div class="config-item">
+                    <label>倍量柱上限</label>
+                    <input v-model.number="vsVolMax" type="number" step="0.5" min="2">
+                </div>
+                <div class="config-item">
+                    <label>王者缩量天数</label>
+                    <input v-model.number="vsShrinkDays" type="number" min="1" max="10">
+                </div>
+            </div>
+            <div style="margin-top:12px;">
+                <button class="btn btn-primary" @click="runSingleBt" :disabled="vsSingleLoading">
+                    {{ vsSingleLoading ? '分析中...' : '▶ 执行回测' }}
+                </button>
+            </div>
+        </div>
+
+        <div v-if="vsSingleResult.stock_code" class="card">
+            <div class="card-title">
+                {{ vsSingleResult.stock_name }} ({{ vsSingleResult.stock_code }}) 回测结果
+            </div>
+            <div v-if="vsSingleResult.summary.total_trades > 0" style="display:flex;gap:24px;margin-bottom:16px;flex-wrap:wrap;">
+                <div class="stat-item">
+                    <div class="stat-label">总交易次数</div>
+                    <div class="stat-value">{{ vsSingleResult.summary.total_trades }}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">胜率</div>
+                    <div class="stat-value" :class="vsSingleResult.summary.win_rate > 50 ? 'up' : 'down'">{{ vsSingleResult.summary.win_rate }}%</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">平均收益</div>
+                    <div class="stat-value" :class="valClass(vsSingleResult.summary.avg_return)">{{ fmtGrowth(vsSingleResult.summary.avg_return) }}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">最大收益</div>
+                    <div class="stat-value up">{{ fmtGrowth(vsSingleResult.summary.max_return) }}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">最大亏损</div>
+                    <div class="stat-value down">{{ fmtGrowth(vsSingleResult.summary.min_return) }}</div>
+                </div>
+            </div>
+
+            <div v-if="vsSingleResult.trades.length" class="table-wrap">
+                <table>
+                    <thead><tr>
+                        <th>#</th>
+                        <th>第一阶</th>
+                        <th>第二阶</th>
+                        <th>第三阶(王者)</th>
+                        <th>买入日期</th>
+                        <th>买入价</th>
+                        <th>卖出日期</th>
+                        <th>卖出价</th>
+                        <th>持有天数</th>
+                        <th>收益</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr v-for="(t, i) in vsSingleResult.trades" :key="i">
+                            <td>{{ i + 1 }}</td>
+                            <td>{{ t.surge1_date }}</td>
+                            <td>{{ t.surge2_date }}</td>
+                            <td style="color:#f59e0b;font-weight:600;">{{ t.surge3_date }}</td>
+                            <td style="color:var(--green);">{{ t.buy_date }}</td>
+                            <td>{{ fmt(t.buy_price) }}</td>
+                            <td style="color:var(--red);">{{ t.sell_date }}</td>
+                            <td>{{ fmt(t.sell_price) }}</td>
+                            <td>{{ t.hold_days }}天</td>
+                            <td :class="valClass(t.pnl_pct)">{{ fmtGrowth(t.pnl_pct) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div v-else class="placeholder" style="height:60px;">
+                <p style="font-size:13px;color:var(--text-muted);">该股票在回溯期间未出现三阶倍量柱+王者倍量柱信号</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">全市场回测</div>
+            <div class="config-grid">
+                <div class="config-item">
+                    <label>回溯月数</label>
+                    <input v-model.number="vsMktLookback" type="number" min="1" max="12">
+                </div>
+                <div class="config-item">
+                    <label>持有天数</label>
+                    <input v-model.number="vsMktHoldDays" type="number" min="1" max="60">
+                </div>
+            </div>
+            <div style="margin-top:12px;">
+                <button class="btn btn-primary" @click="runMarketBt" :disabled="vsMktLoading">
+                    {{ vsMktLoading ? '扫描中...' : '▶ 全市场回测' }}
+                </button>
+            </div>
+        </div>
+
+        <div v-if="vsMktResult.summary && vsMktResult.summary.total_trades > 0" class="card">
+            <div class="card-title">
+                全市场回测结果 (扫描 {{ vsMktResult.total_stocks }} 只股票)
+            </div>
+            <div style="display:flex;gap:24px;margin-bottom:16px;flex-wrap:wrap;">
+                <div class="stat-item">
+                    <div class="stat-label">信号总数</div>
+                    <div class="stat-value">{{ vsMktResult.summary.total_trades }}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">胜率</div>
+                    <div class="stat-value" :class="vsMktResult.summary.win_rate > 50 ? 'up' : 'down'">{{ vsMktResult.summary.win_rate }}%</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">平均收益</div>
+                    <div class="stat-value" :class="valClass(vsMktResult.summary.avg_return)">{{ fmtGrowth(vsMktResult.summary.avg_return) }}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">最大收益</div>
+                    <div class="stat-value up">{{ fmtGrowth(vsMktResult.summary.max_return) }}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">最大亏损</div>
+                    <div class="stat-value down">{{ fmtGrowth(vsMktResult.summary.min_return) }}</div>
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <thead><tr>
+                        <th>#</th>
+                        <th>代码</th>
+                        <th>名称</th>
+                        <th>买入日期</th>
+                        <th>买入价</th>
+                        <th>卖出日期</th>
+                        <th>卖出价</th>
+                        <th>持有天数</th>
+                        <th>收益</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr v-for="(t, i) in vsMktResult.trades" :key="i">
+                            <td>{{ i + 1 }}</td>
+                            <td><strong>{{ t.stock_code }}</strong></td>
+                            <td>{{ t.stock_name }}</td>
+                            <td style="color:var(--green);">{{ t.buy_date }}</td>
+                            <td>{{ fmt(t.buy_price) }}</td>
+                            <td style="color:var(--red);">{{ t.sell_date }}</td>
+                            <td>{{ fmt(t.sell_price) }}</td>
+                            <td>{{ t.hold_days }}天</td>
+                            <td :class="valClass(t.pnl_pct)">{{ fmtGrowth(t.pnl_pct) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</template>
+
 <!-- ── Profile Template ── -->
 <template id="profile-tpl">
     <div class="topbar">
@@ -715,6 +1071,11 @@
                     <div class="profile-header-left">
                         <div class="profile-code">{{ profile.code }}</div>
                         <div class="profile-name">{{ profile.name }}</div>
+                    </div>
+                    <div class="profile-header-center" v-if="currentIdx >= 0">
+                        <button class="btn-nav" :disabled="!hasPrev" @click="goPrev" title="上一个 (←)">‹</button>
+                        <span class="nav-pos">{{ currentIdx + 1 }} / {{ searchResult.rows.length }}</span>
+                        <button class="btn-nav" :disabled="!hasNext" @click="goNext" title="下一个 (→)">›</button>
                     </div>
                     <div class="profile-header-right">
                         <div class="profile-price">{{ fmt(profile.latest_price) }}</div>

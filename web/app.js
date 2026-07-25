@@ -1,4 +1,4 @@
-const { createApp, ref, reactive, computed, onMounted, nextTick, watch, provide, inject } = Vue;
+const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick, watch, provide, inject } = Vue;
 
 const API_BASE = '/api';
 
@@ -65,6 +65,47 @@ app.component('screening-page', {
         const revenueThreshold = ref(20);
         const profitThreshold = ref(20);
         const debtThreshold = ref(50);
+        const lookbackMonths = ref(2);
+        const volumeRatioMin = ref(1.5);
+        const volumeRatioMax = ref(4.0);
+        const shrinkDays = ref(3);
+        const minGapDays = ref(3);
+        const maxGapDays = ref(10);
+        const selectedStock = ref(null);
+        const stockDetail = ref(null);
+        const detailLoading = ref(false);
+        const detailChartRef = ref(null);
+        let detailChart = null;
+        const industryFilter = ref('all');
+
+        const filteredRows = computed(() => {
+            if (!result.value || !result.value.rows) return [];
+            if (industryFilter.value === 'all') return result.value.rows;
+            return result.value.rows.filter(r => {
+                const sectors = (r.industry_sectors || '').split(',');
+                return sectors.some(s => s === industryFilter.value);
+            });
+        });
+
+        const industryOptions = computed(() => {
+            if (!result.value || !result.value.rows) return [];
+            const set = new Set();
+            for (const r of result.value.rows) {
+                const sectors = (r.industry_sectors || '').split(',').filter(Boolean);
+                for (const s of sectors) set.add(s);
+            }
+            return [...set].sort();
+        });
+
+        const currentStockIndex = computed(() => {
+            if (!selectedStock.value || !filteredRows.value) return -1;
+            return filteredRows.value.findIndex(r => r.stock_code === selectedStock.value.stock_code);
+        });
+        const hasPrev = computed(() => currentStockIndex.value > 0);
+        const hasNext = computed(() => {
+            if (!filteredRows.value) return false;
+            return currentStockIndex.value < filteredRows.value.length - 1;
+        });
 
         onMounted(async () => {
             try {
@@ -78,7 +119,7 @@ app.component('screening-page', {
         const currentStrategies = computed(() => strategies.value[tabType.value] || []);
         const hasResult = computed(() => result.value && result.value.rows && result.value.rows.length > 0);
 
-        function selectStrategy(id) { selectedStrategy.value = id; result.value = null; error.value = ''; }
+        function selectStrategy(id) { selectedStrategy.value = id; result.value = null; error.value = ''; nextTick(() => execute()); }
 
         function switchToTurnaround() {
             tabType.value = 'turnaround';
@@ -101,6 +142,12 @@ app.component('screening-page', {
             params.set('profit_threshold', profitThreshold.value);
             params.set('debt_threshold', debtThreshold.value);
             params.set('consolidation_days', consolidationDays.value);
+            params.set('lookback_months', lookbackMonths.value);
+            params.set('volume_ratio_min', volumeRatioMin.value);
+            params.set('volume_ratio_max', volumeRatioMax.value);
+            params.set('shrink_days', shrinkDays.value);
+            params.set('min_gap_days', minGapDays.value);
+            params.set('max_gap_days', maxGapDays.value);
             try {
                 const r = await fetch(`${API_BASE}/screening/execute?${params}`, { method: 'POST' });
                 const data = await r.json();
@@ -111,11 +158,155 @@ app.component('screening-page', {
 
         function isSelected(id) { return selectedStrategy.value === id; }
 
+        async function selectStock(row) {
+            if (tabType.value !== 'volume_surge') return;
+            selectedStock.value = row;
+            stockDetail.value = null;
+            detailLoading.value = true;
+            try {
+                const params = new URLSearchParams({
+                    lookback_months: lookbackMonths.value,
+                    volume_ratio_min: volumeRatioMin.value,
+                    volume_ratio_max: volumeRatioMax.value,
+                    shrink_days: shrinkDays.value,
+                    min_gap_days: minGapDays.value,
+                    max_gap_days: maxGapDays.value,
+                });
+                const r = await fetch(`${API_BASE}/volume-surge/detail/${row.stock_code}?${params}`);
+                const data = await r.json();
+                if (!data.error) {
+                    stockDetail.value = data;
+                    await nextTick();
+                    renderDetailChart(data);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                detailLoading.value = false;
+            }
+        }
+
+        async function renderDetailChart(detail) {
+            if (!detailChartRef.value || !detail.stock_code) return;
+            if (detailChart) { detailChart.remove(); detailChart = null; }
+
+            const klineR = await fetch(`${API_BASE}/kline/${detail.stock_code}?days=120`);
+            const klineData = await klineR.json();
+            const kline = (klineR.ok ? klineData.rows : []).map(d => ({
+                time: d.trade_date.substring(0, 10),
+                open: Number(d.open_price),
+                high: Number(d.high_price),
+                low: Number(d.low_price),
+                close: Number(d.close_price),
+                volume: Number(d.volume),
+            }));
+            kline.sort((a, b) => a.time.localeCompare(b.time));
+
+            detailChart = LightweightCharts.createChart(detailChartRef.value, {
+                width: detailChartRef.value.clientWidth,
+                height: 420,
+                layout: { background: { type: 'solid', color: '#111827' }, textColor: '#64748b' },
+                grid: { vertLines: { color: '#1e3a5f' }, horzLines: { color: '#1e3a5f' } },
+                crosshair: { mode: 0 },
+                timeScale: { borderColor: '#1e3a5f', timeVisible: false },
+                rightPriceScale: { borderColor: '#1e3a5f' },
+            });
+
+            const candleSeries = detailChart.addCandlestickSeries({
+                upColor: '#ef4444', downColor: '#10b981',
+                borderDownColor: '#10b981', borderUpColor: '#ef4444',
+                wickDownColor: '#10b981', wickUpColor: '#ef4444',
+            });
+            candleSeries.setData(kline);
+
+            const volSeries = detailChart.addHistogramSeries({
+                color: '#3a6ea5', priceFormat: { type: 'volume' },
+                priceScaleId: 'volume',
+            });
+            detailChart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+            volSeries.setData(kline.map(d => ({
+                time: d.time,
+                value: d.volume,
+                color: d.close >= d.open ? '#ef444466' : '#10b98166',
+            })));
+
+            const markers = [];
+            const kingDates = new Set();
+            if (detail.all_king_surges) {
+                for (const k of detail.all_king_surges) {
+                    kingDates.add(k.date.substring(0, 10));
+                    markers.push({
+                        time: k.date.substring(0, 10),
+                        position: 'belowBar',
+                        color: '#f59e0b',
+                        shape: 'arrowUp',
+                        text: '王' + k.king_index,
+                    });
+                }
+            }
+            if (detail.surges) {
+                for (const s of detail.surges) {
+                    const dateStr = s.trade_date ? s.trade_date.substring(0, 10) : '';
+                    if (dateStr && !kingDates.has(dateStr)) {
+                        markers.push({
+                            time: dateStr,
+                            position: 'aboveBar',
+                            color: '#f59e0b',
+                            shape: 'circle',
+                            text: '倍',
+                        });
+                    }
+                }
+            }
+            markers.sort((a, b) => a.time.localeCompare(b.time));
+            candleSeries.setMarkers(markers);
+            detailChart.timeScale().fitContent();
+        }
+
+        function closeDetail() {
+            selectedStock.value = null;
+            stockDetail.value = null;
+            if (detailChart) { detailChart.remove(); detailChart = null; }
+        }
+
+        function navigateStock(direction) {
+            const rows = filteredRows.value;
+            if (!rows || rows.length === 0) return;
+            const idx = currentStockIndex.value;
+            const newIdx = idx + direction;
+            if (newIdx >= 0 && newIdx < rows.length) {
+                selectStock(rows[newIdx]);
+            }
+        }
+
+        function prevStock() { navigateStock(-1); }
+        function nextStock() { navigateStock(1); }
+
+        function handleKeydown(e) {
+            if (tabType.value !== 'volume_surge') return;
+            if (!selectedStock.value) return;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.key === 'ArrowLeft') { e.preventDefault(); prevStock(); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); nextStock(); }
+        }
+
+        onMounted(() => {
+            document.addEventListener('keydown', handleKeydown);
+        });
+
+        onUnmounted(() => {
+            document.removeEventListener('keydown', handleKeydown);
+        });
+
         return {
             strategies, tabType, selectedStrategy, loading, result, error,
             maPeriods, consolidationDays, revenueThreshold, profitThreshold, debtThreshold,
-            currentStrategies, hasResult,
+            lookbackMonths, volumeRatioMin, volumeRatioMax, shrinkDays, minGapDays, maxGapDays,
+            selectedStock, stockDetail, detailLoading, detailChartRef,
+            industryFilter, filteredRows, industryOptions,
+            currentStrategies, hasResult, currentStockIndex, hasPrev, hasNext,
             selectStrategy, execute, isSelected, switchToTurnaround,
+            selectStock, closeDetail, prevStock, nextStock,
             fmt, fmtGrowth, fmtMoney, valClass,
         };
     },
@@ -457,6 +648,78 @@ app.component('bt-strategies-page', {
     template: '#bt-strategies-tpl',
 });
 
+app.component('volume-surge-bt-page', {
+    template: '#volume-surge-bt-tpl',
+    setup() {
+        const vsStockCode = ref('600519');
+        const vsLookback = ref(6);
+        const vsHoldDays = ref(10);
+        const vsVolMin = ref(1.5);
+        const vsVolMax = ref(4.0);
+        const vsShrinkDays = ref(3);
+        const vsSingleLoading = ref(false);
+        const vsSingleResult = ref({ trades: [], summary: {} });
+
+        const vsMktLookback = ref(6);
+        const vsMktHoldDays = ref(10);
+        const vsMktLoading = ref(false);
+        const vsMktResult = ref({ trades: [], summary: {} });
+
+        async function runSingleBt() {
+            if (!vsStockCode.value) return;
+            vsSingleLoading.value = true;
+            vsSingleResult.value = { trades: [], summary: {} };
+            try {
+                const params = new URLSearchParams({
+                    stock_code: vsStockCode.value,
+                    lookback_months: vsLookback.value,
+                    hold_days: vsHoldDays.value,
+                    volume_ratio_min: vsVolMin.value,
+                    volume_ratio_max: vsVolMax.value,
+                    shrink_days: vsShrinkDays.value,
+                });
+                const r = await fetch(`${API_BASE}/backtest/volume-surge?${params}`);
+                const data = await r.json();
+                if (data.error) { vsSingleResult.value = { trades: [], summary: {} }; }
+                else vsSingleResult.value = data;
+            } catch (e) {
+                console.error(e);
+            } finally {
+                vsSingleLoading.value = false;
+            }
+        }
+
+        async function runMarketBt() {
+            vsMktLoading.value = true;
+            vsMktResult.value = { trades: [], summary: {} };
+            try {
+                const params = new URLSearchParams({
+                    lookback_months: vsMktLookback.value,
+                    hold_days: vsMktHoldDays.value,
+                    volume_ratio_min: vsVolMin.value,
+                    volume_ratio_max: vsVolMax.value,
+                    shrink_days: vsShrinkDays.value,
+                });
+                const r = await fetch(`${API_BASE}/backtest/volume-surge/market?${params}`);
+                const data = await r.json();
+                if (data.error) { vsMktResult.value = { trades: [], summary: {} }; }
+                else vsMktResult.value = data;
+            } catch (e) {
+                console.error(e);
+            } finally {
+                vsMktLoading.value = false;
+            }
+        }
+
+        return {
+            vsStockCode, vsLookback, vsHoldDays, vsVolMin, vsVolMax, vsShrinkDays,
+            vsSingleLoading, vsSingleResult, runSingleBt,
+            vsMktLookback, vsMktHoldDays, vsMktLoading, vsMktResult, runMarketBt,
+            fmt, fmtGrowth, valClass,
+        };
+    },
+});
+
 app.component('quant-breakout-bt-page', {
     template: '#quant-breakout-bt-tpl',
     setup() {
@@ -643,14 +906,30 @@ app.component('profile-page', {
             const gMin = Math.min(...gVals) * 1.1;
             const gMax = Math.max(...gVals) * 1.15;
             const gRange = gMax - gMin || 1;
-            const priceMax = Math.max(...data.prices) * 1.15;
+
+            const wk = data.weekly_kline || [];
+            let priceMax = 0;
+            for (const bar of wk) {
+                if (bar.high > priceMax) priceMax = bar.high;
+            }
+            priceMax *= 1.15;
 
             function yRev(v) { return pad.top + ch * (1 - v / rMax); }
             function yProf(v) { return pad.top + ch * (1 - (v - pMin) / pRange); }
             function yGr(v) { return pad.top + ch * (1 - (v - gMin) / gRange); }
             function yPrice(v) { return pad.top + ch * (1 - v / priceMax); }
 
-            // Grid lines
+            const yearStart = data.years[0];
+            const yearEnd = data.years[n - 1];
+            const msStart = new Date(yearStart, 0, 1).getTime();
+            const msEnd = new Date(yearEnd, 11, 31).getTime();
+            const msRange = msEnd - msStart || 1;
+
+            function dateToX(dateStr) {
+                const t = new Date(dateStr).getTime();
+                return pad.left + cw * (t - msStart) / msRange;
+            }
+
             ctx.strokeStyle = 'rgba(255,255,255,0.05)';
             ctx.lineWidth = 1*dpr;
             for (let i = 0; i <= 4; i++) {
@@ -658,7 +937,6 @@ app.component('profile-page', {
                 ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
             }
 
-            // Revenue bars
             for (let i = 0; i < n; i++) {
                 const x = xs[i] - 14*dpr, w = 28*dpr;
                 const h = ch * data.revenues[i] / rMax;
@@ -666,7 +944,6 @@ app.component('profile-page', {
                 ctx.fillRect(x, pad.top + ch - h, w, h);
             }
 
-            // Net profit line
             ctx.beginPath();
             ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5*dpr;
             for (let i = 0; i < n; i++) {
@@ -680,7 +957,6 @@ app.component('profile-page', {
                 ctx.beginPath(); ctx.arc(xs[i], y, 3.5*dpr, 0, Math.PI*2); ctx.fill();
             }
 
-            // Growth rate dashed line
             ctx.beginPath();
             ctx.setLineDash([6*dpr, 3*dpr]);
             ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 2*dpr;
@@ -698,47 +974,44 @@ app.component('profile-page', {
                 ctx.beginPath(); ctx.arc(xs[i], yGr(v), 3*dpr, 0, Math.PI*2); ctx.fill();
             }
 
-            // Price line
-            ctx.beginPath();
-            ctx.strokeStyle = '#4ecdc4'; ctx.lineWidth = 2*dpr;
-            for (let i = 0; i < n; i++) {
-                const v = data.prices[i];
-                if (v == null || v === 0) continue;
-                const y = yPrice(v);
-                i === 0 || data.prices[i-1] == null || data.prices[i-1] === 0 ? ctx.moveTo(xs[i], y) : ctx.lineTo(xs[i], y);
-            }
-            ctx.stroke();
-            ctx.fillStyle = '#4ecdc4';
-            for (let i = 0; i < n; i++) {
-                const v = data.prices[i];
-                if (v == null || v === 0) continue;
-                ctx.beginPath(); ctx.arc(xs[i], yPrice(v), 3*dpr, 0, Math.PI*2); ctx.fill();
+            if (wk.length > 0) {
+                const candleW = Math.max(1, Math.min(6, cw / wk.length * 0.6)) * dpr;
+                for (const bar of wk) {
+                    const x = dateToX(bar.date);
+                    const yO = yPrice(bar.open), yC = yPrice(bar.close);
+                    const yH = yPrice(bar.high), yL = yPrice(bar.low);
+                    const up = bar.close >= bar.open;
+                    ctx.strokeStyle = up ? '#ef4444' : '#10b981';
+                    ctx.lineWidth = 1 * dpr;
+                    ctx.beginPath(); ctx.moveTo(x, yH); ctx.lineTo(x, yL); ctx.stroke();
+                    const bodyTop = Math.min(yO, yC);
+                    const bodyH = Math.max(Math.abs(yO - yC), 1 * dpr);
+                    ctx.fillStyle = up ? '#ef4444' : '#10b981';
+                    ctx.fillRect(x - candleW / 2, bodyTop, candleW, bodyH);
+                }
             }
 
-            // ── Y axis labels (left: revenue/price) ──
             ctx.fillStyle = '#666'; ctx.font = `${10*dpr}px sans-serif`; ctx.textAlign = 'right';
             for (let i = 0; i <= 4; i++) {
                 const v = Math.round(rMax * i / 4);
                 ctx.fillText(v + '亿', pad.left - 6*dpr, pad.top + ch * (1 - i/4) + 4*dpr);
             }
 
-            // ── Y axis right (growth rate) ──
             ctx.textAlign = 'left';
+            ctx.fillStyle = '#4ecdc4';
             for (let i = 0; i <= 4; i++) {
-                const v = Math.round(gMin + gRange * i / 4);
-                ctx.fillText(v + '%', pad.left + cw + 6*dpr, pad.top + ch * (1 - i/4) + 4*dpr);
+                const v = Math.round(priceMax * i / 4);
+                ctx.fillText(v + '元', pad.left + cw + 6*dpr, pad.top + ch * (1 - i/4) + 4*dpr);
             }
 
-            // X labels
             ctx.fillStyle = '#999'; ctx.font = `${11*dpr}px sans-serif`; ctx.textAlign = 'center';
             for (let i = 0; i < n; i++) {
                 ctx.fillText(data.years[i], xs[i], H - pad.bottom + 16*dpr);
             }
 
-            // Legend
             const legend = [
                 {label:'营收',color:'rgba(100,149,237,0.7)'},{label:'净利润',color:'#ffd700'},
-                {label:'增长率',color:'#ff6b6b'},{label:'股价',color:'#4ecdc4'},
+                {label:'增长率',color:'#ff6b6b'},{label:'周K',color:'#4ecdc4'},
             ];
             ctx.font = `${11*dpr}px sans-serif`; ctx.textAlign = 'left';
             let lx = pad.left;
@@ -750,18 +1023,15 @@ app.component('profile-page', {
                 lx += ctx.measureText(item.label).width + 28*dpr;
             }
 
-            // ── Hover tooltip ──
-            const chartData = { data, xs, pad, cw, n, yProf, yGr, yPrice, rMax };
+            const chartData = { data, xs, pad, cw, n, yProf, yGr, rMax, wk, dateToX, yPrice, candleW: Math.max(1, Math.min(6, cw / wk.length * 0.6)) * dpr };
             canvas.chartData = chartData;
 
             canvas.onmousemove = function(e) {
                 const cr = canvas.getBoundingClientRect();
                 const mx = (e.clientX - cr.left) * dpr;
-                const my = (e.clientY - cr.top) * dpr;
                 const cd = canvas.chartData;
                 if (!cd) return;
 
-                // Find nearest year index
                 let idx = -1, minDist = Infinity;
                 for (let i = 0; i < cd.n; i++) {
                     const dist = Math.abs(mx - cd.xs[i]);
@@ -774,16 +1044,24 @@ app.component('profile-page', {
                 const rev = d.revenues[idx];
                 const prof = d.profits[idx];
                 const gr = d.growth_rates[idx];
-                const price = d.prices[idx];
 
                 let html = `<div style="color:#ffd700;font-weight:700;margin-bottom:4px;">${yr}年</div>`;
                 html += `<div><span style="color:#6495ed;">营收</span> ${rev.toFixed(1)}亿</div>`;
                 html += `<div><span style="color:#ffd700;">净利润</span> ${prof.toFixed(2)}亿</div>`;
                 html += `<div><span style="color:#ff6b6b;">增长率</span> ${gr != null ? (gr >= 0 ? '+' : '') + gr.toFixed(1) + '%' : 'N/A'}</div>`;
-                html += `<div><span style="color:#4ecdc4;">均价</span> ${price > 0 ? price.toFixed(2) + '元' : 'N/A'}</div>`;
-                tooltip.innerHTML = html;
 
-                // Position tooltip
+                if (cd.wk.length > 0) {
+                    const yrBars = cd.wk.filter(b => b.date.startsWith(String(yr)));
+                    if (yrBars.length > 0) {
+                        const last = yrBars[yrBars.length - 1];
+                        html += `<div style="margin-top:2px;padding-top:2px;border-top:1px solid #333;">`;
+                        html += `<span style="color:#4ecdc4;">年末周K</span></div>`;
+                        html += `<div>开 <b>${last.open.toFixed(2)}</b> 高 <b>${last.high.toFixed(2)}</b></div>`;
+                        html += `<div>低 <b>${last.low.toFixed(2)}</b> 收 <b>${last.close.toFixed(2)}</b></div>`;
+                    }
+                }
+
+                tooltip.innerHTML = html;
                 const tx = e.clientX - cr.left + 15;
                 const ty = e.clientY - cr.top - 10;
                 const tw = tooltip.offsetWidth || 180;
@@ -799,6 +1077,28 @@ app.component('profile-page', {
             stockCode.value = code;
             activeTab.value = 'single';
             loadProfile();
+        }
+
+        const currentIdx = computed(() => {
+            if (!searchResult.value?.rows) return -1;
+            return searchResult.value.rows.findIndex(r => r.stock_code === stockCode.value);
+        });
+        const hasPrev = computed(() => currentIdx.value > 0);
+        const hasNext = computed(() => currentIdx.value >= 0 && currentIdx.value < (searchResult.value?.rows?.length ?? 0) - 1);
+
+        function goPrev() {
+            const idx = currentIdx.value;
+            if (idx > 0) goToProfile(searchResult.value.rows[idx - 1].stock_code);
+        }
+        function goNext() {
+            const idx = currentIdx.value;
+            if (idx >= 0 && idx < searchResult.value.rows.length - 1) goToProfile(searchResult.value.rows[idx + 1].stock_code);
+        }
+
+        function onKeydown(e) {
+            if (activeTab.value !== 'single' || !profile.value) return;
+            if (e.key === 'ArrowLeft') { e.preventDefault(); goPrev(); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); goNext(); }
         }
 
         // ── Tab2: 画像筛选 ──
@@ -824,10 +1124,20 @@ app.component('profile-page', {
             { id: 'biz.annual_rev_growth_2y', label: '营收连增2年' },
             { id: 'biz.annual_rev_growth_3y', label: '营收连增3年' },
             { id: 'biz.annual_rev_growth_4y', label: '营收连增4年' },
+            { id: 'biz.annual_rev_growth_5y', label: '营收连增5年' },
+            { id: 'biz.annual_rev_growth_6y', label: '营收连增6年' },
+            { id: 'biz.annual_rev_growth_7y', label: '营收连增7年' },
+            { id: 'biz.annual_rev_growth_8y', label: '营收连增8年' },
+            { id: 'biz.annual_rev_growth_9y', label: '营收连增9年' },
             { id: 'biz.annual_profit_growth_1y', label: '利润连增1年' },
             { id: 'biz.annual_profit_growth_2y', label: '利润连增2年' },
             { id: 'biz.annual_profit_growth_3y', label: '利润连增3年' },
             { id: 'biz.annual_profit_growth_4y', label: '利润连增4年' },
+            { id: 'biz.annual_profit_growth_5y', label: '利润连增5年' },
+            { id: 'biz.annual_profit_growth_6y', label: '利润连增6年' },
+            { id: 'biz.annual_profit_growth_7y', label: '利润连增7年' },
+            { id: 'biz.annual_profit_growth_8y', label: '利润连增8年' },
+            { id: 'biz.annual_profit_growth_9y', label: '利润连增9年' },
             { id: 'biz.annual_gm_improve_1y', label: '毛利率提升1年' },
             { id: 'biz.annual_gm_improve_2y', label: '毛利率连升2年' },
             { id: 'biz.annual_gm_improve_3y', label: '毛利率连升3年' },
@@ -1004,11 +1314,16 @@ app.component('profile-page', {
             loadProfile();
             loadStatus();
             checkRunningRefresh();
+            document.addEventListener('keydown', onKeydown);
+        });
+        onUnmounted(() => {
+            document.removeEventListener('keydown', onKeydown);
         });
 
         return {
             activeTab, stockCode, loading, profile, error, finChartLoading, finChartCanvas,
             loadProfile, loadFinChart, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile,
+            currentIdx, hasPrev, hasNext, goPrev, goNext,
             stageOptions, selectedStages, filterTechScore, filterFundScore,
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
             filterGmGrowthQ, filterGmGrowth2y,
