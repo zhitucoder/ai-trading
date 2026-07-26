@@ -1432,6 +1432,70 @@ app.component('vcp-page', {
         const maxContractions = ref(6);
         const minPct = ref(3);
         const lookbackDays = ref(150);
+        const chartRefs = {};
+
+        function mountVcpChart(el, si) {
+            if (!el || !result.value || !result.value.rows[si]) return;
+            if (el._chart) return;
+            const stock = result.value.rows[si];
+            const cd = stock.chart_data;
+            if (!cd || cd.length < 3) return;
+
+            const parent = el.parentElement;
+            const w = Math.min(parent.clientWidth - 16, 400);
+
+            el._chart = LightweightCharts.createChart(el, {
+                width: w, height: 150,
+                layout: { background: { color: 'transparent' }, textColor: '#8e8ea0', fontSize: 9 },
+                grid: { vertLines: { color: '#1e1e35' }, horzLines: { color: '#1e1e35', style: 2 } },
+                timeScale: { borderColor: '#2a2a40', visible: false },
+                rightPriceScale: { borderColor: '#2a2a40', visible: true, scaleMargins: { top: 0.1, bottom: 0.3 } },
+                crosshair: { mode: 0 },
+                handleScroll: false, handleScale: false,
+            });
+
+            const cs = el._chart.addCandlestickSeries({
+                upColor: '#ef4444', downColor: '#10b981',
+                borderUpColor: '#ef4444', borderDownColor: '#10b981',
+                wickUpColor: '#ef4444', wickDownColor: '#10b981',
+                priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+            });
+            cs.setData(cd.map(d => ({
+                time: d.date.replace(/-/g, ''),
+                open: d.open, high: d.high, low: d.low, close: d.close,
+            })));
+
+            const vs = el._chart.addHistogramSeries({
+                color: '#3a6ea5', priceFormat: { type: 'volume' },
+                priceScaleId: 'volume',
+            });
+            el._chart.priceScale('volume').applyOptions({
+                scaleMargins: { top: 0.75, bottom: 0 },
+            });
+            vs.setData(cd.filter(d => d.volume > 0).map(d => ({
+                time: d.date.replace(/-/g, ''),
+                value: d.volume,
+                color: d.close >= d.open ? '#ef444466' : '#10b98166',
+            })));
+
+            if (stock.vcp_markers && stock.vcp_markers.length) {
+                cs.setMarkers(stock.vcp_markers.map(m => ({
+                    time: m.time.replace(/-/g, ''),
+                    position: m.position,
+                    color: m.color,
+                    shape: m.shape,
+                    text: m.text,
+                })));
+            }
+
+            const lastN = Math.min(cd.length - 1, 60);
+            if (lastN > 10) {
+                el._chart.timeScale().setVisibleLogicalRange({
+                    from: cd.length - 1 - lastN,
+                    to: cd.length - 1,
+                });
+            }
+        }
 
         async function scan() {
             loading.value = true;
@@ -1461,7 +1525,7 @@ app.component('vcp-page', {
         return {
             loading, result, scanTime, scannedCount,
             minContractions, maxContractions, minPct, lookbackDays,
-            scan, fmt,
+            scan, fmt, mountVcpChart,
         };
     },
 });

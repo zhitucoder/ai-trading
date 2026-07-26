@@ -1513,6 +1513,8 @@
                     </div>
                 </div>
 
+                <div class="vcp-chart-wrap" :ref="el => mountVcpChart(el, si)"></div>
+
                 <div class="vcp-volume-row">
                     <span class="vcp-volume-label">量能:</span>
                     <span v-if="stock.volume_dry_up" class="vcp-volume-dry">缩量 ✓</span>

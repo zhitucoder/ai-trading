@@ -21,12 +21,13 @@ def find_local_extrema(prices, min_distance=3):
     return peaks, troughs
 
 
-def detect_vcp(kline_rows, stock_code, stock_name, min_pct=3, lookback_days=150):
+def detect_vcp(kline_rows, stock_code, stock_name, min_pct=3, lookback_days=150, full_klines=None):
     if len(kline_rows) < 60:
         return None
 
     close = [float(r['close_price']) for r in kline_rows]
     dates = [r['trade_date'] for r in kline_rows]
+    full_klines = full_klines or kline_rows
 
     n = len(close)
     ma50 = sum(close[-50:]) / 50
@@ -69,8 +70,12 @@ def detect_vcp(kline_rows, stock_code, stock_name, min_pct=3, lookback_days=150)
     contractions = [{
         'label': 'T1',
         'peak_price': round(pivot_price, 2),
+        'peak_date': str(dates[pivot_idx])[:10],
         'trough_price': round(t1_val, 2),
+        'trough_date': str(dates[t1_idx])[:10],
         'decline_pct': round(t1_decline, 2),
+        'peak_idx': pivot_idx,
+        'trough_idx': t1_idx,
         'is_complete': True,
     }]
 
@@ -124,9 +129,13 @@ def detect_vcp(kline_rows, stock_code, stock_name, min_pct=3, lookback_days=150)
         contractions.append({
             'label': f'T{t_num}',
             'peak_price': round(np_val, 2),
+            'peak_date': str(dates[np_idx])[:10],
             'trough_price': round(nt_val, 2),
+            'trough_date': str(dates[nt_idx])[:10],
             'decline_pct': round(t_decline, 2),
             'tightness_pct': round(tightness, 2),
+            'peak_idx': np_idx,
+            'trough_idx': nt_idx,
             'is_complete': is_last,
         })
 
@@ -153,6 +162,35 @@ def detect_vcp(kline_rows, stock_code, stock_name, min_pct=3, lookback_days=150)
     above_pivot = latest_price > pivot_price
     distance_from_last_trough = (latest_price - prev_trough) / prev_trough * 100 if prev_trough else 0
 
+    chart_data = []
+    for r in full_klines[recent_half:]:
+        chart_data.append({
+            'date': str(r['trade_date'])[:10],
+            'open': float(r['open_price']),
+            'high': float(r['high_price']),
+            'low': float(r['low_price']),
+            'close': float(r['close_price']),
+            'volume': int(r['volume']),
+        })
+
+    vcp_markers = [
+        {
+            'time': str(dates[pivot_idx])[:10],
+            'position': 'belowBar',
+            'color': '#f59e0b',
+            'shape': 'arrowDown',
+            'text': 'PIVOT',
+        },
+    ]
+    for c in contractions:
+        vcp_markers.append({
+            'time': c['peak_date'],
+            'position': 'belowBar',
+            'color': '#ef4444',
+            'shape': 'arrowDown',
+            'text': c['label'],
+        })
+
     return {
         'stock_code': stock_code,
         'stock_name': stock_name,
@@ -171,6 +209,8 @@ def detect_vcp(kline_rows, stock_code, stock_name, min_pct=3, lookback_days=150)
         'breakout_signal': break_out,
         'above_pivot': above_pivot,
         'ma50_ma150': f'{round(ma50, 2)} / {round(ma150, 2)}',
+        'chart_data': chart_data,
+        'vcp_markers': vcp_markers,
     }
 
 
@@ -213,10 +253,19 @@ def scan_vcp(
         if len(kline) < 60:
             continue
 
+        full_kline = query("""
+            SELECT trade_date, open_price, high_price, low_price, close_price, volume
+            FROM daily_kline
+            WHERE stock_code = %s
+              AND trade_date >= %s
+              AND trade_date <= %s
+            ORDER BY trade_date
+        """, [sc, lookback_start, tdate])
+
         name_row = query("SELECT stock_name FROM stocks WHERE stock_code = %s", [sc])
         sname = name_row[0]['stock_name'] if name_row else sc
 
-        result = detect_vcp(kline, sc, sname, min_pct=min_pct, lookback_days=lookback_days)
+        result = detect_vcp(kline, sc, sname, min_pct=min_pct, lookback_days=lookback_days, full_klines=full_kline)
         if result and min_contractions <= result['contraction_count'] <= max_contractions:
             results.append(result)
 
