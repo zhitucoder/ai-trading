@@ -125,7 +125,11 @@ def get_klines(code, days=300):
 def calc_growth(cur, prev):
     if cur is None or prev is None or float(prev) == 0:
         return None
-    return round((float(cur) - float(prev)) / float(prev) * 100, 2)
+    prev = float(prev)
+    cur = float(cur)
+    if prev < 0:
+        return None
+    return round((cur - prev) / prev * 100, 2)
 
 
 def calc_cagr(latest, earliest, years):
