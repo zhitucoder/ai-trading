@@ -4,6 +4,7 @@ from ..strategies.technical import TECHNICAL_STRATEGIES, screen_ma_bullish, scre
 from ..strategies.fundamental import FUNDAMENTAL_STRATEGIES, screen_revenue_growth, screen_profit_growth, screen_debt_ratio, screen_fundamental_all, get_latest_report_date
 from ..strategies.minervini import MINERVINI_STRATEGIES, screen_minervini_eps, screen_minervini_roe, screen_minervini_trend_template, screen_sepa_master
 from ..strategies.turnaround import TURNAROUND_STRATEGIES, screen_turnaround
+from ..strategies.volume_surge import VOLUME_SURGE_STRATEGIES, screen_volume_surge
 from ..database import query
 
 router = APIRouter()
@@ -37,6 +38,9 @@ def list_strategies():
         'turnaround': [
             {'id': k, **v} for k, v in TURNAROUND_STRATEGIES.items()
         ],
+        'volume_surge': [
+            {'id': k, **v} for k, v in VOLUME_SURGE_STRATEGIES.items()
+        ],
     }
 
 
@@ -48,6 +52,12 @@ def execute_screening(
     profit_threshold: float = Query(20.0, description='净利润增长率下限(%)'),
     debt_threshold: float = Query(50.0, description='资产负债率上限(%)'),
     consolidation_days: int = Query(20, description='横盘观察天数'),
+    lookback_months: int = Query(2, description='倍量柱回溯月数'),
+    volume_ratio_min: float = Query(1.5, description='成交量放大倍数下限'),
+    volume_ratio_max: float = Query(4.0, description='成交量放大倍数上限'),
+    shrink_days: int = Query(3, description='王者倍量柱后缩量天数'),
+    min_gap_days: int = Query(3, description='连续王者倍量柱最小间隔天数'),
+    max_gap_days: int = Query(10, description='连续王者倍量柱最大间隔天数'),
 ):
     periods = [int(p.strip()) for p in ma_periods.split(',') if p.strip()]
 
@@ -115,6 +125,21 @@ def execute_screening(
         cols = ['cur_rev_growth', 'prev_rev_growth', 'cur_profit_growth',
                 'cur_profit', 'prev_profit', 'operating_revenue',
                 'close_price', 'ma200', 'ma200_deviation_pct', 'report_date']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
+
+    if strategy_id == 'volume_surge_three_stage':
+        rows = screen_volume_surge('volume_surge_three_stage', lookback_months, volume_ratio_min, volume_ratio_max, shrink_days)
+        cols = ['industry_sectors', 'concept_sectors',
+                'surge1_date', 'surge1_close', 'surge1_ratio',
+                'surge2_date', 'surge2_close', 'surge2_ratio',
+                'surge3_date', 'surge3_close', 'surge3_ratio', 'king_confirmed']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
+
+    if strategy_id == 'volume_surge_consecutive_king':
+        rows = screen_volume_surge('volume_surge_consecutive_king', lookback_months, volume_ratio_min, volume_ratio_max, shrink_days, min_gap_days, max_gap_days)
+        cols = ['industry_sectors', 'concept_sectors',
+                'king1_date', 'king1_close', 'king1_ratio',
+                'king2_date', 'king2_close', 'king2_ratio', 'gap_days', 'consecutive_king_confirmed']
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     return {'error': f'Unknown strategy: {strategy_id}'}

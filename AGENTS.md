@@ -119,6 +119,24 @@ pytdx 财务数据的字段索引发生过偏移。索引 ≤ 97 的字段（利
 - **Screening module** (`strategies/fundamental.py`, `routers/screening.py`): ✅ 已修复，从 `fin_income` / `fin_balance_sheet` 计算
 - **Pre-2026-07 screening code**: ❌ 使用损坏的 `fin_ratios` 字段，需手动迁移
 
+---
+
+### 金融股 pytdx 财报字段映射问题
+
+**症状**：部分金融/证券类股票（如 `600621 华鑫股份`、`002670 国盛证券`）2018-2024 年间的 `operating_revenue`（营业收入）数据明显错误——营收仅数十万至千万级，但净利润数亿元。
+
+**原因**：pytdx GPCW 数据格式的固定列索引针对工业/制造业企业设计。金融企业（证券/银行/保险/金控）的利润表科目结构不同，导致 `col74（营业收入）`等关键字段映射到错误的数据项。
+
+**受影响的行业**：`证券`、`多元金融`、`TDX 金融` 等。
+
+**数据质量检查**：`compute_annual_cagr.py` 和 `profile.py` 中的 `rev_reliable()` 函数会在 CAGR 计算前校验：
+1. 营收 > 0
+2. `|净利润| < 营收 × 2`（防止净利润远超营收的异常情况）
+3. `营收 / 总资产 ≥ 0.1%`（防止营收过小但资产庞大的金融股误导）
+   - 校验不通过时，营收 CAGR 置为 NULL（净利润 CAGR 不受影响）
+
+**`ads_annual_cagr` 表**：存储年化增长率中间结果，可通过 `compute_annual_cagr.py` 脚本重新计算。
+
 ### Indexes
 - `daily_kline`: `(stock_code, trade_date, close_price)` — covering index for MA calculations
 - `daily_kline`: `(trade_date)`, `(stock_code)` — standalone

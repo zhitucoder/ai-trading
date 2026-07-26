@@ -71,15 +71,19 @@ def profile_fin_chart(stock_code: str):
     """, [stock_code])
 
     kline_rows = query("""
-        SELECT YEAR(trade_date) yr, ROUND(AVG(close_price),2) avg_price
+        SELECT
+            DATE_FORMAT(DATE_SUB(trade_date, INTERVAL WEEKDAY(trade_date) DAY), '%%Y-%%m-%%d') AS week_start,
+            SUBSTRING_INDEX(GROUP_CONCAT(open_price ORDER BY trade_date), ',', 1) + 0 AS open_price,
+            MAX(high_price) AS high_price,
+            MIN(low_price) AS low_price,
+            SUBSTRING_INDEX(GROUP_CONCAT(close_price ORDER BY trade_date DESC), ',', 1) + 0 AS close_price
         FROM daily_kline
         WHERE stock_code = %s AND trade_date >= '2018-01-01'
-        GROUP BY yr ORDER BY yr
+        GROUP BY week_start
+        ORDER BY week_start
     """, [stock_code])
 
-    kline_map = {r['yr']: float(r['avg_price']) for r in kline_rows}
-
-    years, revenues, profits, growth_rates, prices = [], [], [], [], []
+    years, revenues, profits, growth_rates = [], [], [], []
     prev_np = None
     for r in rev_rows:
         yr = r['report_date'].year
@@ -90,11 +94,14 @@ def profile_fin_chart(stock_code: str):
         revenues.append(round(rev, 1))
         profits.append(round(np, 2))
         growth_rates.append(growth)
-        prices.append(float(kline_map.get(yr, 0)))
         prev_np = np
 
     return {'years': years, 'revenues': revenues, 'profits': profits,
-            'growth_rates': growth_rates, 'prices': prices}
+            'growth_rates': growth_rates,
+            'weekly_kline': [{'date': r['week_start'].strftime('%Y-%m-%d') if hasattr(r['week_start'], 'strftime') else str(r['week_start'])[:10],
+                              'open': float(r['open_price']), 'high': float(r['high_price']),
+                              'low': float(r['low_price']), 'close': float(r['close_price'])}
+                             for r in kline_rows]}
 
 
 # ── 触发刷新 ──
@@ -165,6 +172,14 @@ class SearchRequest(BaseModel):
     gm_growth_2y_min: Optional[float] = None
     contract_liab_min: Optional[float] = None
     contract_liab_max: Optional[float] = None
+    rev_cagr_3y_min: Optional[float] = None
+    rev_cagr_3y_max: Optional[float] = None
+    rev_cagr_5y_min: Optional[float] = None
+    rev_cagr_5y_max: Optional[float] = None
+    profit_cagr_3y_min: Optional[float] = None
+    profit_cagr_3y_max: Optional[float] = None
+    profit_cagr_5y_min: Optional[float] = None
+    profit_cagr_5y_max: Optional[float] = None
     page: int = 1
     page_size: int = 50
     sort_by: str = 'tech_score'
@@ -239,8 +254,26 @@ def search_profiles(body: SearchRequest):
         conditions.append("(JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') IS NULL OR JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') <= %(contract_liab_max)s)")
         params['contract_liab_max'] = body.contract_liab_max
 
+    cagr_filters = [
+        ('rev_cagr_3y_min', 'rev_cagr_3y', '>='),
+        ('rev_cagr_3y_max', 'rev_cagr_3y', '<='),
+        ('rev_cagr_5y_min', 'rev_cagr_5y', '>='),
+        ('rev_cagr_5y_max', 'rev_cagr_5y', '<='),
+        ('profit_cagr_3y_min', 'profit_cagr_3y', '>='),
+        ('profit_cagr_3y_max', 'profit_cagr_3y', '<='),
+        ('profit_cagr_5y_min', 'profit_cagr_5y', '>='),
+        ('profit_cagr_5y_max', 'profit_cagr_5y', '<='),
+    ]
+    for field, col, op in cagr_filters:
+        val = getattr(body, field, None)
+        if val is not None:
+            conditions.append(f'p.{col} IS NOT NULL AND p.{col} {op} %({field})s')
+            params[field] = val
+
     sort_col = 'p.tech_score'
-    if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct', 'contract_liab_to_assets'):
+    if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct', 'contract_liab_to_assets',
+                         'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
+                         'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y'):
         if body.sort_by == 'contract_liab_to_assets':
             sort_col = "CAST(JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS DECIMAL(10,2))"
         else:
@@ -261,6 +294,8 @@ def search_profiles(body: SearchRequest):
         SELECT p.stock_code, p.stock_name, p.latest_price, p.price_change_pct,
                p.stage_id, p.stage_confidence, p.tech_score, p.fund_score,
                p.revenue_growth, p.net_profit_growth, p.debt_ratio,
+               p.rev_cagr_3y, p.rev_cagr_5y, p.rev_cagr_10y,
+               p.profit_cagr_3y, p.profit_cagr_5y, p.profit_cagr_10y,
                JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS contract_liab_to_assets,
                {tag_cols_sql}
         FROM stock_profiles p

@@ -1119,6 +1119,14 @@ app.component('profile-page', {
         const filterGmGrowth2y = ref(null);
         const filterContractLiabMin = ref(null);
         const filterContractLiabMax = ref(null);
+        const filterRevCagr3yMin = ref(null);
+        const filterRevCagr3yMax = ref(null);
+        const filterRevCagr5yMin = ref(null);
+        const filterRevCagr5yMax = ref(null);
+        const filterProfitCagr3yMin = ref(null);
+        const filterProfitCagr3yMax = ref(null);
+        const filterProfitCagr5yMin = ref(null);
+        const filterProfitCagr5yMax = ref(null);
         const growthTagOptions = [
             { id: 'biz.annual_rev_growth_1y', label: '营收连增1年' },
             { id: 'biz.annual_rev_growth_2y', label: '营收连增2年' },
@@ -1189,6 +1197,14 @@ app.component('profile-page', {
                     gm_growth_2y_min: filterGmGrowth2y.value || null,
                     contract_liab_min: filterContractLiabMin.value || null,
                     contract_liab_max: filterContractLiabMax.value || null,
+                    rev_cagr_3y_min: filterRevCagr3yMin.value || null,
+                    rev_cagr_3y_max: filterRevCagr3yMax.value || null,
+                    rev_cagr_5y_min: filterRevCagr5yMin.value || null,
+                    rev_cagr_5y_max: filterRevCagr5yMax.value || null,
+                    profit_cagr_3y_min: filterProfitCagr3yMin.value || null,
+                    profit_cagr_3y_max: filterProfitCagr3yMax.value || null,
+                    profit_cagr_5y_min: filterProfitCagr5yMin.value || null,
+                    profit_cagr_5y_max: filterProfitCagr5yMax.value || null,
                     page: searchResult.value ? searchResult.value.page : 1,
                     page_size: 50,
                     sort_by: sortBy.value,
@@ -1235,6 +1251,14 @@ app.component('profile-page', {
             filterGmGrowth2y.value = null;
             filterContractLiabMin.value = null;
             filterContractLiabMax.value = null;
+            filterRevCagr3yMin.value = null;
+            filterRevCagr3yMax.value = null;
+            filterRevCagr5yMin.value = null;
+            filterRevCagr5yMax.value = null;
+            filterProfitCagr3yMin.value = null;
+            filterProfitCagr3yMax.value = null;
+            filterProfitCagr5yMin.value = null;
+            filterProfitCagr5yMax.value = null;
             selectedGrowthTags.value = [];
             sortBy.value = 'tech_score';
             sortOrder.value = 'desc';
@@ -1328,6 +1352,8 @@ app.component('profile-page', {
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
             filterGmGrowthQ, filterGmGrowth2y,
             filterContractLiabMin, filterContractLiabMax,
+            filterRevCagr3yMin, filterRevCagr3yMax, filterRevCagr5yMin, filterRevCagr5yMax,
+            filterProfitCagr3yMin, filterProfitCagr3yMax, filterProfitCagr5yMin, filterProfitCagr5yMax,
             growthTagOptions, selectedGrowthTags,
             searchLoading, searchResult, profileStatusData, sortBy, sortOrder,
             refreshing, refreshProgress, refreshToast,

@@ -23,6 +23,7 @@ def _active_tag_ids(result):
 
 def _to_profile_row(result, report_date, fin_report_date):
     ids = _active_tag_ids(result)
+    fin = result.get('fin_data', {})
     row = {
         'stock_code': result['code'],
         'stock_name': result['name'],
@@ -33,9 +34,15 @@ def _to_profile_row(result, report_date, fin_report_date):
         'fund_score': result['scores']['fund'],
         'latest_price': result['latest_price'],
         'price_change_pct': result['price_change_pct'],
-        'revenue_growth': result.get('fin_data', {}).get('revenue_growth_rate'),
-        'net_profit_growth': result.get('fin_data', {}).get('net_profit_growth_rate'),
-        'debt_ratio': result.get('fin_data', {}).get('debt_ratio'),
+        'revenue_growth': fin.get('revenue_growth_rate'),
+        'net_profit_growth': fin.get('net_profit_growth_rate'),
+        'debt_ratio': fin.get('debt_ratio'),
+        'rev_cagr_3y': fin.get('revenue_cagr_3y'),
+        'rev_cagr_5y': fin.get('revenue_cagr_5y'),
+        'rev_cagr_10y': fin.get('revenue_cagr_10y'),
+        'profit_cagr_3y': fin.get('net_profit_cagr_3y'),
+        'profit_cagr_5y': fin.get('net_profit_cagr_5y'),
+        'profit_cagr_10y': fin.get('net_profit_cagr_10y'),
         'data_date': str(report_date),
         'fin_report_date': str(fin_report_date) if fin_report_date else None,
         'profile_json': json.dumps(result, ensure_ascii=False),
@@ -55,6 +62,8 @@ def _batch_insert(rows, conn):
          'stage_id', 'stage_confidence', 'tech_score', 'fund_score',
          'latest_price', 'price_change_pct',
          'revenue_growth', 'net_profit_growth', 'debt_ratio',
+         'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
+         'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y',
          'data_date', 'fin_report_date', 'profile_json']
         + TAG_COLUMNS
     )

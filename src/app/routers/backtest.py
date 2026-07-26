@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import date, datetime, timedelta
 from ..database import query
+from ..strategies.volume_surge import get_stock_volume_surge_detail, detect_volume_surge
 
 router = APIRouter()
 
@@ -448,3 +449,205 @@ def get_kline_range(stock_code: str, start_date: str, end_date: str):
     """
     rows = query(sql, [stock_code, start_date, end_date])
     return {'stock_code': stock_code, 'stock_name': name, 'rows': rows}
+
+
+@router.get('/volume-surge/detail/{stock_code}')
+def volume_surge_detail(
+    stock_code: str,
+    lookback_months: int = Query(6, description='回溯月数'),
+    volume_ratio_min: float = Query(1.5),
+    volume_ratio_max: float = Query(4.0),
+    shrink_days: int = Query(3),
+    min_gap_days: int = Query(3),
+    max_gap_days: int = Query(10),
+):
+    from ..strategies.volume_surge import get_stock_volume_surge_detail
+    detail = get_stock_volume_surge_detail(stock_code, lookback_months, volume_ratio_min, volume_ratio_max, shrink_days, min_gap_days, max_gap_days)
+    if not detail:
+        return {'error': f'Stock {stock_code} not found'}
+
+    name = get_stock_name(stock_code)
+    detail['stock_name'] = name
+    return detail
+
+
+@router.get('/backtest/volume-surge')
+def volume_surge_backtest(
+    stock_code: str = Query(...),
+    start_date: str = Query(None),
+    end_date: str = Query(None),
+    lookback_months: int = Query(6, description='回溯月数'),
+    hold_days: int = Query(10, description='持有天数'),
+    volume_ratio_min: float = Query(1.5),
+    volume_ratio_max: float = Query(4.0),
+    shrink_days: int = Query(3),
+):
+    if not end_date:
+        end_date = query("SELECT MAX(trade_date) AS d FROM daily_kline")[0]['d'].isoformat()
+    if not start_date:
+        start_date = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=lookback_months * 60)).strftime('%Y-%m-%d')
+
+    stock_row = query("SELECT stock_code FROM stocks WHERE stock_code = %s", [stock_code])
+    if not stock_row:
+        return {'error': f'Stock {stock_code} not found'}
+
+    buffer_date = (datetime.strptime(start_date, '%Y-%m-%d') - timedelta(days=lookback_months * 30)).strftime('%Y-%m-%d')
+    kline = query("""
+        SELECT trade_date, open_price, high_price, low_price, close_price, volume
+        FROM daily_kline
+        WHERE stock_code = %s AND trade_date >= %s AND trade_date <= %s
+        ORDER BY trade_date
+    """, [stock_code, buffer_date, end_date])
+
+    if not kline:
+        return {'stock_code': stock_code, 'stock_name': get_stock_name(stock_code), 'trades': [], 'daily': [], 'summary': {}}
+
+    surges = detect_volume_surge(stock_row, lookback_months, volume_ratio_min, volume_ratio_max)
+    surge_dates = set()
+    surge_map = {}
+    for s in surges:
+        sd = s['trade_date'].strftime('%Y-%m-%d') if hasattr(s['trade_date'], 'strftime') else str(s['trade_date'])[:10]
+        surge_dates.add(sd)
+        surge_map[sd] = s
+
+    from ..strategies.volume_surge import detect_three_stage_kings
+    kings = detect_three_stage_kings(surges, shrink_days)
+
+    kline_dates = [k['trade_date'].isoformat() if hasattr(k['trade_date'], 'isoformat') else str(k['trade_date'])[:10] for k in kline]
+    kline_map = {kline_dates[i]: kline[i] for i in range(len(kline))}
+
+    trades = []
+    for king in kings:
+        buy_date = king['surge3_date']
+        if buy_date not in kline_map:
+            for d in kline_dates:
+                if d >= buy_date:
+                    buy_date = d
+                    break
+
+        if buy_date not in kline_map:
+            continue
+
+        buy_price = float(kline_map[buy_date]['close_price'])
+        buy_idx = kline_dates.index(buy_date)
+        sell_idx = min(buy_idx + hold_days, len(kline_dates) - 1)
+        sell_date = kline_dates[sell_idx]
+        sell_price = float(kline_map[sell_date]['close_price'])
+
+        pnl_pct = (sell_price - buy_price) / buy_price * 100
+        trades.append({
+            'buy_date': buy_date,
+            'buy_price': round(buy_price, 2),
+            'sell_date': sell_date,
+            'sell_price': round(sell_price, 2),
+            'hold_days': sell_idx - buy_idx,
+            'pnl_pct': round(pnl_pct, 2),
+            'surge1_date': king['surge1_date'],
+            'surge2_date': king['surge2_date'],
+            'surge3_date': king['surge3_date'],
+        })
+
+    wins = sum(1 for t in trades if t['pnl_pct'] > 0)
+    losses = sum(1 for t in trades if t['pnl_pct'] <= 0)
+    total = len(trades)
+    avg_return = sum(t['pnl_pct'] for t in trades) / total if total > 0 else 0
+    max_return = max((t['pnl_pct'] for t in trades), default=0)
+    min_return = min((t['pnl_pct'] for t in trades), default=0)
+
+    return {
+        'stock_code': stock_code,
+        'stock_name': get_stock_name(stock_code),
+        'trades': trades,
+        'summary': {
+            'total_trades': total,
+            'win_count': wins,
+            'loss_count': losses,
+            'win_rate': round(wins / total * 100, 2) if total > 0 else 0,
+            'avg_return': round(avg_return, 2),
+            'max_return': round(max_return, 2),
+            'min_return': round(min_return, 2),
+        },
+    }
+
+
+@router.get('/backtest/volume-surge/market')
+def volume_surge_market_backtest(
+    lookback_months: int = Query(6, description='回溯月数'),
+    hold_days: int = Query(10, description='持有天数'),
+    volume_ratio_min: float = Query(1.5),
+    volume_ratio_max: float = Query(4.0),
+    shrink_days: int = Query(3),
+):
+    all_stocks = query("SELECT stock_code FROM stocks WHERE stock_code NOT LIKE '688%' AND stock_code NOT LIKE '300%' AND stock_code NOT LIKE '830%' AND stock_name NOT LIKE 'ST%' AND stock_name NOT LIKE '*ST%'")
+    if not all_stocks:
+        return {'trades': [], 'summary': {}, 'total_stocks': 0}
+
+    surges = detect_volume_surge(all_stocks, lookback_months, volume_ratio_min, volume_ratio_max)
+    if not surges:
+        return {'trades': [], 'summary': {}, 'total_stocks': len(all_stocks)}
+
+    kings = detect_three_stage_kings(surges, shrink_days)
+    if not kings:
+        return {'trades': [], 'summary': {}, 'total_stocks': len(all_stocks)}
+
+    latest_date = query("SELECT MAX(trade_date) AS d FROM daily_kline")[0]['d']
+
+    all_trades = []
+    for king in kings:
+        code = king['stock_code']
+        buy_date = king['surge3_date']
+
+        future_kline = query("""
+            SELECT trade_date, close_price
+            FROM daily_kline
+            WHERE stock_code = %s AND trade_date >= %s
+            ORDER BY trade_date
+            LIMIT %s
+        """, [code, buy_date, hold_days + 1])
+
+        if len(future_kline) < 2:
+            continue
+
+        buy_price = float(future_kline[0]['close_price'])
+        sell_idx = min(hold_days, len(future_kline) - 1)
+        sell_price = float(future_kline[sell_idx]['close_price'])
+        sell_date = future_kline[sell_idx]['trade_date'].isoformat() if hasattr(future_kline[sell_idx]['trade_date'], 'isoformat') else str(future_kline[sell_idx]['trade_date'])[:10]
+
+        pnl_pct = (sell_price - buy_price) / buy_price * 100
+
+        name_rows = query("SELECT stock_name FROM stocks WHERE stock_code = %s", [code])
+        stock_name = name_rows[0]['stock_name'] if name_rows else ''
+
+        all_trades.append({
+            'stock_code': code,
+            'stock_name': stock_name,
+            'buy_date': buy_date,
+            'buy_price': round(buy_price, 2),
+            'sell_date': sell_date,
+            'sell_price': round(sell_price, 2),
+            'hold_days': sell_idx,
+            'pnl_pct': round(pnl_pct, 2),
+        })
+
+    all_trades.sort(key=lambda x: x['pnl_pct'], reverse=True)
+
+    wins = sum(1 for t in all_trades if t['pnl_pct'] > 0)
+    losses = sum(1 for t in all_trades if t['pnl_pct'] <= 0)
+    total = len(all_trades)
+    avg_return = sum(t['pnl_pct'] for t in all_trades) / total if total > 0 else 0
+    max_return = max((t['pnl_pct'] for t in all_trades), default=0)
+    min_return = min((t['pnl_pct'] for t in all_trades), default=0)
+
+    return {
+        'trades': all_trades,
+        'total_stocks': len(all_stocks),
+        'summary': {
+            'total_trades': total,
+            'win_count': wins,
+            'loss_count': losses,
+            'win_rate': round(wins / total * 100, 2) if total > 0 else 0,
+            'avg_return': round(avg_return, 2),
+            'max_return': round(max_return, 2),
+            'min_return': round(min_return, 2),
+        },
+    }

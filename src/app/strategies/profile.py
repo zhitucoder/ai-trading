@@ -127,6 +127,15 @@ def calc_growth(cur, prev):
     return round((float(cur) - float(prev)) / float(prev) * 100, 2)
 
 
+def calc_cagr(latest, earliest, years):
+    if latest is None or earliest is None or float(earliest) <= 0 or years <= 0:
+        return None
+    ratio = float(latest) / float(earliest)
+    if ratio <= 0:
+        return None
+    return round((ratio ** (1.0 / years) - 1) * 100, 4)
+
+
 def _find_prev_year_gm_growth(quarterly_growth):
     if not quarterly_growth or len(quarterly_growth) < 5:
         return None
@@ -202,11 +211,13 @@ def get_growth_quarters(code, limit=5):
 
 def get_annual_financials(code, years=10):
     rows = query("""
-        SELECT report_date, operating_revenue, operating_cost,
-               net_profit, parent_net_profit
-        FROM fin_income
-        WHERE stock_code = %s AND MONTH(report_date) = 12 AND DAY(report_date) = 31
-        ORDER BY report_date DESC
+        SELECT fi.report_date, fi.operating_revenue, fi.operating_cost,
+               fi.net_profit, fi.parent_net_profit,
+               bs.total_assets
+        FROM fin_income fi
+        LEFT JOIN fin_balance_sheet bs ON bs.stock_code = fi.stock_code AND bs.report_date = fi.report_date
+        WHERE fi.stock_code = %s AND MONTH(fi.report_date) = 12 AND DAY(fi.report_date) = 31
+        ORDER BY fi.report_date DESC
         LIMIT %s
     """, [code, years])
     return rows
@@ -1069,6 +1080,30 @@ def generate_profile(stock_code):
         debt_ratio = round(float(tl) / float(ta) * 100, 2) if ta is not None and tl is not None and float(ta) > 0 else None
         cl = fin.get('contract_liab')
         contract_liab_to_assets = round(float(cl) / float(ta) * 100, 2) if cl is not None and ta is not None and float(ta) > 0 else None
+        def rev_reliable(idx):
+            if idx < len(annual_rows):
+                r = annual_rows[idx]
+                rev = r.get('operating_revenue')
+                profit = r.get('parent_net_profit')
+                assets = r.get('total_assets')
+                if rev is None or float(rev) <= 0:
+                    return False
+                if profit is not None and abs(float(profit)) > float(rev) * 2:
+                    return False
+                if assets is not None and float(assets) > 0 and float(rev) / float(assets) < 0.001:
+                    return False
+                return True
+            return True
+
+        annual_rev_list = [float(r['operating_revenue']) for r in annual_rows if r.get('operating_revenue')]
+        annual_profit_list = [float(r['parent_net_profit']) for r in annual_rows if r.get('parent_net_profit')]
+        rev_cagr_3y = calc_cagr(annual_rev_list[0], annual_rev_list[2], 3) if len(annual_rev_list) >= 3 and rev_reliable(0) and rev_reliable(2) else None
+        rev_cagr_5y = calc_cagr(annual_rev_list[0], annual_rev_list[4], 5) if len(annual_rev_list) >= 5 and rev_reliable(0) and rev_reliable(4) else None
+        rev_cagr_10y = calc_cagr(annual_rev_list[0], annual_rev_list[9], 10) if len(annual_rev_list) >= 10 and rev_reliable(0) and rev_reliable(9) else None
+        profit_cagr_3y = calc_cagr(annual_profit_list[0], annual_profit_list[2], 3) if len(annual_profit_list) >= 3 else None
+        profit_cagr_5y = calc_cagr(annual_profit_list[0], annual_profit_list[4], 5) if len(annual_profit_list) >= 5 else None
+        profit_cagr_10y = calc_cagr(annual_profit_list[0], annual_profit_list[9], 10) if len(annual_profit_list) >= 10 else None
+
         fin_data = {
             'revenue_growth_rate': rev_growth,
             'net_profit_growth_rate': profit_growth,
@@ -1078,6 +1113,12 @@ def generate_profile(stock_code):
             'q_revenue': float(fin['q_revenue']) if fin.get('q_revenue') is not None else None,
             'q_parent_net_profit': float(fin['q_parent_net_profit']) if fin.get('q_parent_net_profit') is not None else None,
             'report_date': str(fin['report_date']) if fin.get('report_date') else None,
+            'revenue_cagr_3y': rev_cagr_3y,
+            'revenue_cagr_5y': rev_cagr_5y,
+            'revenue_cagr_10y': rev_cagr_10y,
+            'net_profit_cagr_3y': profit_cagr_3y,
+            'net_profit_cagr_5y': profit_cagr_5y,
+            'net_profit_cagr_10y': profit_cagr_10y,
         }
 
     price_change = round((latest_price - klines[-2]['close']) / klines[-2]['close'] * 100, 2) if len(klines) >= 2 else 0
