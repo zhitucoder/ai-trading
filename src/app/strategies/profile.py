@@ -65,6 +65,7 @@ BIZ_TAGS_DEF = {
     'biz.annual_gm_improve_2y': {'name': '毛利率连升2年', 'group': '连续增长'},
     'biz.annual_gm_improve_3y': {'name': '毛利率连升3年', 'group': '连续增长'},
     'biz.annual_gm_improve_4y': {'name': '毛利率连升4年', 'group': '连续增长'},
+    'biz.tenbagger': {'name': '21年至今十倍股', 'group': '强势'},
 }
 
 STAGE_DEF = {
@@ -134,6 +135,25 @@ def calc_cagr(latest, earliest, years):
     if ratio <= 0:
         return None
     return round((ratio ** (1.0 / years) - 1) * 100, 4)
+
+
+def compute_tenbagger(stock_code):
+    rows = query("""
+        SELECT low_price, high_price
+        FROM daily_kline
+        WHERE stock_code = %s AND trade_date >= '2021-01-01'
+        ORDER BY trade_date
+    """, [stock_code])
+    if not rows:
+        return False
+    lows = [float(r['low_price']) for r in rows]
+    min_idx = lows.index(min(lows))
+    highs = [float(r['high_price']) for r in rows[min_idx:]]
+    max_high = max(highs)
+    min_low = lows[min_idx]
+    if min_low <= 0:
+        return False
+    return max_high / min_low >= 10
 
 
 def _find_prev_year_gm_growth(quarterly_growth):
@@ -1062,6 +1082,9 @@ def generate_profile(stock_code):
     if consecutive_gm >= 1:
         for n in range(1, min(consecutive_gm, 4) + 1):
             biz_tags.append({'id': f'biz.annual_gm_improve_{n}y', 'name': BIZ_TAGS_DEF[f'biz.annual_gm_improve_{n}y']['name']})
+
+    if compute_tenbagger(stock_code):
+        biz_tags.append({'id': 'biz.tenbagger', 'name': BIZ_TAGS_DEF['biz.tenbagger']['name']})
 
     rs_score = compute_rs_rank(stock_code)
     stage = compute_stage(klines, ma_values, ind_map, rs_score=rs_score)

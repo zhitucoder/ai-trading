@@ -1150,6 +1150,7 @@ app.component('profile-page', {
             { id: 'biz.annual_gm_improve_2y', label: '毛利率连升2年' },
             { id: 'biz.annual_gm_improve_3y', label: '毛利率连升3年' },
             { id: 'biz.annual_gm_improve_4y', label: '毛利率连升4年' },
+            { id: 'biz.tenbagger', label: '21年至今十倍股', style: 'highlight' },
         ];
         const selectedGrowthTags = ref([]);
         const searchLoading = ref(false);

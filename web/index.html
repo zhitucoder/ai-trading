@@ -1310,7 +1310,7 @@
                     <div class="screening-section-title">连续增长标签</div>
                     <div class="screening-stage-group">
                         <button v-for="g in growthTagOptions" :key="g.id"
-                                class="screening-stage-btn" :class="{ active: selectedGrowthTags.includes(g.id) }"
+                                class="screening-stage-btn" :class="{ active: selectedGrowthTags.includes(g.id), 'btn-highlight': g.style === 'highlight' }"
                                 @click="toggleGrowthTag(g.id)">{{ g.label }}</button>
                     </div>
                 </div>

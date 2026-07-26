@@ -675,6 +675,8 @@ tbody tr:last-child td { border-bottom: none; }
     color: var(--accent);
     font-weight: 600;
 }
+.btn-highlight { border-color: var(--amber) !important; color: var(--amber) !important; }
+.btn-highlight.active { background: rgba(245,158,11,0.15) !important; border-color: var(--amber) !important; color: #fbbf24 !important; }
 .screening-slider-row {
     display: flex;
     align-items: center;
