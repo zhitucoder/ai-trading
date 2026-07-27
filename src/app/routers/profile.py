@@ -334,3 +334,23 @@ def search_profiles(body: SearchRequest):
         'page_size': body.page_size,
         'rows': rows,
     }
+
+
+@router.get('/profile/{stock_code}/zxm-tags')
+def get_zxm_tags(stock_code: str):
+    row = query("SELECT * FROM zxm_stock_tags WHERE stock_code = %s ORDER BY report_date DESC LIMIT 1", [stock_code])
+    if not row:
+        from ..zxm_tags import compute_tags
+        tags = compute_tags(stock_code)
+        if tags:
+            tags.pop('stock_code')
+            tags.pop('stock_name')
+            return tags
+        return {'error': 'no data'}
+    r = row[0]
+    r.pop('id')
+    r.pop('stock_code')
+    r.pop('stock_name')
+    r.pop('created_at')
+    r.pop('updated_at')
+    return r
