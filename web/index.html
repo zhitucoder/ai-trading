@@ -1147,6 +1147,60 @@
                     </div>
                 </div>
 
+                <div class="card zxm-card" v-if="zxmTags && !zxmLoading">
+                    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                        <span>张新民财务诊断 <span class="badge">v1.0</span></span>
+                        <span :class="'zxm-rating zxm-' + (zxmTags.overall_rating || '')">{{ zxmTags.overall_rating || '-' }}</span>
+                    </div>
+                    <div class="zxm-pattern" v-if="zxmTags.pattern_label">
+                        <span class="zxm-pattern-label">{{ zxmTags.pattern_label }}</span>
+                    </div>
+                    <div class="zxm-grid">
+                        <div class="zxm-dimension">
+                            <div class="zxm-dim-title">资产结构</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.asset_type)">{{ zxmTags.asset_type }}</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.asset_weight)">{{ zxmTags.asset_weight }}</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.cash_status)">{{ zxmTags.cash_status }}</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.inventory_risk)">{{ zxmTags.inventory_risk }}</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.contract_liab_tag)">{{ zxmTags.contract_liab_tag }}</div>
+                        </div>
+                        <div class="zxm-dimension">
+                            <div class="zxm-dim-title">资本结构</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.hematopoiesis)">{{ zxmTags.hematopoiesis }}</div>
+                            <div class="zxm-dim-sub">{{ zxmTags.hematopoiesis_ratio != null ? '造血占比 ' + zxmTags.hematopoiesis_ratio + '%' : '' }}</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.leverage)">{{ zxmTags.leverage }}</div>
+                            <div class="zxm-dim-sub">{{ zxmTags.debt_ratio != null ? '有息负债率 ' + zxmTags.debt_ratio + '%' : '' }}</div>
+                        </div>
+                        <div class="zxm-dimension">
+                            <div class="zxm-dim-title">利润质量</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.margin_level)">{{ zxmTags.margin_level }}</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.profit_source)">{{ zxmTags.profit_source }}</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.profit_status)">{{ zxmTags.profit_status }}</div>
+                            <div class="zxm-dim-sub">{{ zxmTags.core_profit_margin != null ? '核心利润率 ' + zxmTags.core_profit_margin + '%' : '' }}</div>
+                        </div>
+                        <div class="zxm-dimension">
+                            <div class="zxm-dim-title">三大匹配</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.match_fa_rev)">{{ zxmTags.match_fa_rev }}</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.match_rev_profit)">{{ zxmTags.match_rev_profit }}</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.match_profit_ocf)">{{ zxmTags.match_profit_ocf }}</div>
+                        </div>
+                        <div class="zxm-dimension">
+                            <div class="zxm-dim-title">现金流</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.cashflow_type)">{{ zxmTags.cashflow_type }}</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.fcf_status)">{{ zxmTags.fcf_status }}</div>
+                        </div>
+                        <div class="zxm-dimension">
+                            <div class="zxm-dim-title">成长性</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.growth_rate)">{{ zxmTags.growth_rate }}</div>
+                            <div class="zxm-tag" :class="zxmClass(zxmTags.growth_quality)">{{ zxmTags.growth_quality }}</div>
+                        </div>
+                    </div>
+                    <div class="zxm-risk" v-if="zxmTags.risk_flags && zxmTags.risk_flags != '[]'">
+                        <span style="color:var(--red);font-size:12px;">风险：</span>
+                        <span v-for="rf in (typeof zxmTags.risk_flags === 'string' ? JSON.parse(zxmTags.risk_flags) : zxmTags.risk_flags)" :key="rf" class="zxm-risk-item">{{ rf }}</span>
+                    </div>
+                </div>
+
                 <div class="card" v-if="profile.ma_values">
                     <div class="card-title">关键指标</div>
                     <div class="profile-ind-grid">

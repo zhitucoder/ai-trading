@@ -816,6 +816,7 @@ app.component('profile-page', {
                 else {
                     profile.value = data;
                     loadFinChart();
+                    loadZxmTags();
                 }
             } catch (e) {
                 error.value = '请求失败: ' + e.message;
@@ -855,6 +856,29 @@ app.component('profile-page', {
             if (idx === 0 || item.rate == null) return '';
             const prev = trend[idx - 1];
             return prev.rate != null && item.rate >= prev.rate ? 'up' : 'down';
+        }
+
+        const zxmTags = ref(null);
+        const zxmLoading = ref(false);
+
+        async function loadZxmTags() {
+            if (!stockCode.value) return;
+            zxmLoading.value = true;
+            try {
+                const r = await fetch(`${API_BASE}/profile/${stockCode.value}/zxm-tags`);
+                const data = await r.json();
+                if (!data.error) zxmTags.value = data;
+            } catch (e) {} finally {
+                zxmLoading.value = false;
+            }
+        }
+
+        function zxmClass(val) {
+            const good = ['造血型', '经营主导型', '现金充裕', '轻资产', '零杠杆', '低杠杆', '高毛利', '盈利', '价值创造型', '产能高效', '强转化', '中转化', '现金实现强', '现金奶牛', '爆发增长', '高速增长', '稳健增长', '增收增利', '优秀', '良好', 'FCF充裕', '存货风险低', '合同负债高', '合同负债正常', '现金正常'];
+            const bad = ['输血型', '投资主导型', '现金紧张', '重资产', '高杠杆', '低毛利', '亏损', '会计调整型', '产能低效', '极弱转化', '现金实现弱', '纸面富贵', '失血状态', '衰退', '减收减利', '差', '中下', 'FCF为负', '存货风险高', '增收不增利'];
+            if (good.includes(val)) return 'up';
+            if (bad.includes(val)) return 'down';
+            return '';
         }
 
         async function loadFinChart() {
@@ -1361,6 +1385,7 @@ app.component('profile-page', {
             toggleStage, toggleGrowthTag, onFilterChange, doSearch, resetFilters, triggerRefresh,
             toggleSort, sortArrow,
             fmt, fmtGrowth, fmtMoney, valClass,
+            zxmTags, zxmLoading, zxmClass,
         };
     },
 });
