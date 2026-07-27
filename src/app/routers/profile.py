@@ -598,13 +598,13 @@ def report_zxm(stock_code: str):
 
     return f"""<!DOCTYPE html><html lang=zh><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1"><title>{stock_code} {sname} 六维分析</title>
 <style>*{{margin:0;padding:0;box-sizing:border-box}}body{{background:#0d0d1a;color:#ccc;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:12px}}
-h1{{font-size:15px;color:#00d4ff;margin-bottom:2px}}.sub{{font-size:11px;color:#666;margin-bottom:10px}}
-.rating{{display:inline-block;padding:4px 14px;border-radius:12px;font-size:14px;font-weight:700;color:#000;background:{rc}}}
-.pattern{{margin:8px 0 12px}}.pl{{background:linear-gradient(135deg,#00d4ff,#3b82f6);padding:3px 14px;border-radius:12px;font-size:13px;font-weight:700;color:#000;display:inline-block}}
-.grid{{display:grid;grid-template-columns:1fr;gap:6px}}
-.dim{{background:rgba(255,255,255,0.03);border-radius:8px;padding:8px;border:1px solid rgba(255,255,255,0.06)}}
-.dimt{{font-size:10px;font-weight:600;color:#00d4ff;margin-bottom:4px;letter-spacing:0.5px}}
-.tag{{display:flex;justify-content:space-between;padding:2px 6px;border-radius:6px;font-size:10px;margin:1px 0;background:rgba(255,255,255,0.04);color:#aaa}}
+h1{{font-size:20px;color:#00d4ff;margin-bottom:4px}}.sub{{font-size:15px;color:#666;margin-bottom:14px}}
+.rating{{display:inline-block;padding:6px 18px;border-radius:14px;font-size:18px;font-weight:700;color:#000;background:{rc}}}
+.pattern{{margin:10px 0 16px}}.pl{{background:linear-gradient(135deg,#00d4ff,#3b82f6);padding:5px 16px;border-radius:14px;font-size:16px;font-weight:700;color:#000;display:inline-block}}
+.grid{{display:grid;grid-template-columns:1fr;gap:10px}}
+.dim{{background:rgba(255,255,255,0.03);border-radius:10px;padding:14px;border:1px solid rgba(255,255,255,0.06)}}
+.dimt{{font-size:14px;font-weight:600;color:#00d4ff;margin-bottom:8px;letter-spacing:0.5px}}
+.tag{{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;font-size:14px;margin:4px 0;background:rgba(255,255,255,0.04);color:#aaa}}
 .tag.good{{background:rgba(34,197,94,0.12)}}.tag.good .tv{{color:#22c55e;font-weight:600}}
 .tag.bad{{background:rgba(239,68,68,0.12)}}.tag.bad .tv{{color:#ef4444;font-weight:600}}
 .tv{{margin-left:4px}}
