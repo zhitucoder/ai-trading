@@ -1707,6 +1707,12 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .query-send:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.stock-suggestions { position:absolute; top:100%; left:0; right:0; z-index:100; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; max-height:240px; overflow-y:auto; margin-top:2px; }
+.stock-suggestion-item { padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--border); transition:background 0.15s; }
+.stock-suggestion-item:last-child { border-bottom:none; }
+.stock-suggestion-item:hover, .stock-suggestion-item.active { background:rgba(0,212,255,0.08); color:var(--accent); }
+.stock-suggestion-item strong { color:var(--accent); margin-right:8px; font-family:'SF Mono','Consolas',monospace; }
+
 .zxm-card { border-color: var(--accent); }
 .zxm-pattern { margin: -6px 0 12px; }
 .zxm-pattern-label { background: linear-gradient(135deg,#00d4ff,#3b82f6); padding: 3px 14px; border-radius: 12px; font-size: 13px; font-weight: 700; color: #000; }

@@ -1048,20 +1048,30 @@
     <div class="content">
         <!-- ══════ Tab1: 单股画像 ══════ -->
         <div v-if="activeTab === 'single'">
-            <div class="card">
-                <div class="form-row">
-                    <div class="config-item" style="min-width:120px;">
-                        <label>股票代码</label>
-                        <input v-model="stockCode" placeholder="600519" @keyup.enter="loadProfile" style="width:140px;">
-                    </div>
-                    <div class="config-item" style="min-width:100px;">
-                        <label>&nbsp;</label>
-                        <button class="btn btn-primary" @click="loadProfile" :disabled="loading">
-                            {{ loading ? '加载中...' : '▶ 生成画像' }}
-                        </button>
+                <div class="card">
+                    <div class="form-row">
+                        <div class="config-item" style="min-width:200px;position:relative;">
+                            <label>股票代码 / 名称 / 拼音</label>
+                            <input v-model="stockCode" placeholder="600519 / 贵州茅台 / maotai / gzmt"
+                                   @input="onStockInput" @keydown="onStockKeydown"
+                                   @keyup.enter="selectStock(stockCode)"
+                                   style="width:240px;">
+                            <div v-if="stockSuggestions.length" class="stock-suggestions">
+                                <div v-for="(s, i) in stockSuggestions" :key="s.stock_code"
+                                     class="stock-suggestion-item" :class="{active: stockSuggestionIdx === i}"
+                                     @click="selectStock(s.stock_code)" @mouseenter="stockSuggestionIdx = i">
+                                    <strong>{{ s.stock_code }}</strong> {{ s.stock_name }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="config-item" style="min-width:100px;">
+                            <label>&nbsp;</label>
+                            <button class="btn btn-primary" @click="loadProfile" :disabled="loading">
+                                {{ loading ? '加载中...' : '▶ 生成画像' }}
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
             <div v-if="error" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;">
                 {{ error }}

@@ -1158,6 +1158,42 @@ app.component('profile-page', {
         const watchlistData = ref(null);
         const watchlistCount = ref(0);
 
+        const stockSuggestions = ref([]);
+        const stockSuggestionIdx = ref(-1);
+        let searchTimer = null;
+
+        async function onStockInput() {
+            const q = stockCode.value.trim();
+            if (q.length < 1) { stockSuggestions.value = []; return; }
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(q)}`);
+                    const d = await r.json();
+                    stockSuggestions.value = d.rows || [];
+                    stockSuggestionIdx.value = -1;
+                } catch (e) {}
+            }, 150);
+        }
+
+        function onStockKeydown(e) {
+            const len = stockSuggestions.value.length;
+            if (len === 0) return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); stockSuggestionIdx.value = Math.min(stockSuggestionIdx.value + 1, len - 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); stockSuggestionIdx.value = Math.max(stockSuggestionIdx.value - 1, 0); }
+            else if (e.key === 'Enter' && stockSuggestionIdx.value >= 0) {
+                e.preventDefault();
+                selectStock(stockSuggestions.value[stockSuggestionIdx.value].stock_code);
+            }
+        }
+
+        function selectStock(code) {
+            stockCode.value = code;
+            stockSuggestions.value = [];
+            stockSuggestionIdx.value = -1;
+            loadProfile();
+        }
+
         async function checkWatchlist() {
             if (!stockCode.value) return;
             try {
@@ -1517,6 +1553,7 @@ app.component('profile-page', {
             toggleSort, sortArrow,
             fmt, fmtGrowth, fmtMoney, valClass,
             zxmTags, zxmLoading, zxmClass, goToSimilar,
+            stockSuggestions, stockSuggestionIdx, onStockInput, onStockKeydown, selectStock,
             inWatchlist, watchlistLoading, watchlistData, watchlistCount,
             addToWatchlist, removeFromWatchlist, loadWatchlist,
         };

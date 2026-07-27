@@ -385,6 +385,24 @@ def get_zxm_tags(stock_code: str):
     return r
 
 
+@router.get('/stocks/search')
+def search_stocks(q: str = Query('', min_length=1)):
+    q = q.strip()
+    if not q:
+        return {'rows': []}
+    like = f'{q}%'
+    rows = query("""
+        SELECT stock_code, stock_name FROM stocks
+        WHERE stock_code LIKE %(like)s
+           OR stock_name LIKE %(like)s
+           OR pinyin LIKE %(like)s
+           OR py_initials LIKE %(like)s
+        ORDER BY stock_code
+        LIMIT 10
+    """, {'like': like})
+    return {'rows': rows}
+
+
 @router.get('/watchlist')
 def get_watchlist():
     rows = query("""
