@@ -86,12 +86,12 @@ def compute_tags(stock_code, report_date=None):
     else:
         t['asset_type'] = '均衡型'
 
-    fa_ratio = _ratio(fa, ta)
-    if fa_ratio is None:
+    fa_inv_ratio = _ratio(fa + inventory, ta)
+    if fa_inv_ratio is None:
         t['asset_weight'] = '未知'
-    elif fa_ratio < 15:
+    elif fa_inv_ratio < 15:
         t['asset_weight'] = '轻资产'
-    elif fa_ratio <= 30:
+    elif fa_inv_ratio <= 30:
         t['asset_weight'] = '中资产'
     else:
         t['asset_weight'] = '重资产'
@@ -270,7 +270,7 @@ def compute_tags(stock_code, report_date=None):
         risk_flags.append('应收风险')
     if goodwill > 0 and total_equity > 0 and _ratio(goodwill, total_equity) > 30:
         risk_flags.append('商誉风险')
-    if fa_ratio is not None and fa_ratio > 30 and cash < st_borrow:
+    if fa_inv_ratio is not None and fa_inv_ratio > 30 and cash < st_borrow:
         risk_flags.append('短债长投')
     t['risk_flags'] = json.dumps(risk_flags, ensure_ascii=False)
 
