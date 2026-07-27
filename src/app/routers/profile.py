@@ -601,7 +601,7 @@ def report_zxm(stock_code: str):
 h1{{font-size:15px;color:#00d4ff;margin-bottom:2px}}.sub{{font-size:11px;color:#666;margin-bottom:10px}}
 .rating{{display:inline-block;padding:4px 14px;border-radius:12px;font-size:14px;font-weight:700;color:#000;background:{rc}}}
 .pattern{{margin:8px 0 12px}}.pl{{background:linear-gradient(135deg,#00d4ff,#3b82f6);padding:3px 14px;border-radius:12px;font-size:13px;font-weight:700;color:#000;display:inline-block}}
-.grid{{display:grid;grid-template-columns:1fr;gap:6px}}@media(min-width:600px){{.grid{{grid-template-columns:repeat(3,1fr)}}}}
+.grid{{display:grid;grid-template-columns:1fr;gap:6px}}
 .dim{{background:rgba(255,255,255,0.03);border-radius:8px;padding:8px;border:1px solid rgba(255,255,255,0.06)}}
 .dimt{{font-size:10px;font-weight:600;color:#00d4ff;margin-bottom:4px;letter-spacing:0.5px}}
 .tag{{display:flex;justify-content:space-between;padding:2px 6px;border-radius:6px;font-size:10px;margin:1px 0;background:rgba(255,255,255,0.04);color:#aaa}}
