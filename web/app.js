@@ -1034,8 +1034,8 @@ app.component('profile-page', {
             }
 
             const legend = [
-                {label:'营收',color:'rgba(100,149,237,0.7)'},{label:'净利润',color:'#ffd700'},
-                {label:'增长率',color:'#ff6b6b'},{label:'周K',color:'#4ecdc4'},
+                {label:'营收(亿)',color:'rgba(100,149,237,0.7)'},{label:'净利润(亿)',color:'#ffd700'},
+                {label:'净利增长率%',color:'#ff6b6b'},{label:'周K',color:'#4ecdc4'},
             ];
             ctx.font = `${11*dpr}px sans-serif`; ctx.textAlign = 'left';
             let lx = pad.left;
@@ -1070,9 +1070,9 @@ app.component('profile-page', {
                 const gr = d.growth_rates[idx];
 
                 let html = `<div style="color:#ffd700;font-weight:700;margin-bottom:4px;">${yr}年</div>`;
-                html += `<div><span style="color:#6495ed;">营收</span> ${rev.toFixed(1)}亿</div>`;
-                html += `<div><span style="color:#ffd700;">净利润</span> ${prof.toFixed(2)}亿</div>`;
-                html += `<div><span style="color:#ff6b6b;">增长率</span> ${gr != null ? (gr >= 0 ? '+' : '') + gr.toFixed(1) + '%' : 'N/A'}</div>`;
+                    html += `<div><span style="color:#6495ed;">营收</span> ${rev.toFixed(1)}亿</div>`;
+                    html += `<div><span style="color:#ffd700;">净利润</span> ${prof.toFixed(2)}亿</div>`;
+                    html += `<div><span style="color:#ff6b6b;">净利增长率</span> ${gr != null ? (gr >= 0 ? '+' : '') + gr.toFixed(1) + '%' : 'N/A'}</div>`;
 
                 if (cd.wk.length > 0) {
                     const yrBars = cd.wk.filter(b => b.date.startsWith(String(yr)));
