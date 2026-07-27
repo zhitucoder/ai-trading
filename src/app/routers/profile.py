@@ -390,16 +390,15 @@ def search_stocks(q: str = Query('', min_length=1)):
     q = q.strip()
     if not q:
         return {'rows': []}
-    like = f'{q}%'
     rows = query("""
         SELECT stock_code, stock_name FROM stocks
-        WHERE stock_code LIKE %(like)s
-           OR stock_name LIKE %(like)s
-           OR pinyin LIKE %(like)s
-           OR py_initials LIKE %(like)s
+        WHERE stock_code LIKE %(code)s
+           OR stock_name LIKE %(name)s
+           OR pinyin LIKE %(py)s
+           OR py_initials LIKE %(init)s
         ORDER BY stock_code
         LIMIT 10
-    """, {'like': like})
+    """, {'code': f'{q}%', 'name': f'%{q}%', 'py': f'{q}%', 'init': f'{q}%'})
     return {'rows': rows}
 
 
