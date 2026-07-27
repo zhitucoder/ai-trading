@@ -1373,6 +1373,26 @@
                 </div>
 
                 <div class="screening-section">
+                    <div class="screening-section-title">行业板块</div>
+                    <div class="screening-stage-group" style="max-height:120px;overflow-y:auto;">
+                        <button v-for="s in sectorListIndustries" :key="s.sector_code"
+                                class="screening-stage-btn" :class="{ active: selectedSectors.includes(s.sector_code) }"
+                                @click="toggleSector(s.sector_code)">{{ s.sector_name }}</button>
+                        <button v-if="!sectorListIndustries.length" class="screening-stage-btn" disabled>加载中...</button>
+                    </div>
+                </div>
+
+                <div class="screening-section">
+                    <div class="screening-section-title">概念板块</div>
+                    <div class="screening-stage-group" style="max-height:120px;overflow-y:auto;">
+                        <button v-for="s in sectorListConcepts" :key="s.sector_code"
+                                class="screening-stage-btn" :class="{ active: selectedSectors.includes(s.sector_code) }"
+                                @click="toggleSector(s.sector_code)">{{ s.sector_name }}</button>
+                        <button v-if="!sectorListConcepts.length" class="screening-stage-btn" disabled>加载中...</button>
+                    </div>
+                </div>
+
+                <div class="screening-section">
                     <div class="screening-section-title">年化增长率 CAGR</div>
                     <div class="screening-range-row">
                         <div><label>3年营收CAGR ≥</label><input type="number" v-model.number="filterRevCagr3yMin" @input="onFilterChange" style="width:70px;" placeholder="%"></div>

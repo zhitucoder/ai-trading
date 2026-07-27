@@ -1335,6 +1335,28 @@ app.component('profile-page', {
             { id: 'biz.tenbagger', label: '21年至今十倍股', style: 'highlight' },
         ];
         const selectedGrowthTags = ref([]);
+        const sectorListIndustries = ref([]);
+        const sectorListConcepts = ref([]);
+        const selectedSectors = ref([]);
+
+        async function loadSectors() {
+            try {
+                const ri = await fetch(`${API_BASE}/sectors?category=industry`);
+                const di = await ri.json();
+                sectorListIndustries.value = di.rows || [];
+                const rc = await fetch(`${API_BASE}/sectors?category=concept`);
+                const dc = await rc.json();
+                sectorListConcepts.value = dc.rows || [];
+            } catch (e) {}
+        }
+
+        function toggleSector(code) {
+            const i = selectedSectors.value.indexOf(code);
+            if (i >= 0) selectedSectors.value.splice(i, 1);
+            else selectedSectors.value.push(code);
+            onFilterChange();
+        }
+
         const searchLoading = ref(false);
         const searchResult = ref(null);
         const sortBy = ref('tech_score');
@@ -1378,6 +1400,7 @@ app.component('profile-page', {
                 }
                 const body = {
                     stages: selectedStages.value,
+                    sectors: selectedSectors.value,
                     tags: { must: selectedGrowthTags.value, must_not: [], any: [] },
                     tech_score_min: filterTechScore.value > 0 ? filterTechScore.value : null,
                     fund_score_min: filterFundScore.value > 0 ? filterFundScore.value : null,
@@ -1456,6 +1479,7 @@ app.component('profile-page', {
             filterProfitCagr5yMax.value = null;
             selectedGrowthTags.value = [];
             selectedZxmFilters.value = {};
+            selectedSectors.value = [];
             sortBy.value = 'tech_score';
             sortOrder.value = 'desc';
             searchResult.value = null;
@@ -1551,6 +1575,7 @@ app.component('profile-page', {
             loadProfile();
             loadStatus();
             checkRunningRefresh();
+            loadSectors();
             document.addEventListener('keydown', onKeydown);
         });
         onUnmounted(() => {
@@ -1570,6 +1595,7 @@ app.component('profile-page', {
             zxmFilterOptions, selectedZxmFilters, toggleZxmFilter, isZxmFilterActive, hasActiveZxmFilter,
             searchLoading, searchResult, profileStatusData, sortBy, sortOrder,
             refreshing, refreshProgress, refreshToast,
+            sectorListIndustries, sectorListConcepts, selectedSectors, toggleSector,
             toggleStage, toggleGrowthTag, onFilterChange, doSearch, resetFilters, triggerRefresh,
             toggleSort, sortArrow,
             fmt, fmtGrowth, fmtMoney, valClass,

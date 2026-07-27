@@ -189,6 +189,7 @@ class SearchRequest(BaseModel):
     zxm_growth_quality: Optional[str] = None
     zxm_leverage: Optional[str] = None
     zxm_overall_rating: Optional[str] = None
+    sectors: List[str] = []
     page: int = 1
     page_size: int = 50
     sort_by: str = 'tech_score'
@@ -295,6 +296,12 @@ def search_profiles(body: SearchRequest):
     if has_zxm:
         zxm_join = 'JOIN zxm_stock_tags z ON z.stock_code = p.stock_code AND z.report_date = (SELECT MAX(z2.report_date) FROM zxm_stock_tags z2 WHERE z2.stock_code = p.stock_code)'
 
+    if body.sectors:
+        placeholders = ','.join([f'%({k})s' for k in [f'sector_{i}' for i in range(len(body.sectors))]])
+        sector_params = {f'sector_{i}': s for i, s in enumerate(body.sectors)}
+        conditions.append(f'p.stock_code IN (SELECT ss.stock_code FROM stock_sectors ss WHERE ss.sector_code IN ({placeholders}))')
+        params.update(sector_params)
+
     sort_col = 'p.tech_score'
     if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct', 'contract_liab_to_assets',
                          'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
@@ -384,6 +391,15 @@ def get_zxm_tags(stock_code: str):
     r.pop('created_at')
     r.pop('updated_at')
     return r
+
+
+@router.get('/sectors')
+def list_sectors(category: str = Query('industry', regex='^(industry|concept)$')):
+    rows = query("""
+        SELECT sector_code, sector_name FROM sectors
+        WHERE category = %s ORDER BY sector_code
+    """, [category])
+    return {'rows': rows}
 
 
 @router.get('/stocks/search')
