@@ -2,6 +2,7 @@ import json
 import threading
 from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from ..database import query, execute
@@ -440,3 +441,161 @@ def remove_watchlist(stock_code: str = Query(...)):
 def check_watchlist(stock_code: str = Query(...)):
     r = query("SELECT 1 FROM user_watchlist WHERE stock_code = %s", [stock_code])
     return {'in_watchlist': len(r) > 0}
+
+
+# ── 独立页面报告 ──
+@router.get('/report/trend/{stock_code}', response_class=HTMLResponse)
+def report_trend(stock_code: str):
+    name_row = query("SELECT stock_name FROM stocks WHERE stock_code = %s", [stock_code])
+    sname = name_row[0]['stock_name'] if name_row else stock_code
+
+    rev_rows = query("""
+        SELECT report_date, operating_revenue, net_profit
+        FROM fin_income
+        WHERE stock_code = %s AND DATE_FORMAT(report_date,'%%m-%%d')='12-31'
+          AND report_date >= '2018-01-01'
+        ORDER BY report_date
+    """, [stock_code])
+
+    kline_rows = query("""
+        SELECT DATE_FORMAT(DATE_SUB(trade_date, INTERVAL WEEKDAY(trade_date) DAY), '%%Y-%%m-%%d') AS week_start,
+               SUBSTRING_INDEX(GROUP_CONCAT(open_price ORDER BY trade_date), ',', 1) + 0 AS open_price,
+               MAX(high_price) AS high_price, MIN(low_price) AS low_price,
+               SUBSTRING_INDEX(GROUP_CONCAT(close_price ORDER BY trade_date DESC), ',', 1) + 0 AS close_price
+        FROM daily_kline WHERE stock_code = %s AND trade_date >= '2018-01-01'
+        GROUP BY week_start ORDER BY week_start
+    """, [stock_code])
+
+    years, revenues, profits, growth_rates = [], [], [], []
+    prev_np = None
+    for r in rev_rows:
+        yr = r['report_date'].year
+        rev = float(r['operating_revenue'] or 0) / 1e8
+        np = float(r['net_profit'] or 0) / 1e8
+        growth = round((np - prev_np) / prev_np * 100, 1) if prev_np and prev_np != 0 else None
+        years.append(yr); revenues.append(round(rev, 1)); profits.append(round(np, 2)); growth_rates.append(growth)
+        prev_np = np
+
+    wk = [{'date': r['week_start'].strftime('%Y-%m-%d') if hasattr(r['week_start'], 'strftime') else str(r['week_start'])[:10],
+           'o': float(r['open_price']), 'h': float(r['high_price']),
+           'l': float(r['low_price']), 'c': float(r['close_price'])} for r in kline_rows]
+
+    import json
+    data_json = json.dumps({'years': years, 'revenues': revenues, 'profits': profits,
+                           'growth_rates': growth_rates, 'weekly_kline': wk})
+
+    return f"""<!DOCTYPE html><html lang=zh><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1"><title>{stock_code} {sname} 财务趋势</title>
+<style>*{{margin:0;padding:0;box-sizing:border-box}}body{{background:#0d0d1a;color:#ccc;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:16px}}h1{{font-size:16px;color:#00d4ff;margin-bottom:4px}}.sub{{font-size:12px;color:#666;margin-bottom:12px}}#chart{{width:100%;height:300px;background:#131322;border-radius:10px;border:1px solid #1e1e35;position:relative}}canvas{{width:100%;height:100%}}.legend{{display:flex;gap:16px;margin-top:8px;font-size:11px;color:#999;flex-wrap:wrap}}</style>
+<div><h1>{stock_code} {sname}</h1><div class=sub>营收·净利润·净利增长率·股价趋势</div></div>
+<div id=chart><canvas id=c></canvas></div>
+<div class=legend><span style=color:#6495ed>■ 营收(亿)</span><span style=color:#ffd700>■ 净利润(亿)</span><span style=color:#ff6b6b>■ 净利增长率%</span><span style=color:#4ecdc4>■ 周K</span></div>
+<script>var d={data_json};!function(){{var c=document.getElementById('c'),p=c.parentElement,ctx=c.getContext('2d'),W=p.clientWidth,H=p.clientHeight,pr=window.devicePixelRatio||1;c.width=W*pr;c.height=H*pr;c.style.width=W+'px';c.style.height=H+'px';ctx.scale(pr,pr);
+var pad={{top:32,bottom:32,left:50,right:50}},cw=W-pad.left-pad.right,ch=H-pad.top-pad.bottom,n=d.years.length,xs=d.years.map((_,i)=>pad.left+cw*i/(n-1||1)),rMax=Math.max(...d.revenues)*1.15,pMin=Math.min(...d.profits)*1.1,pMax=Math.max(...d.profits)*1.15,pR=pMax-pMin||1,gv=d.growth_rates.filter(v=>v!=null),gMin=Math.min(...gv)*1.1,gMax=Math.max(...gv)*1.15,gR=gMax-gMin||1;
+var pk=d.weekly_kline||[],pm=0;pk.forEach(function(b){{if(b.h>pm)pm=b.h}});pm*=1.15;
+function yr(v){{return pad.top+ch*(1-v/rMax)}}
+function yp(v){{return pad.top+ch*(1-(v-pMin)/pR)}}
+function yg(v){{return pad.top+ch*(1-(v-gMin)/gR)}}
+function ypr(v){{return pad.top+ch*(1-v/pm)}}
+var ys=d.years[0],ye=d.years[n-1],ms=new Date(ys,0,1).getTime(),me=new Date(ye,11,31).getTime(),mr=me-ms||1;
+function dx(s){{return pad.left+cw*(new Date(s).getTime()-ms)/mr}}
+ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=1;for(var i=0;i<=4;i++){{var y=pad.top+ch*i/4;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(pad.left+cw,y);ctx.stroke()}}
+for(var i=0;i<n;i++){{var x=xs[i]-14,w=28,h=ch*d.revenues[i]/rMax;ctx.fillStyle='rgba(100,149,237,0.45)';ctx.fillRect(x,pad.top+ch-h,w,h)}}
+ctx.beginPath();ctx.strokeStyle='#ffd700';ctx.lineWidth=2.5;for(var i=0;i<n;i++){{var y=yp(d.profits[i]);i===0?ctx.moveTo(xs[i],y):ctx.lineTo(xs[i],y)}}ctx.stroke();ctx.fillStyle='#ffd700';for(var i=0;i<n;i++){{var y=yp(d.profits[i]);ctx.beginPath();ctx.arc(xs[i],y,3.5,0,Math.PI*2);ctx.fill()}}
+ctx.beginPath();ctx.setLineDash([6,3]);ctx.strokeStyle='#ff6b6b';ctx.lineWidth=2;for(var i=0;i<n;i++){{var v=d.growth_rates[i];if(v==null)continue;var y=yg(v);i===0||d.growth_rates[i-1]==null?ctx.moveTo(xs[i],y):ctx.lineTo(xs[i],y)}}ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#ff6b6b';for(var i=0;i<n;i++){{var v=d.growth_rates[i];if(v==null)continue;ctx.beginPath();ctx.arc(xs[i],yg(v),3,0,Math.PI*2);ctx.fill()}}
+if(pk.length>0){{var cw2=Math.max(1,Math.min(6,cw/pk.length*0.6));for(var i=0;i<pk.length;i++){{var b=pk[i],x=dx(b.date),yO=ypr(b.o),yC=ypr(b.c),yH=ypr(b.h),yL=ypr(b.l),up=b.c>=b.o;ctx.strokeStyle=up?'#ef4444':'#10b981';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,yH);ctx.lineTo(x,yL);ctx.stroke();var bt=Math.min(yO,yC),bh=Math.max(Math.abs(yO-yC),1);ctx.fillStyle=up?'#ef4444':'#10b981';ctx.fillRect(x-cw2/2,bt,cw2,bh)}}}}
+ctx.fillStyle='#666';ctx.font='10px sans-serif';ctx.textAlign='right';for(var i=0;i<=4;i++){{ctx.fillText(Math.round(rMax*i/4)+'亿',pad.left-6,pad.top+ch*(1-i/4)+4)}}
+ctx.textAlign='left';ctx.fillStyle='#4ecdc4';for(var i=0;i<=4;i++){{ctx.fillText(Math.round(pm*i/4)+'元',pad.left+cw+6,pad.top+ch*(1-i/4)+4)}}
+ctx.fillStyle='#999';ctx.font='11px sans-serif';ctx.textAlign='center';for(var i=0;i<n;i++){{ctx.fillText(d.years[i],xs[i],H-pad.bottom+16)}}
+}}();</script></html>"""
+
+
+@router.get('/report/zxm/{stock_code}', response_class=HTMLResponse)
+def report_zxm(stock_code: str):
+    from ..zxm_tags import compute_tags
+    tags = compute_tags(stock_code)
+    if not tags or 'error' in tags:
+        return HTMLResponse('<h2>无数据</h2>')
+
+    sname = tags.get('stock_name', stock_code)
+    import json
+
+    dims = [
+        ('资产结构', [
+            ('类型', tags.get('asset_type')), ('资产轻重', tags.get('asset_weight')),
+            ('现金', tags.get('cash_status')), ('存货风险', tags.get('inventory_risk')),
+            ('合同负债', tags.get('contract_liab_tag')),
+        ]),
+        ('资本结构', [
+            ('造血类型', tags.get('hematopoiesis')),
+            ('造血占比', f'{tags.get("hematopoiesis_ratio")}%' if tags.get('hematopoiesis_ratio') is not None else '-'),
+            ('杠杆', tags.get('leverage')),
+            ('有息负债率', f'{tags.get("debt_ratio")}%' if tags.get('debt_ratio') is not None else '-'),
+        ]),
+        ('利润质量', [
+            ('毛利', tags.get('margin_level')),
+            ('核心利润率', f'{tags.get("core_profit_margin")}%' if tags.get('core_profit_margin') is not None else '-'),
+            ('利润来源', tags.get('profit_source')),
+            ('盈利状态', tags.get('profit_status')),
+        ]),
+        ('三大匹配', [
+            ('固资→营收', tags.get('match_fa_rev')),
+            ('营收→核心利润', tags.get('match_rev_profit')),
+            ('核心利润→OCF', tags.get('match_profit_ocf')),
+        ]),
+        ('现金流', [
+            ('现金流类型', tags.get('cashflow_type')),
+            ('OCF/净利', f'{tags.get("ocf_to_np")}' if tags.get('ocf_to_np') is not None else '-'),
+            ('自由现金流', tags.get('fcf_status')),
+        ]),
+        ('成长性', [
+            ('增速', tags.get('growth_rate')),
+            ('增长质量', tags.get('growth_quality')),
+        ]),
+    ]
+
+    risk_flags = tags.get('risk_flags', '[]')
+    if isinstance(risk_flags, str):
+        try: risk_flags = json.loads(risk_flags)
+        except: risk_flags = []
+
+    rating = tags.get('overall_rating', '-')
+    pattern = tags.get('pattern_label', '')
+
+    rating_colors = {'优秀': '#22c55e', '良好': '#3b82f6', '中等': '#eab308', '中下': '#f97316', '差': '#ef4444'}
+    rc = rating_colors.get(rating, '#666')
+
+    def tag_html(label, val):
+        if val is None or val == '未知': return ''
+        good = ['造血型','经营主导型','现金充裕','轻资产','零杠杆','低杠杆','高毛利','盈利','价值创造型','产能高效','强转化','中转化','现金实现强','现金奶牛','爆发增长','高速增长','稳健增长','增收增利','优秀','良好','FCF充裕','存货风险低','合同负债高','合同负债正常','现金正常']
+        bad = ['输血型','投资主导型','现金紧张','重资产','高杠杆','低毛利','亏损','会计调整型','产能低效','极弱转化','现金实现弱','纸面富贵','失血状态','衰退','减收减利','差','中下','FCF为负','存货风险高','增收不增利']
+        cls = 'good' if val in good else ('bad' if val in bad else '')
+        return f'<div class="tag {cls}">{label}<span class="tv">{val}</span></div>'
+
+    dim_html = ''
+    for dim_name, items in dims:
+        items_html = ''.join(tag_html(label, val) for label, val in items)
+        dim_html += f'<div class="dim"><div class="dimt">{dim_name}</div>{items_html}</div>'
+
+    risk_html = ''
+    if risk_flags:
+        risk_html = '<div class="risk">' + ''.join(f'<span class="rt">{r}</span>' for r in risk_flags) + '</div>'
+
+    return f"""<!DOCTYPE html><html lang=zh><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1"><title>{stock_code} {sname} 六维分析</title>
+<style>*{{margin:0;padding:0;box-sizing:border-box}}body{{background:#0d0d1a;color:#ccc;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:12px}}
+h1{{font-size:15px;color:#00d4ff;margin-bottom:2px}}.sub{{font-size:11px;color:#666;margin-bottom:10px}}
+.rating{{display:inline-block;padding:4px 14px;border-radius:12px;font-size:14px;font-weight:700;color:#000;background:{rc}}}
+.pattern{{margin:8px 0 12px}}.pl{{background:linear-gradient(135deg,#00d4ff,#3b82f6);padding:3px 14px;border-radius:12px;font-size:13px;font-weight:700;color:#000;display:inline-block}}
+.grid{{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}}@media(max-width:600px){{.grid{{grid-template-columns:repeat(3,1fr)}}}}
+.dim{{background:rgba(255,255,255,0.03);border-radius:8px;padding:8px;border:1px solid rgba(255,255,255,0.06)}}
+.dimt{{font-size:10px;font-weight:600;color:#00d4ff;margin-bottom:4px;letter-spacing:0.5px}}
+.tag{{display:flex;justify-content:space-between;padding:2px 6px;border-radius:6px;font-size:10px;margin:1px 0;background:rgba(255,255,255,0.04);color:#aaa}}
+.tag.good{{background:rgba(34,197,94,0.12)}}.tag.good .tv{{color:#22c55e;font-weight:600}}
+.tag.bad{{background:rgba(239,68,68,0.12)}}.tag.bad .tv{{color:#ef4444;font-weight:600}}
+.tv{{margin-left:4px}}
+.risk{{margin-top:10px;display:flex;flex-wrap:wrap;gap:4px}}
+.rt{{padding:2px 8px;border-radius:8px;font-size:11px;background:rgba(239,68,68,0.12);color:#ef4444}}
+.footer{{margin-top:12px;font-size:10px;color:#444;text-align:center}}
+</style>
+<div><h1>{stock_code} {sname}</h1><div class=sub><span class=rating>{rating}</span> <span class=pl>{pattern}</span></div></div>
+<div class=grid>{dim_html}</div>{risk_html}
+<div class=footer>六维分析方法论财务诊断 v1.0 · 数据基于最新年报</div></html>"""

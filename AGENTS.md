@@ -137,6 +137,44 @@ pytdx 财务数据的字段索引发生过偏移。索引 ≤ 97 的字段（利
 
 **`ads_annual_cagr` 表**：存储年化增长率中间结果，可通过 `compute_annual_cagr.py` 脚本重新计算。
 
+---
+
+## 独立页面报告 API
+
+两个可直接在浏览器打开的 HTML 页面接口，提供股票财务趋势图和六维分析标签页。手机友好。
+
+### 趋势图页面
+
+```
+GET /api/report/trend/{stock_code}
+```
+
+返回完整的 HTML 页面，包含：
+- 营收柱状图（蓝色）
+- 净利润折线图（金色）
+- 净利增长率虚线（红色）
+- 周K线图（绿/红色蜡烛图）
+- 图例标注
+
+**示例**：`http://localhost:9000/api/report/trend/600519` → 贵州茅台财务趋势
+
+### 六维分析页面
+
+```
+GET /api/report/zxm/{stock_code}
+```
+
+返回完整的 HTML 页面，包含：
+- 综合评级（色块标签）
+- 典型模式标签
+- 六列网格布局（资产结构/资本结构/利润质量/三大匹配/现金流/成长性）
+- 风险信号
+- 手机端自适应（<=600px 时变为3列）
+
+**示例**：`http://localhost:9000/api/report/zxm/688578` → 艾力斯六维分析
+
+两个页面均可在浏览器直接打开，无需登录，无需前端框架。
+
 ### Indexes
 - `daily_kline`: `(stock_code, trade_date, close_price)` — covering index for MA calculations
 - `daily_kline`: `(trade_date)`, `(stock_code)` — standalone
