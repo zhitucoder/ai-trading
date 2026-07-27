@@ -278,17 +278,20 @@ def search_profiles(body: SearchRequest):
             conditions.append(f'p.{col} IS NOT NULL AND p.{col} {op} %({field})s')
             params[field] = val
 
-    zxm_fields = ['zxm_asset_weight', 'zxm_hematopoiesis', 'zxm_margin_level',
-                   'zxm_cashflow_type', 'zxm_growth_rate', 'zxm_growth_quality',
-                   'zxm_leverage', 'zxm_overall_rating']
+    zxm_field_map = {
+        'zxm_asset_weight': 'asset_weight', 'zxm_hematopoiesis': 'hematopoiesis',
+        'zxm_margin_level': 'margin_level', 'zxm_cashflow_type': 'cashflow_type',
+        'zxm_growth_rate': 'growth_rate', 'zxm_growth_quality': 'growth_quality',
+        'zxm_leverage': 'leverage', 'zxm_overall_rating': 'overall_rating',
+    }
     zxm_join = ''
-    for f in zxm_fields:
-        val = getattr(body, f, None)
+    for body_field, db_col in zxm_field_map.items():
+        val = getattr(body, body_field, None)
         if val:
-            conditions.append(f'z.{f} = %({f})s')
-            params[f] = val
-    has_zxm = any(getattr(body, f, None) for f in zxm_fields) or any(f.startswith('zxm_') and f.endswith('_sort') for f in [body.sort_by])
-    if has_zxm or any(getattr(body, f, None) for f in zxm_fields):
+            conditions.append(f'z.{db_col} = %({body_field})s')
+            params[body_field] = val
+    has_zxm = any(getattr(body, f, None) for f in zxm_field_map)
+    if has_zxm:
         zxm_join = 'JOIN zxm_stock_tags z ON z.stock_code = p.stock_code AND z.report_date = (SELECT MAX(z2.report_date) FROM zxm_stock_tags z2 WHERE z2.stock_code = p.stock_code)'
 
     sort_col = 'p.tech_score'
@@ -299,8 +302,8 @@ def search_profiles(body: SearchRequest):
             sort_col = "CAST(JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS DECIMAL(10,2))"
         else:
             sort_col = f'p.{body.sort_by}'
-    elif body.sort_by in zxm_fields:
-        sort_col = f'z.{body.sort_by}'
+    elif body.sort_by in zxm_field_map:
+        sort_col = f'z.{zxm_field_map[body.sort_by]}'
     sort_dir = 'DESC' if body.sort_order == 'desc' else 'ASC'
     offset = (body.page - 1) * body.page_size
     limit = body.page_size
@@ -314,7 +317,7 @@ def search_profiles(body: SearchRequest):
     total = query(count_sql, count_params)[0]['c']
 
     tag_cols_sql = ', '.join(f'p.{c}' for c in TAG_COLUMNS)
-    zxm_select = ', '.join(f'z.{f}' for f in zxm_fields) if has_zxm else ''
+    zxm_select = ', '.join(f'z.{db_col} AS {body_field}' for body_field, db_col in zxm_field_map.items()) if has_zxm else ''
     sql = f"""
         SELECT p.stock_code, p.stock_name, p.latest_price, p.price_change_pct,
                p.stage_id, p.stage_confidence, p.tech_score, p.fund_score,
