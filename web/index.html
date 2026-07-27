@@ -1043,6 +1043,7 @@
     <div class="profile-tabs">
         <button :class="{ active: activeTab === 'single' }" @click="activeTab = 'single'">单股画像</button>
         <button :class="{ active: activeTab === 'screening' }" @click="activeTab = 'screening'">画像筛选</button>
+        <button :class="{ active: activeTab === 'watchlist' }" @click="activeTab = 'watchlist'">自选股 <span v-if="watchlistCount" class="badge">{{ watchlistCount }}</span></button>
     </div>
     <div class="content">
         <!-- ══════ Tab1: 单股画像 ══════ -->
@@ -1080,6 +1081,8 @@
                     <div class="profile-header-right">
                         <div class="profile-price">{{ fmt(profile.latest_price) }}</div>
                         <div class="profile-change" :class="valClass(profile.price_change_pct)">{{ fmtGrowth(profile.price_change_pct) }}</div>
+                        <button v-if="!inWatchlist" class="btn btn-outline btn-sm" @click="addToWatchlist" style="margin-top:4px;font-size:11px;">+ 自选</button>
+                        <button v-else class="btn btn-outline btn-sm" @click="removeFromWatchlist" style="margin-top:4px;font-size:11px;border-color:var(--red);color:var(--red);">- 自选</button>
                     </div>
                 </div>
 
@@ -1464,6 +1467,53 @@
             <div v-if="!searchResult && !searchLoading" class="card">
                 <div class="placeholder" style="height:100px;">
                     <p style="font-size:13px;color:var(--text-muted);">设置筛选条件后点击"执行筛选"</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════ Tab3: 自选股 ══════ -->
+        <div v-if="activeTab === 'watchlist'">
+            <div class="topbar" style="padding:0 0 12px 0;">
+                <h2 style="font-size:15px;">我的自选股</h2>
+                <span v-if="watchlistData" class="badge">{{ watchlistData.total }} 只</span>
+            </div>
+            <div v-if="watchlistLoading" class="loading"><div class="spinner"></div><span>加载中...</span></div>
+            <div v-if="watchlistData && watchlistData.rows.length" class="card">
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th style="width:36px;">#</th>
+                            <th style="width:80px;">代码</th>
+                            <th style="width:80px;">名称</th>
+                            <th style="width:70px;">价格</th>
+                            <th style="width:60px;">涨幅</th>
+                            <th style="width:70px;">阶段</th>
+                            <th style="width:50px;">技术</th>
+                            <th style="width:50px;">基本</th>
+                            <th>添加时间</th>
+                            <th style="width:60px;">操作</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr v-for="(row, i) in watchlistData.rows" :key="row.stock_code"
+                                class="screening-row" @click="goToProfile(row.stock_code)">
+                                <td>{{ i+1 }}</td>
+                                <td><strong>{{ row.stock_code }}</strong></td>
+                                <td>{{ row.stock_name }}</td>
+                                <td>{{ fmt(row.latest_price) }}</td>
+                                <td :class="valClass(row.price_change_pct)">{{ row.price_change_pct != null ? fmtGrowth(row.price_change_pct) : '-' }}</td>
+                                <td><span :class="'stage-badge stage-' + (row.stage_id || '').replace('stage.', '')">{{ row.stage_name || '-' }}</span></td>
+                                <td :class="scoreTextClass(row.tech_score)">{{ row.tech_score }}</td>
+                                <td :class="scoreTextClass(row.fund_score)">{{ row.fund_score }}</td>
+                                <td style="font-size:11px;color:var(--text-dim);">{{ row.added_at }}</td>
+                                <td><button class="btn btn-outline btn-sm" @click.stop="removeFromWatchlist(row.stock_code)" style="font-size:10px;border-color:var(--red);color:var(--red);">移除</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div v-else-if="watchlistData && !watchlistData.rows.length" class="card">
+                <div class="placeholder" style="height:100px;">
+                    <p style="font-size:13px;color:var(--text-muted);">还没有自选股，在单股画像页面点击"+ 自选"添加</p>
                 </div>
             </div>
         </div>

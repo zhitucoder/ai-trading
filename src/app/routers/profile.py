@@ -383,3 +383,43 @@ def get_zxm_tags(stock_code: str):
     r.pop('created_at')
     r.pop('updated_at')
     return r
+
+
+@router.get('/watchlist')
+def get_watchlist():
+    rows = query("""
+        SELECT w.stock_code, w.stock_name, w.added_at,
+               p.latest_price, p.price_change_pct, p.stage_id, p.revenue_growth,
+               p.net_profit_growth, p.tech_score, p.fund_score
+        FROM user_watchlist w
+        LEFT JOIN stock_profiles p ON p.stock_code = w.stock_code
+            AND p.data_date = (SELECT MAX(data_date) FROM stock_profiles)
+        ORDER BY w.added_at DESC
+    """)
+    STAGE_NAMES = {
+        'stage.s1': '打底蓄势期', 'stage.s1s2': '过渡期',
+        'stage.s2': '突围加速期', 'stage.s3': '见顶派发期', 'stage.s4': '衰败下跌期',
+    }
+    for r in rows:
+        r['stage_name'] = STAGE_NAMES.get(r['stage_id'], '')
+    return {'rows': rows, 'total': len(rows)}
+
+
+@router.post('/watchlist/add')
+def add_watchlist(stock_code: str = Query(...)):
+    name_row = query("SELECT stock_name FROM stocks WHERE stock_code = %s", [stock_code])
+    name = name_row[0]['stock_name'] if name_row else stock_code
+    execute("REPLACE INTO user_watchlist (stock_code, stock_name) VALUES (%s, %s)", [stock_code, name])
+    return {'status': 'ok'}
+
+
+@router.post('/watchlist/remove')
+def remove_watchlist(stock_code: str = Query(...)):
+    execute("DELETE FROM user_watchlist WHERE stock_code = %s", [stock_code])
+    return {'status': 'ok'}
+
+
+@router.get('/watchlist/check')
+def check_watchlist(stock_code: str = Query(...)):
+    r = query("SELECT 1 FROM user_watchlist WHERE stock_code = %s", [stock_code])
+    return {'in_watchlist': len(r) > 0}

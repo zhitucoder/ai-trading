@@ -817,6 +817,7 @@ app.component('profile-page', {
                     profile.value = data;
                     loadFinChart();
                     loadZxmTags();
+                    checkWatchlist();
                 }
             } catch (e) {
                 error.value = '请求失败: ' + e.message;
@@ -1152,6 +1153,52 @@ app.component('profile-page', {
         const filterProfitCagr5yMin = ref(null);
         const filterProfitCagr5yMax = ref(null);
 
+        const inWatchlist = ref(false);
+        const watchlistLoading = ref(false);
+        const watchlistData = ref(null);
+        const watchlistCount = ref(0);
+
+        async function checkWatchlist() {
+            if (!stockCode.value) return;
+            try {
+                const r = await fetch(`${API_BASE}/watchlist/check?stock_code=${stockCode.value}`);
+                const d = await r.json();
+                inWatchlist.value = d.in_watchlist;
+            } catch (e) {}
+        }
+
+        async function addToWatchlist() {
+            try {
+                await fetch(`${API_BASE}/watchlist/add?stock_code=${stockCode.value}`, { method: 'POST' });
+                inWatchlist.value = true;
+                watchlistCount.value++;
+            } catch (e) {}
+        }
+
+        function removeFromWatchlist(code) {
+            const sc = code || stockCode.value;
+            (async () => {
+                try {
+                    await fetch(`${API_BASE}/watchlist/remove?stock_code=${sc}`, { method: 'POST' });
+                    if (sc === stockCode.value) inWatchlist.value = false;
+                    if (watchlistCount.value > 0) watchlistCount.value--;
+                    if (activeTab.value === 'watchlist') loadWatchlist();
+                } catch (e) {}
+            })();
+        }
+
+        async function loadWatchlist() {
+            watchlistLoading.value = true;
+            try {
+                const r = await fetch(`${API_BASE}/watchlist`);
+                const d = await r.json();
+                watchlistData.value = d;
+                watchlistCount.value = d.total || 0;
+            } catch (e) {} finally {
+                watchlistLoading.value = false;
+            }
+        }
+
         const zxmFilterOptions = [
             { field: 'zxm_asset_weight', label: '资产结构', options: ['轻资产', '中资产', '重资产'] },
             { field: 'zxm_hematopoiesis', label: '资本结构', options: ['造血型', '均衡型', '输血型'] },
@@ -1435,6 +1482,7 @@ app.component('profile-page', {
 
         watch(activeTab, (tab) => {
             if (tab === 'screening') applyZxmPreset();
+            if (tab === 'watchlist') loadWatchlist();
         });
 
         onMounted(() => {
@@ -1469,6 +1517,8 @@ app.component('profile-page', {
             toggleSort, sortArrow,
             fmt, fmtGrowth, fmtMoney, valClass,
             zxmTags, zxmLoading, zxmClass, goToSimilar,
+            inWatchlist, watchlistLoading, watchlistData, watchlistCount,
+            addToWatchlist, removeFromWatchlist, loadWatchlist,
         };
     },
 });
