@@ -1100,24 +1100,41 @@ app.component('profile-page', {
 
         function goToProfile(code) {
             stockCode.value = code;
+            if (activeTab.value === 'watchlist' && watchlistData.value) {
+                setNavList(watchlistData.value.rows);
+            } else if (activeTab.value === 'screening' && searchResult.value) {
+                setNavList(searchResult.value.rows);
+            }
             activeTab.value = 'single';
             loadProfile();
         }
 
+        const navList = ref(null);
+
+        function setNavList(rows) {
+            navList.value = rows;
+        }
+
         const currentIdx = computed(() => {
-            if (!searchResult.value?.rows) return -1;
-            return searchResult.value.rows.findIndex(r => r.stock_code === stockCode.value);
+            const list = navList.value;
+            if (!list) return -1;
+            return list.findIndex(r => r.stock_code === stockCode.value);
         });
         const hasPrev = computed(() => currentIdx.value > 0);
-        const hasNext = computed(() => currentIdx.value >= 0 && currentIdx.value < (searchResult.value?.rows?.length ?? 0) - 1);
+        const hasNext = computed(() => {
+            const list = navList.value;
+            return list && currentIdx.value >= 0 && currentIdx.value < list.length - 1;
+        });
 
         function goPrev() {
+            const list = navList.value;
             const idx = currentIdx.value;
-            if (idx > 0) goToProfile(searchResult.value.rows[idx - 1].stock_code);
+            if (list && idx > 0) goToProfile(list[idx - 1].stock_code);
         }
         function goNext() {
+            const list = navList.value;
             const idx = currentIdx.value;
-            if (idx >= 0 && idx < searchResult.value.rows.length - 1) goToProfile(searchResult.value.rows[idx + 1].stock_code);
+            if (list && idx >= 0 && idx < list.length - 1) goToProfile(list[idx + 1].stock_code);
         }
 
         function onKeydown(e) {
@@ -1230,6 +1247,7 @@ app.component('profile-page', {
                 const d = await r.json();
                 watchlistData.value = d;
                 watchlistCount.value = d.total || 0;
+                if (activeTab.value === 'watchlist') setNavList(d.rows);
             } catch (e) {} finally {
                 watchlistLoading.value = false;
             }
@@ -1390,7 +1408,10 @@ app.component('profile-page', {
                 });
                 const data = await r.json();
                 if (seq !== searchSeq) return;
-                if (!data.error) searchResult.value = data;
+                if (!data.error) {
+                    searchResult.value = data;
+                    if (activeTab.value === 'screening') setNavList(data.rows);
+                }
             } catch (e) {
                 if (seq === searchSeq) console.error(e);
             } finally {
@@ -1538,7 +1559,6 @@ app.component('profile-page', {
         return {
             activeTab, stockCode, loading, profile, error, finChartLoading, finChartCanvas,
             loadProfile, loadFinChart, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile,
-            currentIdx, hasPrev, hasNext, goPrev, goNext,
             stageOptions, selectedStages, filterTechScore, filterFundScore,
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
             filterGmGrowthQ, filterGmGrowth2y,
@@ -1553,6 +1573,7 @@ app.component('profile-page', {
             toggleSort, sortArrow,
             fmt, fmtGrowth, fmtMoney, valClass,
             zxmTags, zxmLoading, zxmClass, goToSimilar,
+            currentIdx, hasPrev, hasNext, goPrev, goNext,
             stockSuggestions, stockSuggestionIdx, onStockInput, onStockKeydown, selectStock,
             inWatchlist, watchlistLoading, watchlistData, watchlistCount,
             addToWatchlist, removeFromWatchlist, loadWatchlist,

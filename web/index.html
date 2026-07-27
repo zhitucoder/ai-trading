@@ -1085,7 +1085,7 @@
                     </div>
                     <div class="profile-header-center" v-if="currentIdx >= 0">
                         <button class="btn-nav" :disabled="!hasPrev" @click="goPrev" title="上一个 (←)">‹</button>
-                        <span class="nav-pos">{{ currentIdx + 1 }} / {{ searchResult.rows.length }}</span>
+                        <span class="nav-pos">{{ currentIdx + 1 }} / {{ navList ? navList.length : 0 }}</span>
                         <button class="btn-nav" :disabled="!hasNext" @click="goNext" title="下一个 (→)">›</button>
                     </div>
                     <div class="profile-header-right">
