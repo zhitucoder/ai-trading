@@ -1151,6 +1151,62 @@ app.component('profile-page', {
         const filterProfitCagr3yMax = ref(null);
         const filterProfitCagr5yMin = ref(null);
         const filterProfitCagr5yMax = ref(null);
+
+        const zxmFilterOptions = [
+            { field: 'zxm_asset_weight', label: '资产结构', options: ['轻资产', '中资产', '重资产'] },
+            { field: 'zxm_hematopoiesis', label: '资本结构', options: ['造血型', '均衡型', '输血型'] },
+            { field: 'zxm_margin_level', label: '利润质量', options: ['高毛利', '中毛利', '低毛利'] },
+            { field: 'zxm_cashflow_type', label: '现金流', options: ['现金奶牛', '现金正常', '纸面富贵', '失血状态'] },
+            { field: 'zxm_growth_rate', label: '成长性', options: ['爆发增长', '高速增长', '稳健增长', '缓慢增长', '衰退'] },
+            { field: 'zxm_growth_quality', label: '增长质量', options: ['增收增利', '增收平利', '增收不增利', '减收减利'] },
+            { field: 'zxm_leverage', label: '杠杆', options: ['零杠杆', '低杠杆', '中杠杆', '高杠杆'] },
+            { field: 'zxm_overall_rating', label: '综合评级', options: ['优秀', '良好', '中等', '中下', '差'] },
+        ];
+        const selectedZxmFilters = ref({});
+
+        function toggleZxmFilter(field, val) {
+            if (!selectedZxmFilters.value[field]) selectedZxmFilters.value[field] = {};
+            if (selectedZxmFilters.value[field][val]) {
+                delete selectedZxmFilters.value[field][val];
+            } else {
+                selectedZxmFilters.value[field][val] = true;
+            }
+            selectedZxmFilters.value = {...selectedZxmFilters.value};
+            onFilterChange();
+        }
+
+        function isZxmFilterActive(field, val) {
+            return selectedZxmFilters.value[field] && selectedZxmFilters.value[field][val];
+        }
+
+        function hasActiveZxmFilter() {
+            for (const f in selectedZxmFilters.value) {
+                for (const v in selectedZxmFilters.value[f]) {
+                    if (selectedZxmFilters.value[f][v]) return true;
+                }
+            }
+            return false;
+        }
+
+        function goToSimilar() {
+            if (!zxmTags.value) return;
+            const map = {
+                asset_weight: 'zxm_asset_weight', hematopoiesis: 'zxm_hematopoiesis',
+                margin_level: 'zxm_margin_level', cashflow_type: 'zxm_cashflow_type',
+                growth_rate: 'zxm_growth_rate', growth_quality: 'zxm_growth_quality',
+                leverage: 'zxm_leverage', overall_rating: 'zxm_overall_rating',
+            };
+            const preset = {};
+            for (const [tagKey, filterField] of Object.entries(map)) {
+                const val = zxmTags.value[tagKey];
+                if (val && !['未知', '一般'].includes(val)) {
+                    preset[filterField] = val;
+                }
+            }
+            window._zxmSimilarPreset = preset;
+            activeTab.value = 'screening';
+        }
+
         const growthTagOptions = [
             { id: 'biz.annual_rev_growth_1y', label: '营收连增1年' },
             { id: 'biz.annual_rev_growth_2y', label: '营收连增2年' },
@@ -1210,6 +1266,14 @@ app.component('profile-page', {
             const seq = ++searchSeq;
             searchLoading.value = true;
             try {
+                const zxmBody = {};
+                for (const f of zxmFilterOptions) {
+                    const sf = selectedZxmFilters.value[f.field];
+                    if (sf) {
+                        const keys = Object.keys(sf).filter(k => sf[k]);
+                        if (keys.length === 1) zxmBody[f.field] = keys[0];
+                    }
+                }
                 const body = {
                     stages: selectedStages.value,
                     tags: { must: selectedGrowthTags.value, must_not: [], any: [] },
@@ -1230,6 +1294,7 @@ app.component('profile-page', {
                     profit_cagr_3y_max: filterProfitCagr3yMax.value || null,
                     profit_cagr_5y_min: filterProfitCagr5yMin.value || null,
                     profit_cagr_5y_max: filterProfitCagr5yMax.value || null,
+                    ...zxmBody,
                     page: searchResult.value ? searchResult.value.page : 1,
                     page_size: 50,
                     sort_by: sortBy.value,
@@ -1285,6 +1350,7 @@ app.component('profile-page', {
             filterProfitCagr5yMin.value = null;
             filterProfitCagr5yMax.value = null;
             selectedGrowthTags.value = [];
+            selectedZxmFilters.value = {};
             sortBy.value = 'tech_score';
             sortOrder.value = 'desc';
             searchResult.value = null;
@@ -1360,6 +1426,16 @@ app.component('profile-page', {
                 stockCode.value = window._profileStockCode;
                 window._profileStockCode = null;
             }
+            const preset = window._zxmSimilarPreset;
+            if (preset && activeTab.value === 'screening') {
+                for (const [field, val] of Object.entries(preset)) {
+                    if (!selectedZxmFilters.value[field]) selectedZxmFilters.value[field] = {};
+                    selectedZxmFilters.value[field][val] = true;
+                }
+                selectedZxmFilters.value = {...selectedZxmFilters.value};
+                window._zxmSimilarPreset = null;
+                nextTick(() => doSearch());
+            }
             loadProfile();
             loadStatus();
             checkRunningRefresh();
@@ -1380,12 +1456,13 @@ app.component('profile-page', {
             filterRevCagr3yMin, filterRevCagr3yMax, filterRevCagr5yMin, filterRevCagr5yMax,
             filterProfitCagr3yMin, filterProfitCagr3yMax, filterProfitCagr5yMin, filterProfitCagr5yMax,
             growthTagOptions, selectedGrowthTags,
+            zxmFilterOptions, selectedZxmFilters, toggleZxmFilter, isZxmFilterActive, hasActiveZxmFilter,
             searchLoading, searchResult, profileStatusData, sortBy, sortOrder,
             refreshing, refreshProgress, refreshToast,
             toggleStage, toggleGrowthTag, onFilterChange, doSearch, resetFilters, triggerRefresh,
             toggleSort, sortArrow,
             fmt, fmtGrowth, fmtMoney, valClass,
-            zxmTags, zxmLoading, zxmClass,
+            zxmTags, zxmLoading, zxmClass, goToSimilar,
         };
     },
 });

@@ -1150,7 +1150,10 @@
                 <div class="card zxm-card" v-if="zxmTags && !zxmLoading">
                     <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
                         <span>张新民方法论财务诊断 <span class="badge">v1.0</span></span>
-                        <span :class="'zxm-rating zxm-' + (zxmTags.overall_rating || '')">{{ zxmTags.overall_rating || '-' }}</span>
+                        <span style="display:flex;align-items:center;gap:8px;">
+                            <button class="btn btn-outline btn-sm" @click="goToSimilar" title="筛选同类标的">一键选同类</button>
+                            <span :class="'zxm-rating zxm-' + (zxmTags.overall_rating || '')">{{ zxmTags.overall_rating || '-' }}</span>
+                        </span>
                     </div>
                     <div class="zxm-pattern" v-if="zxmTags.pattern_label">
                         <span class="zxm-pattern-label">{{ zxmTags.pattern_label }}</span>
@@ -1341,6 +1344,18 @@
                     <div class="screening-range-row">
                         <div><label>本季毛利率同比 ≥</label><input type="number" v-model.number="filterGmGrowthQ" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                         <div><label>连续两年毛利率同比 ≥</label><input type="number" v-model.number="filterGmGrowth2y" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                    </div>
+                </div>
+
+                <div class="screening-section" v-if="hasActiveZxmFilter() || zxmFilterOptions">
+                    <div class="screening-section-title">张新民六维分析</div>
+                    <div v-for="opt in zxmFilterOptions" :key="opt.field" style="margin-bottom:6px;">
+                        <div style="font-size:11px;color:var(--text-dim);margin-bottom:3px;">{{ opt.label }}</div>
+                        <div class="screening-stage-group">
+                            <button v-for="v in opt.options" :key="v"
+                                    class="screening-stage-btn" :class="{ active: isZxmFilterActive(opt.field, v) }"
+                                    @click="toggleZxmFilter(opt.field, v)">{{ v }}</button>
+                        </div>
                     </div>
                 </div>
 
