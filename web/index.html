@@ -1413,6 +1413,9 @@
                                 <th style="width:90px;cursor:pointer;" @click="toggleSort('rev_cagr_3y')">3Y营收CAGR{{ sortArrow('rev_cagr_3y') }}</th>
                                 <th style="width:90px;cursor:pointer;" @click="toggleSort('rev_cagr_5y')">5Y营收CAGR{{ sortArrow('rev_cagr_5y') }}</th>
                                 <th style="width:90px;cursor:pointer;" @click="toggleSort('rev_cagr_10y')">10Y营收CAGR{{ sortArrow('rev_cagr_10y') }}</th>
+                                <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_3y')">3Y净利CAGR{{ sortArrow('profit_cagr_3y') }}</th>
+                                <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_5y')">5Y净利CAGR{{ sortArrow('profit_cagr_5y') }}</th>
+                                <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_10y')">10Y净利CAGR{{ sortArrow('profit_cagr_10y') }}</th>
                                 <th style="width:90px;cursor:pointer;" @click="toggleSort('contract_liab_to_assets')">合同负债{{ sortArrow('contract_liab_to_assets') }}</th>
                                 <th>标签</th>
                             </tr>
@@ -1433,6 +1436,9 @@
                                 <td :class="valClass(row.rev_cagr_3y)">{{ row.rev_cagr_3y != null ? fmtGrowth(row.rev_cagr_3y) : '-' }}</td>
                                 <td :class="valClass(row.rev_cagr_5y)">{{ row.rev_cagr_5y != null ? fmtGrowth(row.rev_cagr_5y) : '-' }}</td>
                                 <td :class="valClass(row.rev_cagr_10y)">{{ row.rev_cagr_10y != null ? fmtGrowth(row.rev_cagr_10y) : '-' }}</td>
+                                <td :class="valClass(row.profit_cagr_3y)">{{ row.profit_cagr_3y != null ? fmtGrowth(row.profit_cagr_3y) : '-' }}</td>
+                                <td :class="valClass(row.profit_cagr_5y)">{{ row.profit_cagr_5y != null ? fmtGrowth(row.profit_cagr_5y) : '-' }}</td>
+                                <td :class="valClass(row.profit_cagr_10y)">{{ row.profit_cagr_10y != null ? fmtGrowth(row.profit_cagr_10y) : '-' }}</td>
                                 <td :class="valClass(10 - parseFloat(row.contract_liab_to_assets))">{{ row.contract_liab_to_assets != null ? parseFloat(row.contract_liab_to_assets).toFixed(2) + '%' : '-' }}</td>
                                 <td style="text-align:left;">
                                     <span v-for="t in (row.active_tags || []).slice(0, 4)" :key="t.id" class="screening-tag">{{ t.name }}</span>
