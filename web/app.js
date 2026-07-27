@@ -1421,20 +1421,26 @@ app.component('profile-page', {
             } catch (e) { /* ignore */ }
         }
 
+        function applyZxmPreset() {
+            const preset = window._zxmSimilarPreset;
+            if (!preset) return;
+            for (const [field, val] of Object.entries(preset)) {
+                if (!selectedZxmFilters.value[field]) selectedZxmFilters.value[field] = {};
+                selectedZxmFilters.value[field][val] = true;
+            }
+            selectedZxmFilters.value = {...selectedZxmFilters.value};
+            window._zxmSimilarPreset = null;
+            nextTick(() => doSearch());
+        }
+
+        watch(activeTab, (tab) => {
+            if (tab === 'screening') applyZxmPreset();
+        });
+
         onMounted(() => {
             if (window._profileStockCode) {
                 stockCode.value = window._profileStockCode;
                 window._profileStockCode = null;
-            }
-            const preset = window._zxmSimilarPreset;
-            if (preset && activeTab.value === 'screening') {
-                for (const [field, val] of Object.entries(preset)) {
-                    if (!selectedZxmFilters.value[field]) selectedZxmFilters.value[field] = {};
-                    selectedZxmFilters.value[field][val] = true;
-                }
-                selectedZxmFilters.value = {...selectedZxmFilters.value};
-                window._zxmSimilarPreset = null;
-                nextTick(() => doSearch());
             }
             loadProfile();
             loadStatus();
