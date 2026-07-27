@@ -1110,14 +1110,15 @@ app.component('profile-page', {
         }
 
         const navList = ref(null);
+        const navTotal = computed(() => navList.value ? navList.value.length : 0);
 
         function setNavList(rows) {
-            navList.value = rows;
+            navList.value = rows || [];
         }
 
         const currentIdx = computed(() => {
             const list = navList.value;
-            if (!list) return -1;
+            if (!list || list.length === 0) return -1;
             return list.findIndex(r => r.stock_code === stockCode.value);
         });
         const hasPrev = computed(() => currentIdx.value > 0);
@@ -1573,7 +1574,7 @@ app.component('profile-page', {
             toggleSort, sortArrow,
             fmt, fmtGrowth, fmtMoney, valClass,
             zxmTags, zxmLoading, zxmClass, goToSimilar,
-            currentIdx, hasPrev, hasNext, goPrev, goNext,
+            currentIdx, hasPrev, hasNext, goPrev, goNext, navTotal, navList,
             stockSuggestions, stockSuggestionIdx, onStockInput, onStockKeydown, selectStock,
             inWatchlist, watchlistLoading, watchlistData, watchlistCount,
             addToWatchlist, removeFromWatchlist, loadWatchlist,
