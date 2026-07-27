@@ -1236,6 +1236,8 @@
                     <div class="profile-ind-grid">
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_growth_rate != null"><div class="profile-ind-label">营收增长率</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_growth_rate)">{{ fmtGrowth(profile.fin_data.revenue_growth_rate) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.net_profit_growth_rate != null"><div class="profile-ind-label">净利润增长率</div><div class="profile-ind-val" :class="valClass(profile.fin_data.net_profit_growth_rate)">{{ fmtGrowth(profile.fin_data.net_profit_growth_rate) }}</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.roe != null"><div class="profile-ind-label">ROE（年报）</div><div class="profile-ind-val" :class="valClass(profile.fin_data.roe)">{{ profile.fin_data.roe.toFixed(2) }}%</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.roe_ttm != null"><div class="profile-ind-label">ROE（TTM）</div><div class="profile-ind-val" :class="valClass(profile.fin_data.roe_ttm)">{{ profile.fin_data.roe_ttm.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.debt_ratio != null"><div class="profile-ind-label">资产负债率</div><div class="profile-ind-val" :class="debtClass(profile.fin_data.debt_ratio)">{{ profile.fin_data.debt_ratio.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.contract_liab_to_assets != null"><div class="profile-ind-label">合同负债占资产</div><div class="profile-ind-val" :class="valClass(10 - profile.fin_data.contract_liab_to_assets)">{{ profile.fin_data.contract_liab_to_assets.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_3y != null"><div class="profile-ind-label">营收3年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_3y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_3y) }}</div></div>
@@ -1340,7 +1342,7 @@
                 </div>
 
                 <div class="screening-section">
-                    <div class="screening-section-title">增长率 & 负债率</div>
+                    <div class="screening-section-title">增长率 & 负债率 & ROE</div>
                     <div class="screening-range-row">
                         <div><label>营收增长率 ≥</label><input type="number" v-model.number="filterRevGrowth" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                         <div><label>净利润增长率 ≥</label><input type="number" v-model.number="filterProfitGrowth" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
@@ -1349,6 +1351,12 @@
                     <div class="screening-range-row" style="margin-top:6px;">
                         <div><label>合同负债占比 ≥</label><input type="number" v-model.number="filterContractLiabMin" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                         <div><label>合同负债占比 ≤</label><input type="number" v-model.number="filterContractLiabMax" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                    </div>
+                    <div class="screening-range-row" style="margin-top:6px;">
+                        <div><label>ROE ≥</label><input type="number" v-model.number="filterRoeMin" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label>ROE ≤</label><input type="number" v-model.number="filterRoeMax" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label>ROE(TTM) ≥</label><input type="number" v-model.number="filterRoeTtmMin" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label>ROE(TTM) ≤</label><input type="number" v-model.number="filterRoeTtmMax" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                     </div>
                 </div>
 
@@ -1443,12 +1451,14 @@
                                 <th style="width:60px;cursor:pointer;" @click="toggleSort('fund_score')">基本{{ sortArrow('fund_score') }}</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('revenue_growth')">营收增长{{ sortArrow('revenue_growth') }}</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('net_profit_growth')">利润增长{{ sortArrow('net_profit_growth') }}</th>
-                                <th style="width:90px;cursor:pointer;" @click="toggleSort('rev_cagr_3y')">3Y营收CAGR{{ sortArrow('rev_cagr_3y') }}</th>
-                                <th style="width:90px;cursor:pointer;" @click="toggleSort('rev_cagr_5y')">5Y营收CAGR{{ sortArrow('rev_cagr_5y') }}</th>
-                                <th style="width:90px;cursor:pointer;" @click="toggleSort('rev_cagr_10y')">10Y营收CAGR{{ sortArrow('rev_cagr_10y') }}</th>
-                                <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_3y')">3Y净利CAGR{{ sortArrow('profit_cagr_3y') }}</th>
-                                <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_5y')">5Y净利CAGR{{ sortArrow('profit_cagr_5y') }}</th>
-                                <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_10y')">10Y净利CAGR{{ sortArrow('profit_cagr_10y') }}</th>
+                                    <th style="width:90px;cursor:pointer;" @click="toggleSort('rev_cagr_3y')">3Y营收CAGR{{ sortArrow('rev_cagr_3y') }}</th>
+                                    <th style="width:90px;cursor:pointer;" @click="toggleSort('rev_cagr_5y')">5Y营收CAGR{{ sortArrow('rev_cagr_5y') }}</th>
+                                    <th style="width:90px;cursor:pointer;" @click="toggleSort('rev_cagr_10y')">10Y营收CAGR{{ sortArrow('rev_cagr_10y') }}</th>
+                                    <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_3y')">3Y净利CAGR{{ sortArrow('profit_cagr_3y') }}</th>
+                                    <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_5y')">5Y净利CAGR{{ sortArrow('profit_cagr_5y') }}</th>
+                                    <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_10y')">10Y净利CAGR{{ sortArrow('profit_cagr_10y') }}</th>
+                                    <th style="width:70px;cursor:pointer;" @click="toggleSort('roe')">ROE{{ sortArrow('roe') }}</th>
+                                    <th style="width:80px;cursor:pointer;" @click="toggleSort('roe_ttm')">ROE(TTM){{ sortArrow('roe_ttm') }}</th>
                                 <th style="width:90px;cursor:pointer;" @click="toggleSort('contract_liab_to_assets')">合同负债{{ sortArrow('contract_liab_to_assets') }}</th>
                                 <th>标签</th>
                             </tr>
@@ -1472,6 +1482,8 @@
                                 <td :class="valClass(row.profit_cagr_3y)">{{ row.profit_cagr_3y != null ? fmtGrowth(row.profit_cagr_3y) : '-' }}</td>
                                 <td :class="valClass(row.profit_cagr_5y)">{{ row.profit_cagr_5y != null ? fmtGrowth(row.profit_cagr_5y) : '-' }}</td>
                                 <td :class="valClass(row.profit_cagr_10y)">{{ row.profit_cagr_10y != null ? fmtGrowth(row.profit_cagr_10y) : '-' }}</td>
+                                <td :class="valClass(row.roe)">{{ row.roe != null ? row.roe.toFixed(2) + '%' : '-' }}</td>
+                                <td :class="valClass(row.roe_ttm)">{{ row.roe_ttm != null ? row.roe_ttm.toFixed(2) + '%' : '-' }}</td>
                                 <td :class="valClass(10 - parseFloat(row.contract_liab_to_assets))">{{ row.contract_liab_to_assets != null ? parseFloat(row.contract_liab_to_assets).toFixed(2) + '%' : '-' }}</td>
                                 <td style="text-align:left;">
                                     <span v-for="t in (row.active_tags || []).slice(0, 4)" :key="t.id" class="screening-tag">{{ t.name }}</span>

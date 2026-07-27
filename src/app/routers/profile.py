@@ -181,6 +181,10 @@ class SearchRequest(BaseModel):
     profit_cagr_3y_max: Optional[float] = None
     profit_cagr_5y_min: Optional[float] = None
     profit_cagr_5y_max: Optional[float] = None
+    roe_min: Optional[float] = None
+    roe_max: Optional[float] = None
+    roe_ttm_min: Optional[float] = None
+    roe_ttm_max: Optional[float] = None
     zxm_asset_weight: Optional[str] = None
     zxm_hematopoiesis: Optional[str] = None
     zxm_margin_level: Optional[str] = None
@@ -302,10 +306,20 @@ def search_profiles(body: SearchRequest):
         conditions.append(f'p.stock_code IN (SELECT ss.stock_code FROM stock_sectors ss WHERE ss.sector_code IN ({placeholders}))')
         params.update(sector_params)
 
+    roe_filters = [
+        ('roe_min', 'roe', '>='), ('roe_max', 'roe', '<='),
+        ('roe_ttm_min', 'roe_ttm', '>='), ('roe_ttm_max', 'roe_ttm', '<='),
+    ]
+    for field, col, op in roe_filters:
+        val = getattr(body, field, None)
+        if val is not None:
+            conditions.append(f'p.{col} IS NOT NULL AND p.{col} {op} %({field})s')
+            params[field] = val
+
     sort_col = 'p.tech_score'
     if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct', 'contract_liab_to_assets',
                          'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
-                         'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y'):
+                         'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y', 'roe', 'roe_ttm'):
         if body.sort_by == 'contract_liab_to_assets':
             sort_col = "CAST(JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS DECIMAL(10,2))"
         else:
@@ -330,6 +344,7 @@ def search_profiles(body: SearchRequest):
         SELECT p.stock_code, p.stock_name, p.latest_price, p.price_change_pct,
                p.stage_id, p.stage_confidence, p.tech_score, p.fund_score,
                p.revenue_growth, p.net_profit_growth, p.debt_ratio,
+               p.roe, p.roe_ttm,
                p.rev_cagr_3y, p.rev_cagr_5y, p.rev_cagr_10y,
                p.profit_cagr_3y, p.profit_cagr_5y, p.profit_cagr_10y,
                JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS contract_liab_to_assets,

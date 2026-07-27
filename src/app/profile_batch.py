@@ -37,6 +37,8 @@ def _to_profile_row(result, report_date, fin_report_date):
         'revenue_growth': fin.get('revenue_growth_rate'),
         'net_profit_growth': fin.get('net_profit_growth_rate'),
         'debt_ratio': fin.get('debt_ratio'),
+        'roe': fin.get('roe'),
+        'roe_ttm': fin.get('roe_ttm'),
         'rev_cagr_3y': fin.get('revenue_cagr_3y'),
         'rev_cagr_5y': fin.get('revenue_cagr_5y'),
         'rev_cagr_10y': fin.get('revenue_cagr_10y'),
@@ -61,7 +63,7 @@ def _batch_insert(rows, conn):
         ['stock_code', 'stock_name', 'trade_date',
          'stage_id', 'stage_confidence', 'tech_score', 'fund_score',
          'latest_price', 'price_change_pct',
-         'revenue_growth', 'net_profit_growth', 'debt_ratio',
+         'revenue_growth', 'net_profit_growth', 'debt_ratio', 'roe', 'roe_ttm',
          'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
          'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y',
          'data_date', 'fin_report_date', 'profile_json']

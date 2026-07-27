@@ -1162,6 +1162,10 @@ app.component('profile-page', {
         const filterGmGrowth2y = ref(null);
         const filterContractLiabMin = ref(null);
         const filterContractLiabMax = ref(null);
+        const filterRoeMin = ref(null);
+        const filterRoeMax = ref(null);
+        const filterRoeTtmMin = ref(null);
+        const filterRoeTtmMax = ref(null);
         const filterRevCagr3yMin = ref(null);
         const filterRevCagr3yMax = ref(null);
         const filterRevCagr5yMin = ref(null);
@@ -1411,6 +1415,10 @@ app.component('profile-page', {
                     gm_growth_2y_min: filterGmGrowth2y.value || null,
                     contract_liab_min: filterContractLiabMin.value || null,
                     contract_liab_max: filterContractLiabMax.value || null,
+                    roe_min: filterRoeMin.value || null,
+                    roe_max: filterRoeMax.value || null,
+                    roe_ttm_min: filterRoeTtmMin.value || null,
+                    roe_ttm_max: filterRoeTtmMax.value || null,
                     rev_cagr_3y_min: filterRevCagr3yMin.value || null,
                     rev_cagr_3y_max: filterRevCagr3yMax.value || null,
                     rev_cagr_5y_min: filterRevCagr5yMin.value || null,
@@ -1469,6 +1477,10 @@ app.component('profile-page', {
             filterGmGrowth2y.value = null;
             filterContractLiabMin.value = null;
             filterContractLiabMax.value = null;
+            filterRoeMin.value = null;
+            filterRoeMax.value = null;
+            filterRoeTtmMin.value = null;
+            filterRoeTtmMax.value = null;
             filterRevCagr3yMin.value = null;
             filterRevCagr3yMax.value = null;
             filterRevCagr5yMin.value = null;
@@ -1589,6 +1601,7 @@ app.component('profile-page', {
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
             filterGmGrowthQ, filterGmGrowth2y,
             filterContractLiabMin, filterContractLiabMax,
+            filterRoeMin, filterRoeMax, filterRoeTtmMin, filterRoeTtmMax,
             filterRevCagr3yMin, filterRevCagr3yMax, filterRevCagr5yMin, filterRevCagr5yMax,
             filterProfitCagr3yMin, filterProfitCagr3yMax, filterProfitCagr5yMin, filterProfitCagr5yMax,
             growthTagOptions, selectedGrowthTags,

@@ -1127,6 +1127,32 @@ def generate_profile(stock_code):
         profit_cagr_5y = calc_cagr(annual_profit_list[0], annual_profit_list[4], 5) if len(annual_profit_list) >= 5 else None
         profit_cagr_10y = calc_cagr(annual_profit_list[0], annual_profit_list[9], 10) if len(annual_profit_list) >= 10 else None
 
+        annual_roe = None
+        roe_ttm = None
+        annual_eq = query("""
+            SELECT fi.net_profit, bs.total_equity
+            FROM fin_income fi
+            JOIN fin_balance_sheet bs ON bs.stock_code = fi.stock_code AND bs.report_date = fi.report_date
+            WHERE fi.stock_code = %s AND MONTH(fi.report_date)=12 AND DAY(fi.report_date)=31
+            ORDER BY fi.report_date DESC LIMIT 1
+        """, [stock_code])
+        if annual_eq and annual_eq[0]['net_profit'] and annual_eq[0]['total_equity']:
+            ap = float(annual_eq[0]['net_profit'])
+            ae = float(annual_eq[0]['total_equity'])
+            if ae > 0:
+                annual_roe = round(ap / ae * 100, 4)
+
+        ttm_rows = query("""
+            SELECT SUM(fq.q_parent_net_profit) AS ttm_profit
+            FROM (
+                SELECT q_parent_net_profit FROM fin_quarterly
+                WHERE stock_code = %s ORDER BY report_date DESC LIMIT 4
+            ) fq
+        """, [stock_code])
+        if ttm_rows and ttm_rows[0]['ttm_profit'] and total_equity > 0:
+            ttm_profit = float(ttm_rows[0]['ttm_profit'])
+            roe_ttm = round(ttm_profit / total_equity * 100, 4)
+
         fin_data = {
             'revenue_growth_rate': rev_growth,
             'net_profit_growth_rate': profit_growth,
@@ -1142,6 +1168,8 @@ def generate_profile(stock_code):
             'net_profit_cagr_3y': profit_cagr_3y,
             'net_profit_cagr_5y': profit_cagr_5y,
             'net_profit_cagr_10y': profit_cagr_10y,
+            'roe': annual_roe,
+            'roe_ttm': roe_ttm,
         }
 
     price_change = round((latest_price - klines[-2]['close']) / klines[-2]['close'] * 100, 2) if len(klines) >= 2 else 0
