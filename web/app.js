@@ -1995,13 +1995,79 @@ app.component('data-mgmt-page', {
             }
         }
 
-        onMounted(loadStatus);
+        const profileRefreshing = ref(false);
+        const refreshProgressBar = ref('');
+        const profileRefreshDone = ref('');
+        const profileRefreshData = ref(null);
+        let profileRefreshPollInterval = null;
+
+        const profileRefreshDot = computed(() => {
+            return profileRefreshing.value ? 'dm-dot-sync' : (profileRefreshData.value?.last_refresh_time ? 'dm-dot-online' : 'dm-dot-pending');
+        });
+        const profileRefreshStatusText = computed(() => {
+            return profileRefreshing.value ? '刷新中' : (profileRefreshData.value?.last_refresh_time ? '已缓存' : '未缓存');
+        });
+
+        async function loadProfileRefreshStatus() {
+            try {
+                const r = await fetch(`${API_BASE}/profiles/status`);
+                profileRefreshData.value = await r.json();
+            } catch (e) {}
+        }
+
+        async function triggerDataRefresh() {
+            if (profileRefreshing.value) return;
+            profileRefreshing.value = true;
+            profileRefreshDone.value = '';
+            refreshProgressBar.value = '启动中';
+            const startTime = Date.now();
+            try {
+                const r = await fetch(`${API_BASE}/profiles/refresh`, { method: 'POST' });
+                if (!r.ok && r.status === 429) {
+                    refreshProgressBar.value = '后台正在刷新';
+                }
+                profileRefreshPollInterval = setInterval(async () => {
+                    try {
+                        const p = await fetch(`${API_BASE}/profiles/refresh/progress`);
+                        const d = await p.json();
+                        if (d.status === 'running') {
+                            const pct = d.total > 0 ? Math.round(d.computed / d.total * 100) : 0;
+                            refreshProgressBar.value = pct + '%';
+                        } else {
+                            clearInterval(profileRefreshPollInterval);
+                            profileRefreshPollInterval = null;
+                            profileRefreshing.value = false;
+                            refreshProgressBar.value = '';
+                            const elapsed = Math.round((Date.now() - startTime) / 1000);
+                            profileRefreshDone.value = `完成！${d.computed || 0} 只股票，耗时 ${elapsed}s`;
+                            loadProfileRefreshStatus();
+                        }
+                    } catch (e) {
+                        clearInterval(profileRefreshPollInterval);
+                        profileRefreshPollInterval = null;
+                        profileRefreshing.value = false;
+                        refreshProgressBar.value = '';
+                    }
+                }, 2000);
+            } catch (e) {
+                profileRefreshing.value = false;
+                refreshProgressBar.value = '';
+            }
+        }
+
+        onMounted(() => {
+            loadStatus();
+            loadProfileRefreshStatus();
+        });
 
         return {
             status, klineLoading, klineResult, klineError,
             finLoading, finResult, finError,
             lastSyncLabel, finDotClass, finStatusText,
             updateKline, updateFinancial,
+            profileRefreshDot, profileRefreshStatusText,
+            profileRefreshing, refreshProgressBar, profileRefreshDone, profileRefreshData,
+            triggerDataRefresh, loadProfileRefreshStatus,
         };
     },
 });

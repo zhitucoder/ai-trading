@@ -1034,11 +1034,6 @@
     <div class="topbar">
         <h2>股票画像</h2>
         <span class="badge" v-if="profileStatusData">{{ profileStatusData.latest_data_date || '未缓存' }}</span>
-        <button v-if="activeTab === 'screening'" class="btn btn-outline btn-sm" style="margin-left:auto;" @click="triggerRefresh" :disabled="refreshing">
-            <span v-if="refreshing" class="spinner" style="display:inline-block;width:12px;height:12px;border-width:2px;vertical-align:middle;margin-right:4px;"></span>
-            {{ refreshing ? refreshProgress : '⟳ 刷新缓存' }}
-        </button>
-        <span v-if="refreshToast" style="margin-left:12px;color:#22c55e;font-size:13px;">{{ refreshToast }}</span>
     </div>
     <div class="profile-tabs">
         <button :class="{ active: activeTab === 'single' }" @click="activeTab = 'single'">单股画像</button>
@@ -2012,6 +2007,48 @@
                     <button class="btn btn-outline" disabled>
                         <span style="opacity:0.5;">同步板块分类 · 待开发</span>
                     </button>
+                </div>
+            </div>
+
+            <!-- Profile Refresh Card -->
+            <div class="dm-card dm-card-profile">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(139,92,246,0.12);">
+                        <span style="font-size:22px;">🏷</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">画像缓存</div>
+                        <div class="dm-card-subtitle">全市场股票画像预计算</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot" :class="profileRefreshDot"></span>
+                        <span class="dm-status-text">{{ profileRefreshStatusText }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row">
+                        <span>数据日期</span>
+                        <span class="dm-val accent">{{ profileRefreshData?.latest_data_date || '-' }}</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>覆盖股票</span>
+                        <span class="dm-val">{{ profileRefreshData?.total_profiles || 0 }} / 5535</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>财务报告期</span>
+                        <span class="dm-val">{{ profileRefreshData?.fin_report_date || '-' }}</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>上次刷新</span>
+                        <span class="dm-val">{{ profileRefreshData?.last_refresh_time || '从未' }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <button class="btn btn-primary" style="background:#8b5cf6;border-color:#8b5cf6;" @click="triggerDataRefresh" :disabled="profileRefreshing">
+                        <span v-if="profileRefreshing" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ profileRefreshing ? refreshProgressBar + '...' : '⟳ 刷新画像缓存' }}
+                    </button>
+                    <span v-if="profileRefreshDone" class="dm-toast dm-toast-ok">✓ {{ profileRefreshDone }}</span>
                 </div>
             </div>
         </div>
