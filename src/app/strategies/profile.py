@@ -139,21 +139,22 @@ def calc_cagr(latest, earliest, years):
 
 def compute_tenbagger(stock_code):
     rows = query("""
-        SELECT low_price, high_price
+        SELECT MIN(low_price) AS min_low,
+               (SELECT MAX(high_price) FROM daily_kline
+                WHERE stock_code = %s AND trade_date >= '2021-01-01'
+                  AND trade_date >= (SELECT MIN(trade_date) FROM daily_kline
+                                     WHERE stock_code = %s AND trade_date >= '2021-01-01'
+                                       AND low_price = (SELECT MIN(low_price) FROM daily_kline
+                                                        WHERE stock_code = %s AND trade_date >= '2021-01-01'))
+               ) AS max_high_after
         FROM daily_kline
         WHERE stock_code = %s AND trade_date >= '2021-01-01'
-        ORDER BY trade_date
-    """, [stock_code])
-    if not rows:
+    """, [stock_code, stock_code, stock_code, stock_code])
+    if not rows or not rows[0]['min_low'] or not rows[0]['max_high_after']:
         return False
-    lows = [float(r['low_price']) for r in rows]
-    min_idx = lows.index(min(lows))
-    highs = [float(r['high_price']) for r in rows[min_idx:]]
-    max_high = max(highs)
-    min_low = lows[min_idx]
-    if min_low <= 0:
-        return False
-    return max_high / min_low >= 10
+    min_low = float(rows[0]['min_low'])
+    max_high = float(rows[0]['max_high_after'])
+    return min_low > 0 and max_high / min_low >= 10
 
 
 def _find_prev_year_gm_growth(quarterly_growth):
@@ -771,27 +772,29 @@ def vcp_detect(high_prices, low_prices, lookback=20):
     return contraction_count, tightness
 
 
+ALL_RETURNS_CACHE = None
+
 def compute_rs_rank(stock_code, all_returns=None):
-    """计算个股相对强度百分位(0-99)"""
+    global ALL_RETURNS_CACHE
     if all_returns is None:
-        rows = query("""
-            SELECT a.stock_code,
-                   (a.close_price - b.close_price) / b.close_price AS ret
-            FROM (
-                SELECT stock_code, close_price
-                FROM daily_kline
-                WHERE trade_date = (SELECT MAX(trade_date) FROM daily_kline)
-            ) a
-            JOIN (
-                SELECT stock_code, close_price
-                FROM daily_kline
-                WHERE trade_date = DATE_SUB((SELECT MAX(trade_date) FROM daily_kline), INTERVAL 250 DAY)
-            ) b ON a.stock_code = b.stock_code
-            WHERE b.close_price > 0
-        """)
-        rets = [(r['stock_code'], float(r['ret'])) for r in rows if r['ret'] is not None]
-    else:
-        rets = all_returns
+        if ALL_RETURNS_CACHE is None:
+            rows = query("""
+                SELECT a.stock_code,
+                       (a.close_price - b.close_price) / b.close_price AS ret
+                FROM (
+                    SELECT stock_code, close_price
+                    FROM daily_kline
+                    WHERE trade_date = (SELECT MAX(trade_date) FROM daily_kline)
+                ) a
+                JOIN (
+                    SELECT stock_code, close_price
+                    FROM daily_kline
+                    WHERE trade_date = DATE_SUB((SELECT MAX(trade_date) FROM daily_kline), INTERVAL 250 DAY)
+                ) b ON a.stock_code = b.stock_code
+                WHERE b.close_price > 0
+            """)
+            ALL_RETURNS_CACHE = [(r['stock_code'], float(r['ret'])) for r in rows if r['ret'] is not None]
+        rets = ALL_RETURNS_CACHE
 
     stock_ret = None
     for code, ret in rets:
@@ -1149,9 +1152,12 @@ def generate_profile(stock_code):
                 WHERE stock_code = %s ORDER BY report_date DESC LIMIT 4
             ) fq
         """, [stock_code])
-        if ttm_rows and ttm_rows[0]['ttm_profit'] and total_equity > 0:
+        report_date_str = str(fin['report_date']) if fin and fin.get('report_date') else None
+        eq_row = query("SELECT total_equity FROM fin_balance_sheet WHERE stock_code = %s AND report_date = %s", [stock_code, report_date_str]) if report_date_str else None
+        eq_val = float(eq_row[0]['total_equity']) if eq_row and eq_row[0]['total_equity'] else 0
+        if ttm_rows and ttm_rows[0]['ttm_profit'] and eq_val > 0:
             ttm_profit = float(ttm_rows[0]['ttm_profit'])
-            roe_ttm = round(ttm_profit / total_equity * 100, 4)
+            roe_ttm = round(ttm_profit / eq_val * 100, 4)
 
         fin_data = {
             'revenue_growth_rate': rev_growth,
