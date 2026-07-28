@@ -5,7 +5,7 @@
       <stop offset="100%" stop-color="#1a1a2e"/>
     </linearGradient>
     <style>
-      text{font-family:'SF Mono','Fira Code','Cascadia Code','Courier New','Microsoft YaHei','SimHei',monospace}
+      text{font-family:'WenQuanYi Micro Hei','SF Mono','Fira Code','Cascadia Code','Courier New','Microsoft YaHei','SimHei',sans-serif}
       .t{font-size:22px;font-weight:700;fill:#e2e8f0}
       .st{font-size:12px;font-weight:500;fill:#64748b}
       .tag{font-size:10px;font-weight:700;fill:#64748b;letter-spacing:1.2px}
