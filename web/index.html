@@ -2017,7 +2017,7 @@
                         <span style="font-size:22px;">🏷</span>
                     </div>
                     <div class="dm-card-meta">
-                        <div class="dm-card-title">画像缓存</div>
+                        <div class="dm-card-title">画像快照</div>
                         <div class="dm-card-subtitle">全市场股票画像预计算</div>
                     </div>
                     <div class="dm-card-status">
@@ -2046,7 +2046,7 @@
                 <div class="dm-card-footer">
                     <button class="btn btn-primary" style="background:#8b5cf6;border-color:#8b5cf6;" @click="triggerDataRefresh" :disabled="profileRefreshing">
                         <span v-if="profileRefreshing" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
-                        {{ profileRefreshing ? refreshProgressBar + '...' : '⟳ 刷新画像缓存' }}
+                        {{ profileRefreshing ? refreshProgressBar + '...' : '⟳ 刷新画像快照' }}
                     </button>
                     <span v-if="profileRefreshDone" class="dm-toast dm-toast-ok">✓ {{ profileRefreshDone }}</span>
                 </div>
