@@ -131,6 +131,7 @@
 - 保存到 `/mnt/d/pic/` 目录
 - 文件名格式：`{股票中文名称}_{股票代码}_cover.png`
   - 例如：`荣盛石化_002493_cover.png`
+- **必须为 PNG 格式**（不支持 JPG/WebP）
 - 专题文章：保存到 `analysis/images/{主题简称}-cover.png`
   - 例如：`analysis/images/fee-cover.png`（财务费用专题）
 
