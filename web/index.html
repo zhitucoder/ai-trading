@@ -1452,8 +1452,10 @@
                                     <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_3y')">3Y净利CAGR{{ sortArrow('profit_cagr_3y') }}</th>
                                     <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_5y')">5Y净利CAGR{{ sortArrow('profit_cagr_5y') }}</th>
                                     <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_10y')">10Y净利CAGR{{ sortArrow('profit_cagr_10y') }}</th>
-                                    <th style="width:70px;cursor:pointer;" @click="toggleSort('roe')">ROE{{ sortArrow('roe') }}</th>
-                                    <th style="width:80px;cursor:pointer;" @click="toggleSort('roe_ttm')">ROE(TTM){{ sortArrow('roe_ttm') }}</th>
+                                <th style="width:70px;cursor:pointer;" @click="toggleSort('roe')">ROE{{ sortArrow('roe') }}</th>
+                                <th style="width:80px;cursor:pointer;" @click="toggleSort('roe_ttm')">ROE(TTM){{ sortArrow('roe_ttm') }}</th>
+                                <th style="width:65px;cursor:pointer;" @click="toggleSort('gross_margin')">毛利率{{ sortArrow('gross_margin') }}</th>
+                                <th style="width:70px;">上年营收</th>
                                 <th style="width:90px;cursor:pointer;" @click="toggleSort('contract_liab_to_assets')">合同负债{{ sortArrow('contract_liab_to_assets') }}</th>
                                 <th>标签</th>
                             </tr>
@@ -1479,6 +1481,8 @@
                                 <td :class="valClass(row.profit_cagr_10y)">{{ row.profit_cagr_10y != null ? fmtGrowth(row.profit_cagr_10y) : '-' }}</td>
                                 <td :class="valClass(row.roe)">{{ row.roe != null ? row.roe.toFixed(2) + '%' : '-' }}</td>
                                 <td :class="valClass(row.roe_ttm)">{{ row.roe_ttm != null ? row.roe_ttm.toFixed(2) + '%' : '-' }}</td>
+                                <td :class="valClass(row.gross_margin)">{{ row.gross_margin != null ? row.gross_margin.toFixed(2) + '%' : '-' }}</td>
+                                <td style="font-size:11px;">{{ row.prev_year_revenue != null ? fmtMoney(row.prev_year_revenue) : '-' }}</td>
                                 <td :class="valClass(10 - parseFloat(row.contract_liab_to_assets))">{{ row.contract_liab_to_assets != null ? parseFloat(row.contract_liab_to_assets).toFixed(2) + '%' : '-' }}</td>
                                 <td style="text-align:left;">
                                     <span v-for="t in (row.active_tags || []).slice(0, 4)" :key="t.id" class="screening-tag">{{ t.name }}</span>

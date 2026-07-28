@@ -1159,10 +1159,25 @@ def generate_profile(stock_code):
             ttm_profit = float(ttm_rows[0]['ttm_profit'])
             roe_ttm = round(ttm_profit / eq_val * 100, 4)
 
+        gm_val = None
+        if annual_rows and len(annual_rows) > 0:
+            r0 = annual_rows[0]
+            r0_rev = float(r0['operating_revenue']) if r0.get('operating_revenue') else 0
+            r0_cost = float(r0['operating_cost']) if r0.get('operating_cost') else 0
+            if r0_rev > 0:
+                gm_val = round((r0_rev - r0_cost) / r0_rev * 100, 4)
+        prev_rev_val = None
+        if len(annual_rows) > 1:
+            r1 = annual_rows[1]
+            if r1.get('operating_revenue'):
+                prev_rev_val = float(r1['operating_revenue'])
+
         fin_data = {
             'revenue_growth_rate': rev_growth,
             'net_profit_growth_rate': profit_growth,
             'debt_ratio': debt_ratio,
+            'gross_margin': gm_val,
+            'prev_year_revenue': prev_rev_val,
             'contract_liab_to_assets': contract_liab_to_assets,
             'contract_liab_raw': float(cl) if cl is not None else None,
             'q_revenue': float(fin['q_revenue']) if fin.get('q_revenue') is not None else None,
