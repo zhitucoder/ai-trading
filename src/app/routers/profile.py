@@ -516,7 +516,7 @@ def report_trend(stock_code: str):
                            'growth_rates': growth_rates, 'weekly_kline': wk})
 
     return f"""<!DOCTYPE html><html lang=zh><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1"><title>{stock_code} {sname} 财务趋势</title>
-<style>*{{margin:0;padding:0;box-sizing:border-box}}body{{background:#f5f5f5;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:16px}}h1{{font-size:16px;color:#1a1a2e;margin-bottom:4px}}.sub{{font-size:12px;color:#888;margin-bottom:12px}}#chart{{width:100%;height:300px;background:#fff;border-radius:10px;border:1px solid #ddd;position:relative;box-shadow:0 1px 4px rgba(0,0,0,0.06)}}canvas{{width:100%;height:100%}}.legend{{display:flex;gap:16px;margin-top:8px;font-size:11px;color:#666;flex-wrap:wrap}}</style>
+<style>*{{margin:0;padding:0;box-sizing:border-box}}body{{background:#f5f5f5;color:#222;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:16px}}h1{{font-size:16px;color:#111;margin-bottom:4px}}.sub{{font-size:12px;color:#666;margin-bottom:12px}}#chart{{width:100%;height:300px;background:#fff;border-radius:10px;border:1px solid #ccc;position:relative;box-shadow:0 1px 4px rgba(0,0,0,0.08)}}canvas{{width:100%;height:100%}}.legend{{display:flex;gap:16px;margin-top:8px;font-size:11px;color:#555;flex-wrap:wrap}}</style>
 <div><h1>{stock_code} {sname}</h1><div class=sub>营收·净利润·净利增长率·股价趋势</div></div>
 <div id=chart><canvas id=c></canvas></div>
 <div class=legend><span style=color:#6495ed>■ 营收(亿)</span><span style=color:#ffd700>■ 净利润(亿)</span><span style=color:#ff6b6b>■ 净利增长率%</span><span style=color:#4ecdc4>■ 周K</span></div>
@@ -530,12 +530,12 @@ function ypr(v){{return pad.top+ch*(1-v/pm)}}
 var ys=d.years[0],ye=d.years[n-1],ms=new Date(ys,0,1).getTime(),me=new Date(ye,11,31).getTime(),mr=me-ms||1;
 function dx(s){{return pad.left+cw*(new Date(s).getTime()-ms)/mr}}
 ctx.strokeStyle='rgba(0,0,0,0.07)';ctx.lineWidth=1;for(var i=0;i<=4;i++){{var y=pad.top+ch*i/4;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(pad.left+cw,y);ctx.stroke()}}
-for(var i=0;i<n;i++){{var x=xs[i]-14,w=28,h=ch*d.revenues[i]/rMax;ctx.fillStyle='rgba(100,149,237,0.45)';ctx.fillRect(x,pad.top+ch-h,w,h)}}
+for(var i=0;i<n;i++){{var x=xs[i]-14,w=28,h=ch*d.revenues[i]/rMax;ctx.fillStyle='rgba(65,105,225,0.75)';ctx.fillRect(x,pad.top+ch-h,w,h)}}
 ctx.beginPath();ctx.strokeStyle='#ffd700';ctx.lineWidth=2.5;for(var i=0;i<n;i++){{var y=yp(d.profits[i]);i===0?ctx.moveTo(xs[i],y):ctx.lineTo(xs[i],y)}}ctx.stroke();ctx.fillStyle='#ffd700';for(var i=0;i<n;i++){{var y=yp(d.profits[i]);ctx.beginPath();ctx.arc(xs[i],y,3.5,0,Math.PI*2);ctx.fill()}}
 ctx.beginPath();ctx.setLineDash([6,3]);ctx.strokeStyle='#ff6b6b';ctx.lineWidth=2;for(var i=0;i<n;i++){{var v=d.growth_rates[i];if(v==null)continue;var y=yg(v);i===0||d.growth_rates[i-1]==null?ctx.moveTo(xs[i],y):ctx.lineTo(xs[i],y)}}ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#ff6b6b';for(var i=0;i<n;i++){{var v=d.growth_rates[i];if(v==null)continue;ctx.beginPath();ctx.arc(xs[i],yg(v),3,0,Math.PI*2);ctx.fill()}}
 if(pk.length>0){{var cw2=Math.max(1,Math.min(6,cw/pk.length*0.6));for(var i=0;i<pk.length;i++){{var b=pk[i],x=dx(b.date),yO=ypr(b.o),yC=ypr(b.c),yH=ypr(b.h),yL=ypr(b.l),up=b.c>=b.o;ctx.strokeStyle=up?'#ef4444':'#10b981';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,yH);ctx.lineTo(x,yL);ctx.stroke();var bt=Math.min(yO,yC),bh=Math.max(Math.abs(yO-yC),1);ctx.fillStyle=up?'#ef4444':'#10b981';ctx.fillRect(x-cw2/2,bt,cw2,bh)}}}}
-ctx.fillStyle='#999';ctx.font='10px sans-serif';ctx.textAlign='right';for(var i=0;i<=4;i++){{ctx.fillText(Math.round(rMax*i/4)+'亿',pad.left-6,pad.top+ch*(1-i/4)+4)}}
-ctx.textAlign='left';ctx.fillStyle='#4ecdc4';for(var i=0;i<=4;i++){{ctx.fillText(Math.round(pm*i/4)+'元',pad.left+cw+6,pad.top+ch*(1-i/4)+4)}}
+ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='right';for(var i=0;i<=4;i++){{ctx.fillText(Math.round(rMax*i/4)+'亿',pad.left-6,pad.top+ch*(1-i/4)+4)}}
+ctx.textAlign='left';ctx.fillStyle='#333';for(var i=0;i<=4;i++){{ctx.fillText(Math.round(pm*i/4)+'元',pad.left+cw+6,pad.top+ch*(1-i/4)+4)}}
 ctx.fillStyle='#999';ctx.font='11px sans-serif';ctx.textAlign='center';for(var i=0;i<n;i++){{ctx.fillText(d.years[i],xs[i],H-pad.bottom+16)}}
 }}();</script></html>"""
 
