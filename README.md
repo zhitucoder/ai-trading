@@ -91,7 +91,7 @@ python src/import_shares.py
 
 ## 系统架构
 
-![系统架构图](ai-trading-architecture.svg)
+![系统架构图](assets/ai-trading-architecture.png)
 
 | 层 | 技术栈 |
 |----|--------|
