@@ -78,64 +78,24 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 | `sectors` | 605 | Sector definitions (行业/地区/概念/风格) |
 | `stock_sectors` | 82k | Stock → sector mapping |
 
-### Table reliability (pytdx field index shifts)
+### Table reliability
 
-pytdx 财务数据的字段索引发生过偏移。索引 ≤ 97 的字段（利润表、资产负债表）正确；
-索引 ≥ 166 的比率类字段大面积损坏。以下是各表的详细可靠性评估。
+pytdx 部分字段索引偏移。详细可靠性评估见 `docs/股票画像与筛选系统_当前架构设计.md`。
 
-#### Table-level summary
+**可信字段**：`fin_income`（74-97）、`fin_balance_sheet`（8-73）、`fin_cash_flow`（98-118）、`fin_quarterly`（230-236）
 
-| Table | Field indices | Reliability | Why |
-|---|---|---|---|
-| `stocks` | — | ✅ **Trustworthy** | Manually maintained code→name |
-| `daily_kline` | — | ✅ **Trustworthy** | Direct import from .day binary |
-| `fin_balance_sheet` | 8–73 | ✅ **Trustworthy** | Balance equation holds (TA−TL−TE=0) |
-| `fin_income` | 74–97 | ✅ **Trustworthy** | 收入/成本/利润合理，税率匹配 |
-| `fin_cash_flow` | 98–118 | ✅ **Trustworthy** | 相邻索引范围，与 income/BS 一致 |
-| `fin_quarterly` | 230–236 | ✅ **Trustworthy** | 单季数据与 fin_income 吻合 |
-| `fin_ratios` | 1–6 (roe, eps, bps) | ✅ **Trustworthy** | 低索引字段，与原始数据计算一致 |
-| `fin_ratios` | 166–194 | ❌ **UNRELIABLE** | 字段索引偏移，数据来自错误列 |
-| `fin_ratios` | 220–229 (ebit, ebitda, CAGR) | ⚠️ **Partially broken** | `revenue_cagr_3y` 永远为 NULL（FIELD_MAP 命名不匹配），`net_profit_cagr_3y` 有值但未知可靠性 |
-| `fin_ratios` | 282–283 (pe_ttm, market_cap) | ❌ **Always NULL** | 已知 pytdx 索引不匹配 |
-| `fin_extended` | 220–337 | ❌ **UNRELIABLE** | `rd_expense` 全为 NULL, `rev_ttm` 字段错位，`fcf` 全为 NULL |
+**损坏字段**：`fin_ratios` 索引 ≥ 166 的字段、`fin_extended`（220-337）
 
-#### Verified trustworthy fields
+**指标计算（绕过损坏字段）：**
+- `revenue_growth_rate` = `fin_income` 自连接算同比
+- `net_profit_growth_rate` = 同上
+- `debt_ratio` = `fin_balance_sheet.总负债 / 总资产 × 100`
+- `roe` = `fin_income.净利润 / fin_balance_sheet.净资产 × 100`
+- `gross_margin` = `(营收 − 营业成本) / 营收 × 100`
 
-直接从原始表计算，不使用 `fin_ratios`：
+### 金融股 pytdx 财务数据问题
 
-| 指标 | 正确计算方式 |
-|---|---|
-| `revenue_growth_rate` | `fin_income` 自连接：`(current_rev − prev_year_rev) / prev_year_rev * 100` |
-| `net_profit_growth_rate` | `fin_income` 自连接：`(current_profit − prev_year_profit) / prev_year_profit * 100` |
-| `debt_ratio` | `fin_balance_sheet`：`total_liabilities / total_assets * 100` |
-| `current_ratio` | `fin_balance_sheet`：`current_assets / current_liabilities` |
-| `roe` | `fin_income.net_profit / fin_balance_sheet.total_equity * 100` |
-| `gross_margin` | `(operating_revenue − operating_cost) / operating_revenue * 100` from fin_income |
-| `net_margin` | `fin_income.net_profit / fin_income.operating_revenue * 100` |
-
-#### Code references
-
-- **Profile module** (`strategies/profile.py`): ✅ 全部指标从原始表计算，不使用 `fin_ratios`
-- **Screening module** (`strategies/fundamental.py`, `routers/screening.py`): ✅ 已修复，从 `fin_income` / `fin_balance_sheet` 计算
-- **Pre-2026-07 screening code**: ❌ 使用损坏的 `fin_ratios` 字段，需手动迁移
-
----
-
-### 金融股 pytdx 财报字段映射问题
-
-**症状**：部分金融/证券类股票（如 `600621 华鑫股份`、`002670 国盛证券`）2018-2024 年间的 `operating_revenue`（营业收入）数据明显错误——营收仅数十万至千万级，但净利润数亿元。
-
-**原因**：pytdx GPCW 数据格式的固定列索引针对工业/制造业企业设计。金融企业（证券/银行/保险/金控）的利润表科目结构不同，导致 `col74（营业收入）`等关键字段映射到错误的数据项。
-
-**受影响的行业**：`证券`、`多元金融`、`TDX 金融` 等。
-
-**数据质量检查**：`compute_annual_cagr.py` 和 `profile.py` 中的 `rev_reliable()` 函数会在 CAGR 计算前校验：
-1. 营收 > 0
-2. `|净利润| < 营收 × 2`（防止净利润远超营收的异常情况）
-3. `营收 / 总资产 ≥ 0.1%`（防止营收过小但资产庞大的金融股误导）
-   - 校验不通过时，营收 CAGR 置为 NULL（净利润 CAGR 不受影响）
-
-**`ads_annual_cagr` 表**：存储年化增长率中间结果，可通过 `compute_annual_cagr.py` 脚本重新计算。
+金融企业（证券/银行/保险）的财务报表格式不同，pytdx 固定列索引映射到错误数据项。详见 `docs/股票画像与筛选系统_当前架构设计.md`。
 
 ---
 
@@ -164,59 +124,18 @@ GET /api/report/trend/{stock_code}
 GET /api/report/zxm/{stock_code}
 ```
 
-返回完整的 HTML 页面，包含：
-- 综合评级（色块标签）
-- 典型模式标签
-- 六列网格布局（资产结构/资本结构/利润质量/三大匹配/现金流/成长性）
-- 风险信号
-- 手机端自适应（<=600px 时变为3列）
-
 **示例**：`http://localhost:9000/api/report/zxm/688578` → 艾力斯六维分析
-
-两个页面均可在浏览器直接打开，无需登录，无需前端框架。
-
-### Indexes
-- `daily_kline`: `(stock_code, trade_date, close_price)` — covering index for MA calculations
-- `daily_kline`: `(trade_date)`, `(stock_code)` — standalone
 
 ---
 
 ## Screening Strategy Details
 
-### MA Bullish (`ma_bullish`)
-- Uses MySQL window functions (`AVG() OVER ... ROWS BETWEEN N PRECEDING AND CURRENT ROW`)
-- Default periods: `5,10,20,60` (configurable, comma-separated)
-- Condition: MA5 > MA10 > MA20 > MA60 (configurable list, sorted asc)
-- Date window: 70 days before latest trade date
-
-### Fundamental All (`fundamental_all`)
-- All 3 conditions simultaneously: revenue_growth > threshold, net_profit_growth > threshold, debt_ratio < threshold
-- Joins `fin_ratios` + `fin_income` for operating_revenue/net_profit
-- Always filters `debt_ratio >= 0` to exclude junk data
-
-## Backtest API (`src/app/routers/backtest.py`)
-
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/api/kline/{stock_code}?days=N` | GET | OHLCV data for charting |
-| `/api/kline_range/{stock_code}?start_date=&end_date=` | GET | K-line in date range |
-| `/api/backtest/position` | POST | User-defined trades → P&L |
-| `/api/backtest/ma` | POST | MA crossover backtest |
-
-### Position backtest
-- Body: `{"stock_code":"600519","trades":[{"date":"...","direction":"buy","shares":100,"price":1500}]}`
-- Trade dates auto-mapped to nearest trading day
-- Average cost basis P&L calculation
-- Returns: daily_pnl[] + summary (total_invested, return, max_drawdown)
-
-### MA crossover backtest
-- Query params: `stock_code, start_date, end_date, short_ma, long_ma, total_capital`
-- Golden cross (short MA ↑ above long MA) → Buy; Death cross → Sell
-- Buy: max affordable 100-share lots from available cash; skip if < 1 hand
-- Sell: liquidate entire position
-- Uses lightweight-charts CDN for frontend K-line rendering
-
----
+详见 `src/app/strategies/` 下各文件：
+- `technical.py` — MA多头排列（窗口函数计算）
+- `fundamental.py` — 营收/净利/负债率筛选（`fin_income` 自连接算同比）
+- `minervini.py` — SEPA趋势模板
+- `turnaround.py` — 困境反转
+- `volume_surge.py` — 倍量柱
 
 ### Combined (`ma_bullish_and_revenue_growth`)
 - Performance optimization: **filter by fundamental first** (reduces stock set), then calculate MA only for candidates
@@ -236,27 +155,17 @@ GET /api/report/zxm/{stock_code}
 
 当用户说 **"张新民分析 xx公司"** 时，按以下规则执行：
 
-### 数据时效性
-- **主要基于上一年度年报**（当前为 2025 年年报）
-- **辅助最新季度数据**（当前为 2026Q1）
-- **必须检查2026年中报业绩预告**（网上查，7月中下旬密集发布），如有则补充到分析中
-- 用年报做主体判断，用最新季度做趋势验证，用中报预告做前瞻修正
+### 流程
+1. **查数据**：从数据库提取 `fin_income`、`fin_balance_sheet`、`fin_cash_flow`、`fin_quarterly`
+2. **搜预告**：网上查2026年中报业绩预告（7月中下旬密集发布），有则补充
+3. **写分析**：按六维框架（资产质量/利润质量/现金流/偿债能力/成长性/风险）输出
+4. **输出**：写入 `analysis/202607/{公司名}/` 目录
 
-### 分析框架
-1. 激活 `zhang-xinmin-perspective` skill
-2. 从数据库提取：`fin_income`、`fin_balance_sheet`、`fin_cash_flow`、`fin_quarterly`
-3. 按张新民六维分析：资产质量、利润质量、现金流质量、偿债能力、成长性、关联交易与风险
-4. 输出综合诊断结论
-
-### 输出规则
-- 文件写入 `analysis/` 目录
-- 文件名格式：`{中文公司名}_张新民财务分析.md`
-- 示例：`analysis/贵州茅台_张新民财务分析.md`
-
-### 指标可靠性
-- **使用**：`fin_income`（营收/成本/利润）、`fin_balance_sheet`（资产/负债/权益）、`fin_cash_flow`
-- **计算**：ROE、毛利率、净利率、资产负债率、流动比率等均从原始表计算
-- **避免**：`fin_ratios` 中索引 ≥ 166 的字段（已知损坏）
+### 参考文档
+- **写作规范/排版/封面/表格截图**：`docs/article-format.md`（必读）
+- **标签体系/计算公式**：`docs/股票画像标签体系_需求文档.md`
+- **现有画像系统架构**：`docs/股票画像与筛选系统_当前架构设计.md`
+- **数据库字段可靠性**：见下方 Database → Table reliability
 
 ---
 
