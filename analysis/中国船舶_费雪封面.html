@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1800px; height: 766px;
+    background: linear-gradient(160deg, #0f0f23 0%, #1a1a2e 40%, #16213e 100%);
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    padding: 60px 380px;
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    position: relative;
+    overflow: hidden;
+  }
+  /* decorative elements */
+  .circle1 {
+    position: absolute; width: 500px; height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(226,183,20,0.06) 0%, transparent 70%);
+    top: -150px; right: -100px;
+  }
+  .circle2 {
+    position: absolute; width: 400px; height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(226,183,20,0.04) 0%, transparent 70%);
+    bottom: -120px; left: -80px;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 24px; color: #e2b714;
+    border: 1px solid rgba(226,183,20,0.4);
+    padding: 8px 24px; border-radius: 4px;
+    letter-spacing: 3px;
+    margin-bottom: 36px;
+  }
+  .title {
+    font-size: 84px; font-weight: 900;
+    color: #ffffff; text-align: center;
+    line-height: 1.2; letter-spacing: 6px;
+    text-shadow: 0 2px 20px rgba(0,0,0,0.5);
+  }
+  .accent-line {
+    width: 180px; height: 3px;
+    background: linear-gradient(90deg, transparent, #e2b714, transparent);
+    margin: 28px auto;
+  }
+  .subtitle {
+    font-size: 36px; font-weight: 400;
+    color: #e2b714; text-align: center;
+    letter-spacing: 4px;
+  }
+  .meta {
+    font-size: 18px; color: #8899aa;
+    text-align: center; margin-top: 32px;
+    letter-spacing: 2px;
+  }
+  .meta span { color: #e2b714; }
+  .stock-code {
+    position: absolute; bottom: 30px; right: 40px;
+    font-size: 16px; color: rgba(255,255,255,0.15);
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+  <div class="circle1"></div>
+  <div class="circle2"></div>
+  <div class="tag">浩哥 AI 分析</div>
+  <div class="title">中国船舶</div>
+  <div class="accent-line"></div>
+  <div class="subtitle">费雪视角深度分析</div>
+  <div class="meta">菲利普·费雪 15 点框架 · Scuttlebutt 情报收集法 · <span>2025年报</span></div>
+  <div class="stock-code">600150</div>
+</body>
+</html>

@@ -154,8 +154,7 @@
 
 📌 **ai_trading AI 财报分析系统开源**
 基于 AI 蒸馏框架，自动解析上市公司财报与企业战略
-GitHub: github.com/zhitucoder/ai-trading
-Gitee:  gitee.com/zhitucoder/ai-trading
+GitHub/Gitee: zhitucoder/ai-trading
 
 零基础友好、无需编程，全套实操教程已录制，跟着操作从零搭建系统，回复【想学】获取。
 

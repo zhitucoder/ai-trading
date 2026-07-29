@@ -159,7 +159,7 @@ GET /api/report/zxm/{stock_code}
 1. **查数据**：从数据库提取 `fin_income`、`fin_balance_sheet`、`fin_cash_flow`、`fin_quarterly`
 2. **搜预告**：网上查2026年中报业绩预告（7月中下旬密集发布），有则补充
 3. **写分析**：按六维框架（资产质量/利润质量/现金流/偿债能力/成长性/风险）输出
-4. **输出**：写入 `analysis/202607/{公司名}/` 目录
+4. **输出**：写入 `analysis/20260729/{公司名}/` 目录
 
 ### 参考文档
 - **写作规范/排版/封面/表格截图**：`docs/article-format.md`（必读）

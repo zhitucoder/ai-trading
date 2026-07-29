@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  width:860px;height:540px;
+  background:#1a1a2e;
+  display:flex;flex-direction:column;
+  justify-content:center;align-items:center;
+  padding:40px 60px;
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  position:relative;overflow:hidden
+}
+body::before{
+  content:'';position:absolute;
+  top:-50%;left:-50%;width:200%;height:200%;
+  background:radial-gradient(ellipse at 30% 50%,rgba(15,52,96,0.4) 0%,transparent 60%),
+             radial-gradient(ellipse at 70% 50%,rgba(226,183,20,0.08) 0%,transparent 50%);
+  pointer-events:none
+}
+.tag{
+  position:absolute;top:28px;left:50%;transform:translateX(-50%);
+  padding:6px 18px;border:1px solid rgba(255,255,255,0.2);
+  border-radius:20px;font-size:13px;color:#aaa;letter-spacing:2px
+}
+.title{
+  font-size:52px;font-weight:900;
+  color:#ffffff;text-align:center;
+  line-height:1.25;letter-spacing:3px;
+  position:relative;z-index:1
+}
+.accent-line{
+  width:100px;height:3px;
+  background:#ffd700;margin:20px auto;border-radius:2px
+}
+.subtitle{
+  font-size:18px;font-weight:400;
+  color:#ffd700;text-align:center;
+  letter-spacing:2px;position:relative;z-index:1
+}
+.kpi-row{
+  display:flex;gap:40px;margin-top:22px;
+  position:relative;z-index:1
+}
+.kpi-item{text-align:center}
+.kpi-num{font-size:20px;font-weight:700;color:#ffd700}
+.kpi-label{font-size:11px;color:#888;margin-top:3px}
+.divider{
+  position:absolute;bottom:28px;left:50%;transform:translateX(-50%);
+  font-size:11px;color:#555;letter-spacing:1px
+}
+</style></head><body>
+<div class="tag">浩哥 AI 分析</div>
+<div class="title">华发股份<br>财报深度分析</div>
+<div class="accent-line"></div>
+<div class="subtitle">行业寒冬下的战略转型与财务质量透视</div>
+<div class="kpi-row">
+  <div class="kpi-item"><div class="kpi-num">834亿</div><div class="kpi-label">2025营收</div></div>
+  <div class="kpi-item"><div class="kpi-num" style="color:#ff6b6b">-94.96亿</div><div class="kpi-label">2025归母净利</div></div>
+  <div class="kpi-item"><div class="kpi-num">-78%</div><div class="kpi-label">2026Q1营收同比</div></div>
+</div>
+<div class="divider">2025年报 · 2026Q1 · 2026H1预亏30-40亿</div>
+</body></html>

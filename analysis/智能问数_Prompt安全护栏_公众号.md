@@ -240,7 +240,7 @@ class RiskCategory(str, Enum):
 ---
 
 文章由 ai_trading 系统生成，讲解「智能问数前置 Prompt 安全护栏」的设计原理，属技术分享，不构成投资建议。
-项目 GitHub 地址：https://github.com/zhitucoder/ai-trading
+项目 GitHub 地址：https://zhitucoder/ai-trading
 整套量化系统（选股 / 回测 / 画像 / AI 辩论 / 智能问数）全部开源，并一步步讲解怎么搭，感兴趣的回复「想学」或「111」。
 
 **💬 留言互动：你的 AI 问答系统，最怕哪一种攻击？**
