@@ -54,6 +54,7 @@ const app = createApp({
 app.component('screening-page', {
     template: '#screening-tpl',
     setup() {
+        const currentPage = inject('currentPage');
         const strategies = ref({ technical: [], fundamental: [], combined: [] });
         const tabType = ref('technical');
         const selectedStrategy = ref(null);
@@ -282,6 +283,12 @@ app.component('screening-page', {
         function prevStock() { navigateStock(-1); }
         function nextStock() { navigateStock(1); }
 
+        function goToProfileFromScreening(row) {
+            window._profileStockCode = row.stock_code;
+            window._screeningList = result.value && result.value.rows ? result.value.rows : [];
+            currentPage.value = 'profile';
+        }
+
         function handleKeydown(e) {
             if (tabType.value !== 'volume_surge') return;
             if (!selectedStock.value) return;
@@ -307,6 +314,7 @@ app.component('screening-page', {
             currentStrategies, hasResult, currentStockIndex, hasPrev, hasNext,
             selectStrategy, execute, isSelected, switchToTurnaround,
             selectStock, closeDetail, prevStock, nextStock,
+            goToProfileFromScreening,
             fmt, fmtGrowth, fmtMoney, valClass,
         };
     },
@@ -1583,6 +1591,10 @@ app.component('profile-page', {
             if (window._profileStockCode) {
                 stockCode.value = window._profileStockCode;
                 window._profileStockCode = null;
+            }
+            if (window._screeningList) {
+                navList.value = window._screeningList;
+                window._screeningList = null;
             }
             loadProfile();
             loadStatus();

@@ -115,6 +115,9 @@
             <button class="strategy-tab" :class="{ active: tabType === 'volume_surge' }"
                     @click="tabType = 'volume_surge'; selectedStrategy = null; result = null"
                     style="color:#f59e0b;">◉ 倍量柱</button>
+            <button class="strategy-tab" :class="{ active: tabType === 'five_step' }"
+                    @click="tabType = 'five_step'; selectedStrategy = null; result = null"
+                    style="color:var(--blue);">▣ 五步筛选</button>
         </div>
 
         <div v-if="tabType === 'minervini'" class="card" style="border-color:var(--amber);font-size:13px;line-height:1.7;">
@@ -141,6 +144,21 @@
                 <strong>营收反转</strong>：前一年营收增速 &lt; -10% → 当前 &gt; 15% 且盈利<br>
                 <strong>扭亏为盈</strong>：前一年亏损 → 当前净利润 &gt; 1000万 且营收增长 &gt; 10%<br>
                 <span style="color:var(--text-dim);font-size:12px;">排除 ST / *ST / 退市</span>
+            </p>
+        </div>
+
+        <div v-if="tabType === 'five_step'" class="card" style="border-color:var(--blue);font-size:13px;line-height:1.7;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="font-size:20px;">▣</span>
+                <strong style="color:var(--blue);">五步筛选法</strong>
+            </div>
+            <p style="color:var(--text-muted);">
+                <strong style="color:var(--text);">不是找"现在好的公司"，而是找"正在变好的公司"。</strong><br>
+                从五个维度评分（满分100），筛选经营质量持续改善的候选池：<br>
+                <strong>ROE趋势</strong>(30分) + <strong>现金流质量</strong>(25分) + <strong>毛利率趋势</strong>(20分)
+                + <strong>核心利润</strong>(15分) + <strong>资产负债表</strong>(10分)<br>
+                评分 ≥ 85(⭐⭐⭐备选池首选)，70-84(⭐⭐进入候选池)，50-69(⭐有短板)，&lt;50(排除)<br>
+                <span style="color:var(--text-dim);font-size:12px;">数据来源：基于紫金矿业10年财务复盘提炼</span>
             </p>
         </div>
 
@@ -373,15 +391,25 @@
                                         <template v-else-if="col === 'consecutive_king_confirmed'">连续王者</template>
                                         <template v-else-if="col === 'industry_sectors'">行业板块</template>
                                         <template v-else-if="col === 'concept_sectors'">概念板块</template>
+                                        <template v-else-if="col === 'total_score'">总分</template>
+                                        <template v-else-if="col === 'score_grade'">评级</template>
+                                        <template v-else-if="col === 'roe_score'">ROE分</template>
+                                        <template v-else-if="col === 'ocf_score'">现金流分</template>
+                                        <template v-else-if="col === 'margin_score'">毛利率分</template>
+                                        <template v-else-if="col === 'cp_score'">核心利润分</template>
+                                        <template v-else-if="col === 'bs_score'">负债表分</template>
+                                        <template v-else-if="col === 'roe_current'">ROE%</template>
+                                        <template v-else-if="col === 'margin_current'">毛利率%</template>
+                                        <template v-else-if="col === 'ocf_ratio'">OCF/净利</template>
                                         <template v-else>{{ col }}</template>
                                     </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-for="(row, i) in (tabType === 'volume_surge' ? filteredRows : result.rows)" :key="i"
-                                    :style="tabType === 'volume_surge' ? 'cursor:pointer;' : ''"
+                                    :style="tabType === 'volume_surge' || tabType === 'five_step' ? 'cursor:pointer;' : ''"
                                     :class="selectedStock && selectedStock.stock_code === row.stock_code ? 'selected-row' : ''"
-                                    @click="tabType === 'volume_surge' ? selectStock(row) : null">
+                                    @click="tabType === 'volume_surge' ? selectStock(row) : tabType === 'five_step' ? goToProfileFromScreening(row) : null">
                                     <td>{{ i + 1 }}</td>
                                     <td><strong>{{ row.stock_code }}</strong></td>
                                     <td>{{ row.stock_name }}</td>
@@ -448,6 +476,24 @@
                                         </template>
                                         <template v-else-if="col === 'king_confirmed'">
                                             <span style="color:var(--green);font-weight:600;">✓ 王者</span>
+                                        </template>
+                                        <template v-else-if="col === 'total_score'">
+                                            <span :style="{ color: row[col] >= 85 ? 'var(--green)' : row[col] >= 70 ? 'var(--blue)' : row[col] >= 50 ? 'var(--amber)' : 'var(--red)', fontWeight: 600, fontSize: '15px' }">{{ row[col] }}</span>
+                                        </template>
+                                        <template v-else-if="col === 'score_grade'">
+                                            <span :style="{ color: row[col] === 'A' ? 'var(--green)' : row[col] === 'B' ? 'var(--blue)' : row[col] === 'C' ? 'var(--amber)' : 'var(--red)', fontWeight: 600 }">{{ row[col] }}</span>
+                                        </template>
+                                        <template v-else-if="col === 'roe_current' || col === 'margin_current'">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(1) + '%' : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'ocf_ratio'">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(2) + 'x' : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'debt_ratio'">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(1) + '%' : '-' }}
+                                        </template>
+                                        <template v-else-if="['roe_score','ocf_score','margin_score','cp_score','bs_score'].includes(col)">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(0) : '-' }}
                                         </template>
                                         <template v-else-if="col === 'industry_sectors'">
                                             <span v-if="row[col]" class="sector-tag sector-industry" :title="row[col]">{{ row[col].split(',')[0] }}<span v-if="row[col].split(',').length > 1" style="color:var(--text-dim);">+{{ row[col].split(',').length - 1 }}</span></span>

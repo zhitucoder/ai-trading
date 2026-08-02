@@ -1,0 +1,6 @@
+[   94176ms] [ERROR] ReferenceError: currentPage is not defined
+    at Proxy.goToProfileFromScreening (http://localhost:9000/app.js:288:13)
+    at onClick (eval at aP (https://unpkg.com/vue@3.4/dist/vue.global.prod.js:9:318), <anonymous>:810:113)
+    at tP (https://unpkg.com/vue@3.4/dist/vue.global.prod.js:5:16075)
+    at tF (https://unpkg.com/vue@3.4/dist/vue.global.prod.js:5:16143)
+    at HTMLTableRowElement.n (https://unpkg.com/vue@3.4/dist/vue.global.prod.js:5:73018) @ https://unpkg.com/vue@3.4/dist/vue.global.prod.js:4

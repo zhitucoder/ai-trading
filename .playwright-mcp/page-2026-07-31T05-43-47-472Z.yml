@@ -1,0 +1,67 @@
+- generic [ref=f1e2]:
+  - complementary [ref=f1e3]:
+    - generic [ref=f1e4]: AITrade
+    - navigation [ref=f1e5]:
+      - generic [ref=f1e6] [cursor=pointer]:
+        - generic [ref=f1e7]: ▲
+        - text: 强势板块
+      - generic [ref=f1e8] [cursor=pointer]:
+        - generic [ref=f1e9]: ★
+        - text: 强势个股
+      - generic [ref=f1e10] [cursor=pointer]:
+        - generic [ref=f1e11]: ⊞
+        - text: 选股策略
+      - generic [ref=f1e12] [cursor=pointer]:
+        - generic [ref=f1e13]: ◐
+        - text: VCP波动收缩
+      - generic [ref=f1e14] [cursor=pointer]:
+        - generic [ref=f1e15]: ⇄
+        - text: 回测策略
+      - generic [ref=f1e16] [cursor=pointer]:
+        - generic [ref=f1e17]: ◈
+        - text: 股票画像
+      - generic [ref=f1e18] [cursor=pointer]:
+        - generic [ref=f1e19]: ⚖
+        - text: AI多空辩论
+      - generic [ref=f1e20] [cursor=pointer]:
+        - generic [ref=f1e21]: ⚗
+        - text: 蒸馏专家
+      - generic [ref=f1e22] [cursor=pointer]:
+        - generic [ref=f1e23]: ✦
+        - text: 智能问数
+      - generic [ref=f1e24] [cursor=pointer]:
+        - generic [ref=f1e25]: ⚙
+        - text: 数据管理
+  - generic [ref=f1e26]:
+    - generic [ref=f1e27]:
+      - heading "选股策略" [level=2] [ref=f1e28]
+      - generic [ref=f1e29]: 智能筛选
+    - generic [ref=f1e30]:
+      - generic [ref=f1e31]:
+        - button "技术指标" [ref=f1e32] [cursor=pointer]
+        - button "基本面指标" [ref=f1e33] [cursor=pointer]
+        - button "组合筛选" [ref=f1e34] [cursor=pointer]
+        - button "⚡ Minervini" [ref=f1e35] [cursor=pointer]
+        - button "↺ 困境反转" [ref=f1e36] [cursor=pointer]
+        - button "◉ 倍量柱" [ref=f1e37] [cursor=pointer]
+        - button "▣ 五步筛选" [active] [ref=f1e38] [cursor=pointer]
+      - generic [ref=f1e58]:
+        - generic [ref=f1e59]:
+          - generic [ref=f1e60]: ▣
+          - strong [ref=f1e61]: 五步筛选法
+        - paragraph [ref=f1e62]:
+          - strong [ref=f1e63]: 不是找"现在好的公司"，而是找"正在变好的公司"。
+          - text: 从五个维度评分（满分100），筛选经营质量持续改善的候选池：
+          - strong [ref=f1e64]: ROE趋势
+          - text: (30分) +
+          - strong [ref=f1e65]: 现金流质量
+          - text: (25分) +
+          - strong [ref=f1e66]: 毛利率趋势
+          - text: (20分) +
+          - strong [ref=f1e67]: 核心利润
+          - text: (15分) +
+          - strong [ref=f1e68]: 资产负债表
+          - text: (10分) 评分 ≥ 85(⭐⭐⭐备选池首选)，70-84(⭐⭐进入候选池)，50-69(⭐有短板)，<50(排除)数据来源：基于紫金矿业10年财务复盘提炼
+      - generic [ref=f1e69]:
+        - generic [ref=f1e70]: 五步筛选法 ROE趋势/现金流质量/毛利率趋势/核心利润/资产负债表多维度评分(0-100)，筛选经营质量持续改善的公司
+        - button "选择此策略" [ref=f1e72] [cursor=pointer]

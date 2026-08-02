@@ -521,12 +521,12 @@ def report_trend(stock_code: str):
 <div id=chart><canvas id=c></canvas></div>
 <div class=legend><span style=color:#6495ed>■ 营收(亿)</span><span style=color:#ffd700>■ 净利润(亿)</span><span style=color:#ff6b6b>■ 净利增长率%</span><span style=color:#4ecdc4>■ 周K</span></div>
 <script>var d={data_json};!function(){{var c=document.getElementById('c'),p=c.parentElement,ctx=c.getContext('2d'),W=p.clientWidth,H=p.clientHeight,pr=window.devicePixelRatio||1;c.width=W*pr;c.height=H*pr;c.style.width=W+'px';c.style.height=H+'px';ctx.scale(pr,pr);
-var pad={{top:32,bottom:32,left:50,right:50}},cw=W-pad.left-pad.right,ch=H-pad.top-pad.bottom,n=d.years.length,xs=d.years.map((_,i)=>pad.left+cw*i/(n-1||1)),rMax=Math.max(...d.revenues)*1.15,pMin=Math.min(...d.profits)*1.1,pMax=Math.max(...d.profits)*1.15,pR=pMax-pMin||1,gv=d.growth_rates.filter(v=>v!=null),gMin=Math.min(...gv)*1.1,gMax=Math.max(...gv)*1.15,gR=gMax-gMin||1;
-var pk=d.weekly_kline||[],pm=0;pk.forEach(function(b){{if(b.h>pm)pm=b.h}});pm*=1.15;
+var pad={{top:8,bottom:32,left:50,right:50}},cw=W-pad.left-pad.right,ch=H-pad.top-pad.bottom,n=d.years.length,xs=d.years.map((_,i)=>pad.left+cw*i/(n-1||1)),rMax=Math.max(...d.revenues)*1.15,pMin=Math.min(...d.profits)*1.1,pMax=Math.max(...d.profits)*1.15,pR=pMax-pMin||1,gv=d.growth_rates.filter(v=>v!=null),gMin=Math.min(...gv)*1.1,gMax=Math.max(...gv)*1.15,gR=gMax-gMin||1;
+var pk=d.weekly_kline||[],pl=Infinity,pm=0;pk.forEach(function(b){{if(b.l<pl)pl=b.l;if(b.h>pm)pm=b.h}});var pSpan=(pm-pl)||1,pl2=pl-0.1*pSpan,pm2=pm+0.1*pSpan,pSpan2=(pm2-pl2)||1;
 function yr(v){{return pad.top+ch*(1-v/rMax)}}
 function yp(v){{return pad.top+ch*(1-(v-pMin)/pR)}}
 function yg(v){{return pad.top+ch*(1-(v-gMin)/gR)}}
-function ypr(v){{return pad.top+ch*(1-v/pm)}}
+function ypr(v){{return pad.top+ch*(1-(v-pl2)/pSpan2)}}
 var ys=d.years[0],ye=d.years[n-1],ms=new Date(ys,0,1).getTime(),me=new Date(ye,11,31).getTime(),mr=me-ms||1;
 function dx(s){{return pad.left+cw*(new Date(s).getTime()-ms)/mr}}
 ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=1;for(var i=0;i<=4;i++){{var y=pad.top+ch*i/4;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(pad.left+cw,y);ctx.stroke()}}
@@ -535,7 +535,7 @@ ctx.beginPath();ctx.strokeStyle='#ffd700';ctx.lineWidth=2.5;for(var i=0;i<n;i++)
 ctx.beginPath();ctx.setLineDash([6,3]);ctx.strokeStyle='#ff6b6b';ctx.lineWidth=2;for(var i=0;i<n;i++){{var v=d.growth_rates[i];if(v==null)continue;var y=yg(v);i===0||d.growth_rates[i-1]==null?ctx.moveTo(xs[i],y):ctx.lineTo(xs[i],y)}}ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#ff6b6b';for(var i=0;i<n;i++){{var v=d.growth_rates[i];if(v==null)continue;ctx.beginPath();ctx.arc(xs[i],yg(v),3,0,Math.PI*2);ctx.fill()}}
 if(pk.length>0){{var cw2=Math.max(1,Math.min(6,cw/pk.length*0.6));for(var i=0;i<pk.length;i++){{var b=pk[i],x=dx(b.date),yO=ypr(b.o),yC=ypr(b.c),yH=ypr(b.h),yL=ypr(b.l),up=b.c>=b.o;ctx.strokeStyle=up?'#ef4444':'#10b981';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,yH);ctx.lineTo(x,yL);ctx.stroke();var bt=Math.min(yO,yC),bh=Math.max(Math.abs(yO-yC),1);ctx.fillStyle=up?'#ef4444':'#10b981';ctx.fillRect(x-cw2/2,bt,cw2,bh)}}}}
 ctx.fillStyle='#ccc';ctx.font='10px sans-serif';ctx.textAlign='right';for(var i=0;i<=4;i++){{ctx.fillText(Math.round(rMax*i/4)+'亿',pad.left-6,pad.top+ch*(1-i/4)+4)}}
-ctx.textAlign='left';ctx.fillStyle='#86f7dc';for(var i=0;i<=4;i++){{ctx.fillText(Math.round(pm*i/4)+'元',pad.left+cw+6,pad.top+ch*(1-i/4)+4)}}
+ctx.textAlign='left';ctx.fillStyle='#86f7dc';for(var i=0;i<=4;i++){{ctx.fillText(Math.round(pm2*i/4)+'元',pad.left+cw+6,pad.top+ch*(1-i/4)+4)}}
 ctx.fillStyle='#e2e8f0';ctx.font='11px sans-serif';ctx.textAlign='center';for(var i=0;i<n;i++){{ctx.fillText(d.years[i],xs[i],H-pad.bottom+16)}}
 }}();</script></html>"""
 

@@ -1,0 +1,62 @@
+- generic [ref=f1e2]:
+  - complementary [ref=f1e3]:
+    - generic [ref=f1e4]: AITrade
+    - navigation [ref=f1e5]:
+      - generic [ref=f1e6] [cursor=pointer]:
+        - generic [ref=f1e7]: ▲
+        - text: 强势板块
+      - generic [ref=f1e8] [cursor=pointer]:
+        - generic [ref=f1e9]: ★
+        - text: 强势个股
+      - generic [ref=f1e10] [cursor=pointer]:
+        - generic [ref=f1e11]: ⊞
+        - text: 选股策略
+      - generic [ref=f1e12] [cursor=pointer]:
+        - generic [ref=f1e13]: ◐
+        - text: VCP波动收缩
+      - generic [ref=f1e14] [cursor=pointer]:
+        - generic [ref=f1e15]: ⇄
+        - text: 回测策略
+      - generic [ref=f1e16] [cursor=pointer]:
+        - generic [ref=f1e17]: ◈
+        - text: 股票画像
+      - generic [ref=f1e18] [cursor=pointer]:
+        - generic [ref=f1e19]: ⚖
+        - text: AI多空辩论
+      - generic [ref=f1e20] [cursor=pointer]:
+        - generic [ref=f1e21]: ⚗
+        - text: 蒸馏专家
+      - generic [ref=f1e22] [cursor=pointer]:
+        - generic [ref=f1e23]: ✦
+        - text: 智能问数
+      - generic [ref=f1e24] [cursor=pointer]:
+        - generic [ref=f1e25]: ⚙
+        - text: 数据管理
+  - generic [ref=f1e26]:
+    - generic [ref=f1e27]:
+      - heading "选股策略" [level=2] [ref=f1e28]
+      - generic [ref=f1e29]: 智能筛选
+    - generic [ref=f1e30]:
+      - generic [ref=f1e31]:
+        - button "技术指标" [ref=f1e32] [cursor=pointer]
+        - button "基本面指标" [ref=f1e33] [cursor=pointer]
+        - button "组合筛选" [ref=f1e34] [cursor=pointer]
+        - button "⚡ Minervini" [ref=f1e35] [cursor=pointer]
+        - button "↺ 困境反转" [ref=f1e36] [cursor=pointer]
+        - button "◉ 倍量柱" [ref=f1e37] [cursor=pointer]
+        - button "▣ 五步筛选" [ref=f1e38] [cursor=pointer]
+      - generic [ref=f1e39]:
+        - generic [ref=f1e40]: 均线多头排列 MA5 > MA10 > MA20 > MA60，短中期均线多头向上发散
+        - generic [ref=f1e42]:
+          - generic [ref=f1e43]: 均线周期（逗号分隔）
+          - textbox "5,10,20,60" [ref=f1e44]
+        - button "选择此策略" [ref=f1e46] [cursor=pointer]
+      - generic [ref=f1e47]:
+        - generic [ref=f1e48]: 量化突破（横盘+大阳线） 横盘N日（涨跌幅≤4%，箱体振幅≤12%）+ 今日大阳线突破（涨幅≥7%）
+        - generic [ref=f1e49]:
+          - generic [ref=f1e50]:
+            - generic [ref=f1e51]: 横盘观察天数 (N)
+            - spinbutton [ref=f1e52]: "20"
+            - generic [ref=f1e53]: 默认 20 天
+          - generic [ref=f1e54]: 条件①：N日内每日涨跌幅 ≤ ±4%，箱体振幅 ≤ 12% 条件②：今日大阳线突破，涨幅 ≥ 7%
+        - button "选择此策略" [ref=f1e57] [cursor=pointer]

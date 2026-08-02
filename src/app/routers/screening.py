@@ -5,6 +5,7 @@ from ..strategies.fundamental import FUNDAMENTAL_STRATEGIES, screen_revenue_grow
 from ..strategies.minervini import MINERVINI_STRATEGIES, screen_minervini_eps, screen_minervini_roe, screen_minervini_trend_template, screen_sepa_master
 from ..strategies.turnaround import TURNAROUND_STRATEGIES, screen_turnaround
 from ..strategies.volume_surge import VOLUME_SURGE_STRATEGIES, screen_volume_surge
+from ..strategies.five_step import FIVE_STEP_STRATEGIES, screen_five_step
 from ..database import query
 
 router = APIRouter()
@@ -40,6 +41,9 @@ def list_strategies():
         ],
         'volume_surge': [
             {'id': k, **v} for k, v in VOLUME_SURGE_STRATEGIES.items()
+        ],
+        'five_step': [
+            {'id': k, **v} for k, v in FIVE_STEP_STRATEGIES.items()
         ],
     }
 
@@ -140,6 +144,13 @@ def execute_screening(
         cols = ['industry_sectors', 'concept_sectors',
                 'king1_date', 'king1_close', 'king1_ratio',
                 'king2_date', 'king2_close', 'king2_ratio', 'gap_days', 'consecutive_king_confirmed']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
+
+    if strategy_id == 'five_step_screen':
+        rows = screen_five_step()
+        cols = ['total_score', 'score_grade',
+                'roe_score', 'ocf_score', 'margin_score', 'cp_score', 'bs_score',
+                'roe_current', 'margin_current', 'ocf_ratio', 'debt_ratio', 'report_date']
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     return {'error': f'Unknown strategy: {strategy_id}'}
