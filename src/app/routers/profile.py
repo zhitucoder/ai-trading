@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from ..database import query, execute
 from ..strategies.profile import generate_profile
+from ..strategies.stock_intro import get_stock_intro
 from ..profile_batch import run_batch, TAG_COLUMNS
 
 router = APIRouter()
@@ -21,8 +22,33 @@ def get_profile(stock_code: str, refresh: bool = False):
                   "ORDER BY trade_date DESC LIMIT 1", [stock_code])
         if r and r[0]['profile_json']:
             raw = r[0]['profile_json']
-            return json.loads(raw) if isinstance(raw, str) else raw
-    return generate_profile(stock_code)
+            data = json.loads(raw) if isinstance(raw, str) else raw
+        else:
+            data = generate_profile(stock_code)
+    else:
+        data = generate_profile(stock_code)
+    from ..strategies.dividend import get_dividend_summary
+    data['intro'] = get_stock_intro(stock_code)
+    data['dividend'] = get_dividend_summary(stock_code, latest_price=data.get('latest_price'))
+    return data
+
+
+# ── 人工维护公司介绍 ──
+class IntroUpsert(BaseModel):
+    text: str
+    positioning_status: str = 'unknown'
+    positioning_label: Optional[str] = None
+    chain_position: Optional[str] = None
+
+
+@router.post('/profile/{stock_code}/intro')
+def set_stock_intro(stock_code: str, body: IntroUpsert):
+    from ..strategies.stock_intro import upsert_stock_intro
+    name_row = query("SELECT stock_name FROM stocks WHERE stock_code = %s", [stock_code])
+    name = name_row[0]['stock_name'] if name_row else stock_code
+    upsert_stock_intro(stock_code, name, body.text, body.positioning_status,
+                       body.positioning_label, body.chain_position, source='manual')
+    return {'status': 'ok', 'intro': get_stock_intro(stock_code)}
 
 
 # ── 画像状态 ──
@@ -185,6 +211,11 @@ class SearchRequest(BaseModel):
     roe_max: Optional[float] = None
     roe_ttm_min: Optional[float] = None
     roe_ttm_max: Optional[float] = None
+    dividend_yield_min: Optional[float] = None
+    dividend_yield_max: Optional[float] = None
+    has_dividend_this_year: Optional[bool] = None
+    consecutive_dividend_years: Optional[int] = None
+    has_mid_year_dividend: Optional[bool] = None
     zxm_asset_weight: Optional[str] = None
     zxm_hematopoiesis: Optional[str] = None
     zxm_margin_level: Optional[str] = None
@@ -316,8 +347,27 @@ def search_profiles(body: SearchRequest):
             conditions.append(f'p.{col} IS NOT NULL AND p.{col} {op} %({field})s')
             params[field] = val
 
+    dividend_filters = [
+        ('dividend_yield_min', 'dividend_yield', '>='),
+        ('dividend_yield_max', 'dividend_yield', '<='),
+    ]
+    for field, col, op in dividend_filters:
+        val = getattr(body, field, None)
+        if val is not None:
+            conditions.append(f'p.{col} IS NOT NULL AND p.{col} {op} %({field})s')
+            params[field] = val
+
+    if body.has_dividend_this_year:
+        conditions.append('p.has_dividend_this_year = TRUE')
+    if body.has_mid_year_dividend:
+        conditions.append('p.has_mid_year_dividend = TRUE')
+    if body.consecutive_dividend_years:
+        conditions.append('p.consecutive_dividend_years >= %(cdy)s')
+        params['cdy'] = body.consecutive_dividend_years
+
     sort_col = 'p.tech_score'
-    if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct', 'contract_liab_to_assets',
+    if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct', 'dividend_yield',
+                         'contract_liab_to_assets',
                          'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
                          'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y', 'roe', 'roe_ttm', 'gross_margin'):
         if body.sort_by == 'contract_liab_to_assets':
@@ -345,6 +395,7 @@ def search_profiles(body: SearchRequest):
                p.stage_id, p.stage_confidence, p.tech_score, p.fund_score,
                p.revenue_growth, p.net_profit_growth, p.debt_ratio,
                p.roe, p.roe_ttm, p.gross_margin, p.prev_year_revenue,
+               p.dividend_yield,
                p.rev_cagr_3y, p.rev_cagr_5y, p.rev_cagr_10y,
                p.profit_cagr_3y, p.profit_cagr_5y, p.profit_cagr_10y,
                JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS contract_liab_to_assets,
@@ -415,6 +466,53 @@ def list_sectors(category: str = Query('industry', regex='^(industry|concept)$')
         WHERE category = %s ORDER BY sector_code
     """, [category])
     return {'rows': rows}
+
+
+# ── 分红列表 ──
+@router.get('/dividends/list')
+def list_dividends(year: Optional[int] = None, is_mid: Optional[int] = None,
+                   sort: str = 'ex_dividend_date', order: str = 'desc',
+                   page: int = 1, page_size: int = 50):
+    where = []
+    params = {}
+    if year:
+        where.append('d.ex_dividend_date LIKE %(year)s')
+        params['year'] = f'{year}%'
+    if is_mid is not None:
+        if is_mid == 2:
+            where.append('d.is_mid_year = 0')
+        else:
+            where.append('d.is_mid_year = %(is_mid)s')
+            params['is_mid'] = 1 if is_mid else 0
+    if sort not in ('ex_dividend_date', 'report_date', 'cash_per_10', 'dividend_yield', 'payout_ratio'):
+        sort = 'ex_dividend_date'
+    sort_col = f'd.{sort}'
+    sort_dir = 'DESC' if order == 'desc' else 'ASC'
+
+    where_sql = (' WHERE ' + ' AND '.join(where)) if where else ''
+    total = query(f"SELECT COUNT(*) AS c FROM stock_dividend d{where_sql}", params)[0]['c']
+    offset = (page - 1) * page_size
+    rows = query(f"""
+        SELECT d.stock_code, s.stock_name, d.report_date, d.assign_progress,
+               d.plan_profile, d.cash_per_10, d.bonus_per_share, d.send_ratio,
+               d.trans_ratio, d.dividend_yield, d.payout_ratio, d.eps,
+               d.ex_dividend_date, d.equity_record_date, d.notice_date, d.is_mid_year
+        FROM stock_dividend d
+        LEFT JOIN stocks s ON s.stock_code = d.stock_code
+        {where_sql}
+        ORDER BY {sort_col} {sort_dir}
+        LIMIT %(lo)s OFFSET %(of)s
+    """, {**params, 'lo': page_size, 'of': offset})
+
+    for r in rows:
+        if r['dividend_yield'] is not None:
+            r['dividend_yield'] = round(float(r['dividend_yield']) * 100, 2)
+        r['report_date'] = str(r['report_date']) if r['report_date'] else None
+        r['ex_dividend_date'] = str(r['ex_dividend_date']) if r['ex_dividend_date'] else None
+        r['equity_record_date'] = str(r['equity_record_date']) if r['equity_record_date'] else None
+        r['notice_date'] = str(r['notice_date']) if r['notice_date'] else None
+
+    return {'total': total, 'page': page, 'page_size': page_size, 'rows': rows}
 
 
 @router.get('/stocks/search')

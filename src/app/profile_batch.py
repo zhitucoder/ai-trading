@@ -34,6 +34,10 @@ def _to_profile_row(result, report_date, fin_report_date):
         'fund_score': result['scores']['fund'],
         'latest_price': result['latest_price'],
         'price_change_pct': result['price_change_pct'],
+        'dividend_yield': (result.get('dividend') or {}).get('yield_pct'),
+        'has_dividend_this_year': 1 if (result.get('dividend') or {}).get('this_year_cash_per_share') else 0,
+        'consecutive_dividend_years': (result.get('dividend') or {}).get('consecutive_years') or 0,
+        'has_mid_year_dividend': 1 if (result.get('dividend') or {}).get('plan', {}).get('is_mid_year') else 0,
         'revenue_growth': fin.get('revenue_growth_rate'),
         'net_profit_growth': fin.get('net_profit_growth_rate'),
         'debt_ratio': fin.get('debt_ratio'),
@@ -62,10 +66,11 @@ def _batch_insert(rows, conn):
     if not rows:
         return
     cols = (
-        ['stock_code', 'stock_name', 'trade_date',
-         'stage_id', 'stage_confidence', 'tech_score', 'fund_score',
-         'latest_price', 'price_change_pct',
-         'revenue_growth', 'net_profit_growth', 'debt_ratio', 'roe', 'roe_ttm',
+         ['stock_code', 'stock_name', 'trade_date',
+          'stage_id', 'stage_confidence', 'tech_score', 'fund_score',
+          'latest_price', 'price_change_pct', 'dividend_yield',
+          'has_dividend_this_year', 'consecutive_dividend_years', 'has_mid_year_dividend',
+          'revenue_growth', 'net_profit_growth', 'debt_ratio', 'roe', 'roe_ttm',
          'gross_margin', 'prev_year_revenue',
          'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
          'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y',

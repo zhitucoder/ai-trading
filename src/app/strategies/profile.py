@@ -1,6 +1,7 @@
 import math
 from ..database import query
 from datetime import datetime, timedelta
+from .dividend import get_dividend_summary
 
 IND_TAGS_DEF = {
     'ind.ma5_above_ma10': {'name': 'MA5 > MA10', 'group': '均线'},
@@ -1218,4 +1219,5 @@ def generate_profile(stock_code):
         'gross_margin_growth_q': quarterly_growth[-1]['gross_margin_growth'] if quarterly_growth and len(quarterly_growth) > 0 else None,
         'gm_growth_prev_yr': _find_prev_year_gm_growth(quarterly_growth),
         'quarterly_growth': quarterly_growth,
+        'dividend': get_dividend_summary(stock_code, latest_price=latest_price),
     }

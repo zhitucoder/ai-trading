@@ -1,6 +1,7 @@
 import os
 import re
 import struct
+import sys
 import threading
 from datetime import datetime, date
 from fastapi import APIRouter
@@ -63,6 +64,9 @@ def data_status():
     fin = query("SELECT MAX(report_date) AS d, COUNT(*) AS cnt FROM fin_income")
     fin_row = fin[0] if fin else {}
 
+    div = query("SELECT MAX(updated_at) AS d, COUNT(DISTINCT stock_code) AS sc, COUNT(*) AS cnt, MAX(report_date) AS rd FROM stock_dividend")
+    div_row = div[0] if div else {}
+
     return {
         'kline': {
             'latest_date': str(kline_row.get('max_date') or ''),
@@ -75,6 +79,12 @@ def data_status():
         'financial': {
             'latest_date': str(fin_row.get('d') or ''),
             'record_count': fin_row.get('cnt') or 0,
+        },
+        'dividend': {
+            'latest_update': str(div_row.get('d') or ''),
+            'stock_count': div_row.get('sc') or 0,
+            'record_count': div_row.get('cnt') or 0,
+            'latest_report_date': str(div_row.get('rd') or ''),
         },
         'sector': {'status': 'pending', 'message': '待接入'},
     }
@@ -294,3 +304,30 @@ def update_financial():
 @router.post('/data/update-sector')
 def update_sector():
     return {'status': 'ok', 'message': '板块分类同步功能待接入'}
+
+
+@router.post('/data/update-dividend')
+def update_dividend():
+    if not _update_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '更新任务已在执行中'}
+    try:
+        import subprocess
+        from pathlib import Path
+        latest = query("SELECT MAX(updated_at) AS d FROM stock_dividend")[0]['d']
+        since = latest.date() if latest else date(2021, 1, 1)
+        script = Path(__file__).resolve().parent.parent.parent.parent / 'scripts' / 'fetch_dividend.py'
+        proc = subprocess.run(
+            [sys.executable, str(script), '--since', str(since), '--workers', '8'],
+            capture_output=True, text=True, timeout=600,
+        )
+        if proc.returncode != 0:
+            return {'status': 'error', 'message': proc.stderr[-500:]}
+        return {
+            'status': 'ok',
+            'since': str(since),
+            'message': proc.stdout.strip()[-300:],
+        }
+    except subprocess.TimeoutExpired:
+        return {'status': 'error', 'message': '抓取超时（>10分钟）'}
+    finally:
+        _update_lock.release()

@@ -40,6 +40,7 @@ const app = createApp({
             { id: 'vcp', label: 'VCP波动收缩', icon: '◐' },
             { id: 'bt_strategies', label: '回测策略', icon: '⇄' },
             { id: 'profile', label: '股票画像', icon: '◈' },
+            { id: 'dividend', label: '分红列表', icon: '❖' },
             { id: 'debate', label: 'AI多空辩论', icon: '⚖' },
             { id: 'expert', label: '蒸馏专家', icon: '⚗' },
             { id: 'query', label: '智能问数', icon: '✦' },
@@ -811,6 +812,104 @@ app.component('profile-page', {
         const error = ref('');
         const finChartLoading = ref(false);
         const finChartCanvas = ref(null);
+        const divChartCanvas = ref(null);
+
+        let divChartGeo = null;
+        function loadDivChart() {
+            const c = divChartCanvas.value;
+            const div = profile.value && profile.value.dividend;
+            if (!c || !div || !div.trend || !div.trend.length) return;
+            const p = c.parentElement, ctx = c.getContext('2d');
+            const W = p.clientWidth, H = p.clientHeight, pr = window.devicePixelRatio || 1;
+            c.width = W * pr; c.height = H * pr; c.style.width = W + 'px'; c.style.height = H + 'px';
+            ctx.scale(pr, pr);
+            const pad = { top: 12, bottom: 26, left: 44, right: 40 };
+            const cw = W - pad.left - pad.right, ch = H - pad.top - pad.bottom;
+            const n = div.trend.length;
+            const xs = div.trend.map((_, i) => pad.left + cw * (n === 1 ? 0.5 : i / (n - 1)));
+            const cashMax = Math.max(...div.trend.map(t => t.cash_per_share || 0)) * 1.15 || 1;
+            const ylds = div.trend.map(t => t.dividend_yield).filter(v => v != null);
+            const yldMax = (ylds.length ? Math.max(...ylds) : 0) * 1.2 || 1;
+            const barW = Math.min(28, cw / n * 0.55);
+            function yc(v) { return pad.top + ch * (1 - v / cashMax); }
+            function yy(v) { return pad.top + ch * (1 - v / yldMax); }
+            divChartGeo = { ctx, W, H, pad, cw, ch, xs, cashMax, yldMax, barW, yc, yy, trend: div.trend };
+
+            function draw() {
+                ctx.clearRect(0, 0, W, H);
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const y = pad.top + ch * i / 4;
+                    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+                }
+                div.trend.forEach((t, i) => {
+                    const x = xs[i], bh = ch * (t.cash_per_share || 0) / cashMax;
+                    ctx.fillStyle = 'rgba(100,149,237,0.7)';
+                    ctx.fillRect(x - barW / 2, pad.top + ch - bh, barW, bh);
+                });
+                ctx.beginPath(); ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
+                let started = false;
+                div.trend.forEach((t, i) => {
+                    if (t.dividend_yield == null) return;
+                    const y = yy(t.dividend_yield);
+                    started ? ctx.lineTo(xs[i], y) : (ctx.moveTo(xs[i], y), started = true);
+                });
+                ctx.stroke();
+                ctx.fillStyle = '#ffd700';
+                div.trend.forEach((t, i) => {
+                    if (t.dividend_yield == null) return;
+                    ctx.beginPath(); ctx.arc(xs[i], yy(t.dividend_yield), 2.5, 0, Math.PI * 2); ctx.fill();
+                });
+                ctx.fillStyle = '#ccc'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+                for (let i = 0; i <= 4; i++) {
+                    ctx.fillText((cashMax * i / 4).toFixed(1), pad.left - 6, pad.top + ch * (1 - i / 4) + 3);
+                }
+                ctx.textAlign = 'left'; ctx.fillStyle = '#86f7dc';
+                for (let i = 0; i <= 4; i++) {
+                    ctx.fillText((yldMax * i / 4).toFixed(1) + '%', pad.left + cw + 6, pad.top + ch * (1 - i / 4) + 3);
+                }
+                ctx.fillStyle = '#e2e8f0'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+                div.trend.forEach((t, i) => {
+                    ctx.fillText(t.year, xs[i], H - pad.bottom + 14);
+                    if (t.times > 1) ctx.fillText('×' + t.times, xs[i], pad.top + 8);
+                });
+            }
+
+            function onMove(ev) {
+                const rect = c.getBoundingClientRect();
+                const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+                const g = divChartGeo;
+                let idx = -1, best = 1e9;
+                g.xs.forEach((x, i) => { const d = Math.abs(mx - x); if (d < best) { best = d; idx = i; } });
+                if (idx < 0 || best > g.barW) { draw(); return; }
+                const t = g.trend[idx];
+                const x = g.xs[idx], bh = g.ch * (t.cash_per_share || 0) / g.cashMax;
+                const barTop = g.pad.top + g.ch - bh;
+                if (my < barTop - 4 || my > g.pad.top + g.ch) { draw(); return; }
+                draw();
+                const lines = [
+                    `${t.year}年 每股派息：${t.cash_per_share != null ? t.cash_per_share.toFixed(2) : '-'}元`,
+                    t.dividend_yield != null ? `股息率：${t.dividend_yield.toFixed(2)}%` : '股息率：-',
+                    `分红次数：${t.times}次`,
+                ];
+                const tw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16;
+                const th = lines.length * 16 + 10;
+                const tx = Math.min(Math.max(x - tw / 2, 4), W - tw - 4);
+                const ty = Math.max(barTop - th - 8, 4);
+                ctx.fillStyle = 'rgba(20,20,35,0.92)';
+                ctx.strokeStyle = 'rgba(100,149,237,0.6)';
+                ctx.beginPath(); ctx.roundRect(tx, ty, tw, th, 4); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+                lines.forEach((l, i) => ctx.fillText(l, tx + 8, ty + 16 + i * 16));
+                ctx.fillStyle = 'rgba(100,149,237,0.95)';
+                ctx.fillRect(x - barW / 2, barTop, barW, bh);
+            }
+
+            c.onmousemove = onMove;
+            c.onmouseleave = () => draw();
+            draw();
+        }
+
 
         async function loadProfile() {
             if (!stockCode.value) return;
@@ -826,6 +925,7 @@ app.component('profile-page', {
                     loadFinChart();
                     loadZxmTags();
                     checkWatchlist();
+                    nextTick(loadDivChart);
                 }
             } catch (e) {
                 error.value = '请求失败: ' + e.message;
@@ -865,6 +965,14 @@ app.component('profile-page', {
             if (idx === 0 || item.rate == null) return '';
             const prev = trend[idx - 1];
             return prev.rate != null && item.rate >= prev.rate ? 'up' : 'down';
+        }
+
+        function introStatusName(status) {
+            return { unchanged: '定位未变', transforming: '转型中', diversifying: '跨界延伸', pivoting: '战略转向', unknown: '定位待补充' }[status] || '定位待补充';
+        }
+
+        function chainName(position) {
+            return { upstream: '上游', midstream: '中游', downstream: '下游' }[position] || position;
         }
 
         const zxmTags = ref(null);
@@ -1174,6 +1282,11 @@ app.component('profile-page', {
         const filterRoeMax = ref(null);
         const filterRoeTtmMin = ref(null);
         const filterRoeTtmMax = ref(null);
+        const filterDividendYieldMin = ref(null);
+        const filterDividendYieldMax = ref(null);
+        const filterHasDivThisYear = ref(false);
+        const filterHasMidYear = ref(false);
+        const filterConsecutiveDivYears = ref(null);
         const filterRevCagr3yMin = ref(null);
         const filterRevCagr3yMax = ref(null);
         const filterRevCagr5yMin = ref(null);
@@ -1425,8 +1538,13 @@ app.component('profile-page', {
                     contract_liab_max: filterContractLiabMax.value || null,
                     roe_min: filterRoeMin.value || null,
                     roe_max: filterRoeMax.value || null,
-                    roe_ttm_min: filterRoeTtmMin.value || null,
-                    roe_ttm_max: filterRoeTtmMax.value || null,
+                roe_ttm_min: filterRoeTtmMin.value || null,
+                roe_ttm_max: filterRoeTtmMax.value || null,
+                dividend_yield_min: filterDividendYieldMin.value || null,
+                dividend_yield_max: filterDividendYieldMax.value || null,
+                has_dividend_this_year: filterHasDivThisYear.value || null,
+                has_mid_year_dividend: filterHasMidYear.value || null,
+                consecutive_dividend_years: filterConsecutiveDivYears.value || null,
                     rev_cagr_3y_min: filterRevCagr3yMin.value || null,
                     rev_cagr_3y_max: filterRevCagr3yMax.value || null,
                     rev_cagr_5y_min: filterRevCagr5yMin.value || null,
@@ -1489,6 +1607,11 @@ app.component('profile-page', {
             filterRoeMax.value = null;
             filterRoeTtmMin.value = null;
             filterRoeTtmMax.value = null;
+            filterDividendYieldMin.value = null;
+            filterDividendYieldMax.value = null;
+            filterHasDivThisYear.value = false;
+            filterHasMidYear.value = false;
+            filterConsecutiveDivYears.value = null;
             filterRevCagr3yMin.value = null;
             filterRevCagr3yMax.value = null;
             filterRevCagr5yMin.value = null;
@@ -1607,13 +1730,15 @@ app.component('profile-page', {
         });
 
         return {
-            activeTab, stockCode, loading, profile, error, finChartLoading, finChartCanvas,
-            loadProfile, loadFinChart, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile,
+            activeTab, stockCode, loading, profile, error, finChartLoading, finChartCanvas, divChartCanvas,
+            loadProfile, loadFinChart, loadDivChart, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile, introStatusName, chainName,
             stageOptions, selectedStages, filterTechScore, filterFundScore,
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
             filterGmGrowthQ, filterGmGrowth2y,
             filterContractLiabMin, filterContractLiabMax,
             filterRoeMin, filterRoeMax, filterRoeTtmMin, filterRoeTtmMax,
+            filterDividendYieldMin, filterDividendYieldMax,
+            filterHasDivThisYear, filterHasMidYear, filterConsecutiveDivYears,
             filterRevCagr3yMin, filterRevCagr3yMax, filterRevCagr5yMin, filterRevCagr5yMax,
             filterProfitCagr3yMin, filterProfitCagr3yMax, filterProfitCagr5yMin, filterProfitCagr5yMax,
             growthTagOptions, selectedGrowthTags,
@@ -1630,6 +1755,87 @@ app.component('profile-page', {
             inWatchlist, watchlistLoading, watchlistData, watchlistCount,
             addToWatchlist, removeFromWatchlist, loadWatchlist,
         };
+    },
+});
+
+app.component('dividend-page', {
+    template: '#dividend-tpl',
+    setup() {
+        const currentPage = inject('currentPage');
+        const years = ref([]);
+        for (let y = new Date().getFullYear(); y >= 2018; y--) years.value.push(y);
+        const year = ref(new Date().getFullYear());
+        const isMid = ref(0);
+        const sort = ref('ex_dividend_date');
+        const order = ref('desc');
+        const page = ref(1);
+        const pageSize = ref(50);
+        const total = ref(0);
+        const rows = ref([]);
+        const loading = ref(false);
+        const error = ref('');
+
+        async function loadList() {
+            loading.value = true;
+            error.value = '';
+            try {
+                const params = new URLSearchParams({
+                    year: year.value || '', is_mid: isMid.value, sort: sort.value, order: order.value,
+                    page: page.value, page_size: pageSize.value,
+                });
+                const r = await fetch(`${API_BASE}/dividends/list?${params}`);
+                const d = await r.json();
+                if (d.error) error.value = d.error;
+                else { rows.value = d.rows; total.value = d.total; }
+            } catch (e) { error.value = e.message; } finally { loading.value = false; }
+        }
+
+        function toggleSort(col) {
+            if (sort.value === col) { order.value = order.value === 'desc' ? 'asc' : 'desc'; }
+            else { sort.value = col; order.value = 'desc'; }
+            page.value = 1;
+            loadList();
+        }
+
+        function sortArrow(col) {
+            if (sort.value !== col) return '';
+            return order.value === 'desc' ? '↓' : '↑';
+        }
+
+        function goStock(code) {
+            window._profileStockCode = code;
+            currentPage.value = 'profile';
+        }
+
+        function onFilter() { page.value = 1; loadList(); }
+
+        function yieldTip(row) {
+            if (row.dividend_yield == null) return '';
+            return `股息率 = 每股派息 ${row.bonus_per_share ?? '-'}元 ÷ 除息日股价 × 100% = ${row.dividend_yield.toFixed(2)}%\n即一年现金分红相对股价的回报率`;
+        }
+
+        function payoutTip(row) {
+            if (row.payout_ratio == null) return '';
+            return `派息率（分红比例）= 每股派息 ${row.bonus_per_share ?? '-'}元 ÷ 每股收益 ${row.eps ?? '-'}元 × 100% = ${row.payout_ratio.toFixed(1)}%\n即当年利润中拿来分红的比例`;
+        }
+
+        const planWidth = ref(260);
+        function startResize(ev) {
+            const startX = ev.clientX;
+            const startW = planWidth.value;
+            const onMove = (e) => {
+                planWidth.value = Math.max(120, startW + (e.clientX - startX));
+            };
+            const onUp = () => {
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+            };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+        }
+
+        onMounted(loadList);
+        return { years, year, isMid, sort, order, page, pageSize, total, rows, loading, error, loadList, toggleSort, sortArrow, goStock, onFilter, yieldTip, payoutTip, planWidth, startResize };
     },
 });
 
@@ -2007,6 +2213,40 @@ app.component('data-mgmt-page', {
             }
         }
 
+        const divLoading = ref(false);
+        const divResult = ref('');
+        const divError = ref('');
+
+        const divDotClass = computed(() => {
+            return divLoading.value ? 'dm-dot-sync' : (status.value.dividend?.latest_update ? 'dm-dot-online' : 'dm-dot-pending');
+        });
+
+        const divStatusText = computed(() => {
+            return divLoading.value ? '更新中' : (status.value.dividend?.latest_update ? '已同步' : '待接入');
+        });
+
+        async function updateDividend() {
+            divLoading.value = true;
+            divResult.value = '';
+            divError.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/data/update-dividend`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    divResult.value = '更新任务已在执行中';
+                } else if (data.status === 'error') {
+                    divError.value = data.message || '更新失败';
+                } else {
+                    divResult.value = `增量更新完成（自 ${data.since}）`;
+                    loadStatus();
+                }
+            } catch (e) {
+                divError.value = e.message;
+            } finally {
+                divLoading.value = false;
+            }
+        }
+
         const profileRefreshing = ref(false);
         const refreshProgressBar = ref('');
         const profileRefreshDone = ref('');
@@ -2075,6 +2315,7 @@ app.component('data-mgmt-page', {
         return {
             status, klineLoading, klineResult, klineError,
             finLoading, finResult, finError,
+            divLoading, divResult, divError, divDotClass, divStatusText, updateDividend,
             lastSyncLabel, finDotClass, finStatusText,
             updateKline, updateFinancial,
             profileRefreshDot, profileRefreshStatusText,

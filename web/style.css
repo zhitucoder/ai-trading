@@ -1732,3 +1732,54 @@ tbody tr:last-child td { border-bottom: none; }
 .zxm-tag.down { background: rgba(239,68,68,0.12); color: #ef4444; }
 .zxm-risk { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(239,68,68,0.2); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .zxm-risk-item { padding: 2px 8px; border-radius: 8px; font-size: 11px; background: rgba(239,68,68,0.12); color: #ef4444; }
+
+/* ── 公司介绍与定位卡片 ── */
+.intro-card {
+    border-left: 3px solid var(--accent);
+    padding: 16px 20px;
+    margin-top: 12px;
+    margin-bottom: 12px;
+    background: rgba(255,255,255,0.03);
+}
+.intro-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.intro-badge { padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; color: #000; }
+.intro-badge-transforming { background: #e2b714; }
+.intro-badge-diversifying { background: #00d4ff; }
+.intro-badge-pivoting { background: #a855f7; }
+.intro-badge-unchanged { background: #22c55e; }
+.intro-label { font-size: 12px; color: var(--text-muted); }
+.intro-meta { font-size: 11px; color: var(--text-dim); }
+.intro-text { font-size: 14px; line-height: 1.7; color: #ccc; margin: 0; }
+.intro-label-line { margin-top: 8px; font-size: 12px; color: var(--text-dim); }
+.intro-chain { padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; background: rgba(0,212,255,0.15); color: #00d4ff; }
+
+/* ── 分红信息卡片 ── */
+.dividend-history { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.dividend-history-title { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.dividend-history-row { display: flex; align-items: center; gap: 12px; padding: 4px 0; font-size: 12px; color: var(--text); border-bottom: 1px dashed rgba(255,255,255,0.05); }
+.dividend-history-row:last-child { border-bottom: none; }
+.dh-report { color: var(--text-muted); min-width: 70px; font-family: 'SF Mono', monospace; }
+.dh-profile { flex: 1; }
+.dh-yield { color: var(--accent); min-width: 60px; }
+.dh-ex { color: var(--text-dim); }
+
+/* ── 分红趋势图 ── */
+.dividend-trend { margin-top: 14px; }
+.dividend-trend-title { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.dividend-trend-sub { font-size: 11px; color: var(--text-dim); }
+.dh-mid { font-size: 10px; color: #00d4ff; border: 1px solid rgba(0,212,255,0.4); border-radius: 6px; padding: 0 4px; }
+
+/* ── 分红列表列宽调节与悬停提示 ── */
+.div-table th { position: relative; }
+.div-table .resizable { user-select: none; }
+.div-table .resize-handle {
+    position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
+    cursor: col-resize; z-index: 2;
+}
+.div-table .resize-handle:hover { background: rgba(0,212,255,0.25); }
+.hint-icon {
+    display: inline-block; width: 13px; height: 13px; line-height: 13px;
+    text-align: center; border-radius: 50%; font-size: 9px;
+    background: rgba(0,212,255,0.2); color: #00d4ff; margin-left: 3px;
+    vertical-align: middle;
+}

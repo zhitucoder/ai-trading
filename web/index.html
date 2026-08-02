@@ -31,6 +31,7 @@
         <quant-breakout-bt-page v-else-if="currentPage === 'quant_breakout_bt'"></quant-breakout-bt-page>
         <volume-surge-bt-page v-else-if="currentPage === 'volume_surge_bt'"></volume-surge-bt-page>
         <profile-page v-else-if="currentPage === 'profile'"></profile-page>
+        <dividend-page v-else-if="currentPage === 'dividend'"></dividend-page>
         <debate-page v-else-if="currentPage === 'debate'"></debate-page>
         <expert-page v-else-if="currentPage === 'expert'"></expert-page>
         <query-page v-else-if="currentPage === 'query'"></query-page>
@@ -1137,6 +1138,17 @@
                     </div>
                 </div>
 
+                <div class="card intro-card" v-if="profile.intro && profile.intro.text">
+                    <div class="intro-head">
+                        <span class="intro-badge" v-if="profile.intro.positioning_status === 'transforming' || profile.intro.positioning_status === 'diversifying' || profile.intro.positioning_status === 'pivoting'"
+                              :class="'intro-badge-' + profile.intro.positioning_status">{{ introStatusName(profile.intro.positioning_status) }}</span>
+                        <span class="intro-label">公司定位</span>
+                        <span class="intro-chain" v-if="profile.intro.chain_position">产业链{{ chainName(profile.intro.chain_position) }}</span>
+                    </div>
+                    <p class="intro-text">{{ profile.intro.text }}</p>
+                    <div class="intro-label-line" v-if="profile.intro.positioning_label">定位标签：{{ profile.intro.positioning_label }}</div>
+                </div>
+
                 <div class="card" style="margin-top:12px;">
                     <div class="card-title">营收·净利润·净利增长率·股价趋势</div>
                     <div style="position:relative;width:100%;height:280px;">
@@ -1292,6 +1304,41 @@
                     </div>
                 </div>
 
+                <div class="card" v-if="profile.dividend && profile.dividend.latest">
+                    <div class="card-title">分红信息 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">（数据来源：东方财富）</span></div>
+                    <div class="profile-ind-grid">
+                        <div class="profile-ind-item" v-if="profile.dividend.yield_pct != null"><div class="profile-ind-label">当前股息率（近12个月）</div><div class="profile-ind-val accent">{{ profile.dividend.yield_pct.toFixed(2) }}%</div></div>
+                        <div class="profile-ind-item" v-if="profile.dividend.this_year_cash_per_share != null"><div class="profile-ind-label">今年每股派息</div><div class="profile-ind-val">{{ profile.dividend.this_year_cash_per_share }}元</div></div>
+                        <div class="profile-ind-item" v-if="profile.dividend.latest.cash_per_10 != null"><div class="profile-ind-label">最新方案</div><div class="profile-ind-val">{{ profile.dividend.latest.plan_profile || ('10派' + profile.dividend.latest.cash_per_10 + '元') }}</div></div>
+                        <div class="profile-ind-item" v-if="profile.dividend.latest.dividend_yield != null"><div class="profile-ind-label">最新分红股息率</div><div class="profile-ind-val">{{ profile.dividend.latest.dividend_yield.toFixed(2) }}%</div></div>
+                        <div class="profile-ind-item" v-if="profile.dividend.latest.payout_ratio != null"><div class="profile-ind-label">派息率（分红比例）</div><div class="profile-ind-val">{{ profile.dividend.latest.payout_ratio.toFixed(1) }}%</div></div>
+                        <div class="profile-ind-item" v-if="profile.dividend.latest.ex_dividend_date"><div class="profile-ind-label">除权除息日</div><div class="profile-ind-val">{{ profile.dividend.latest.ex_dividend_date }}</div></div>
+                        <div class="profile-ind-item" v-if="profile.dividend.latest.equity_record_date"><div class="profile-ind-label">股权登记日</div><div class="profile-ind-val">{{ profile.dividend.latest.equity_record_date }}</div></div>
+                        <div class="profile-ind-item" v-if="profile.dividend.plan"><div class="profile-ind-label">分红计划{{ profile.dividend.plan.is_mid_year ? '（中期）' : '' }}</div><div class="profile-ind-val" style="color:var(--accent);">{{ profile.dividend.plan.plan_profile || '已披露，方案待定' }}</div></div>
+                    </div>
+                    <div class="dividend-trend" v-if="profile.dividend.trend && profile.dividend.trend.length">
+                        <div class="dividend-trend-title">分红趋势 <span class="dividend-trend-sub">（按除息日归属年度）</span></div>
+                        <div style="position:relative;width:100%;height:220px;">
+                            <canvas ref="divChartCanvas" style="width:100%;height:100%;"></canvas>
+                        </div>
+                        <div class="legend" style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:#ccc;">
+                            <span style="color:#6495ed;">■ 每股派息(元)</span>
+                            <span style="color:#ffd700;">■ 股息率(%)</span>
+                            <span style="color:var(--text-dim);">标注=当年分红次数</span>
+                        </div>
+                    </div>
+                    <div class="dividend-history" v-if="profile.dividend.history && profile.dividend.history.length">
+                        <div class="dividend-history-title">分红记录（{{ profile.dividend.history.length }}条）</div>
+                        <div class="dividend-history-row" v-for="h in profile.dividend.history" :key="h.report_date">
+                            <span class="dh-report">{{ h.report_date }}</span>
+                            <span class="dh-mid" v-if="h.is_mid_year">中期</span>
+                            <span class="dh-profile">{{ h.plan_profile }}</span>
+                            <span class="dh-yield" v-if="h.dividend_yield != null">{{ h.dividend_yield.toFixed(2) }}%</span>
+                            <span class="dh-ex" v-if="h.ex_dividend_date">除息{{ h.ex_dividend_date }}</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card" v-if="profile.annual_data && profile.annual_data.gross_margin_trend && profile.annual_data.gross_margin_trend.length">
                     <div class="card-title">毛利率趋势（年度）</div>
                     <div class="gm-trend-grid">
@@ -1399,6 +1446,15 @@
                         <div><label>ROE(TTM) ≥</label><input type="number" v-model.number="filterRoeTtmMin" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                         <div><label>ROE(TTM) ≤</label><input type="number" v-model.number="filterRoeTtmMax" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
                     </div>
+                    <div class="screening-range-row" style="margin-top:6px;">
+                        <div><label>股息率 ≥</label><input type="number" v-model.number="filterDividendYieldMin" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label>股息率 ≤</label><input type="number" v-model.number="filterDividendYieldMax" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                    </div>
+                    <div class="screening-range-row" style="margin-top:6px;">
+                        <div><label>今年有分红</label><input type="checkbox" v-model="filterHasDivThisYear" @change="onFilterChange"></div>
+                        <div><label>有中期分红</label><input type="checkbox" v-model="filterHasMidYear" @change="onFilterChange"></div>
+                        <div><label>连续分红 ≥</label><input type="number" v-model.number="filterConsecutiveDivYears" @input="onFilterChange" style="width:60px;" placeholder="年"></div>
+                    </div>
                 </div>
 
                 <div class="screening-section">
@@ -1503,6 +1559,7 @@
                                 <th style="width:65px;cursor:pointer;" @click="toggleSort('gross_margin')">毛利率{{ sortArrow('gross_margin') }}</th>
                                 <th style="width:70px;">上年营收</th>
                                 <th style="width:90px;cursor:pointer;" @click="toggleSort('contract_liab_to_assets')">合同负债{{ sortArrow('contract_liab_to_assets') }}</th>
+                                <th style="width:80px;cursor:pointer;" @click="toggleSort('dividend_yield')" title="近12个月每股派息 / 最新价">股息率{{ sortArrow('dividend_yield') }}</th>
                                 <th>标签</th>
                             </tr>
                         </thead>
@@ -1530,6 +1587,7 @@
                                 <td :class="valClass(row.gross_margin)">{{ row.gross_margin != null ? row.gross_margin.toFixed(2) + '%' : '-' }}</td>
                                 <td style="font-size:11px;">{{ row.prev_year_revenue != null ? fmtMoney(row.prev_year_revenue) : '-' }}</td>
                                 <td :class="valClass(10 - parseFloat(row.contract_liab_to_assets))">{{ row.contract_liab_to_assets != null ? parseFloat(row.contract_liab_to_assets).toFixed(2) + '%' : '-' }}</td>
+                                <td :class="row.dividend_yield != null && row.dividend_yield >= 3 ? 'up' : ''">{{ row.dividend_yield != null ? Number(row.dividend_yield).toFixed(2) + '%' : '-' }}</td>
                                 <td style="text-align:left;">
                                     <span v-for="t in (row.active_tags || []).slice(0, 4)" :key="t.id" class="screening-tag">{{ t.name }}</span>
                                     <span v-if="(row.active_tags || []).length > 4" class="screening-tag-more">+{{ row.active_tags.length - 4 }}</span>
@@ -1602,6 +1660,86 @@
                 <div class="placeholder" style="height:100px;">
                     <p style="font-size:13px;color:var(--text-muted);">还没有自选股，在单股画像页面点击"+ 自选"添加</p>
                 </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="dividend-tpl">
+    <div class="topbar">
+        <h2>分红列表</h2>
+        <span class="badge">东方财富</span>
+    </div>
+    <div class="content">
+        <div class="card">
+            <div class="form-row" style="gap:12px;align-items:flex-end;">
+                <div class="config-item">
+                    <label>报告年份</label>
+                    <select v-model="year" @change="onFilter" style="width:90px;">
+                        <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>分红类型</label>
+                    <select v-model="isMid" @change="onFilter" style="width:110px;">
+                        <option :value="0">全部</option>
+                        <option :value="1">仅中期分红</option>
+                        <option :value="2">仅年度分红</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <span class="screening-count">共 <strong>{{ total }}</strong> 条</span>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="error" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;">{{ error }}</div>
+
+        <div class="card" v-if="rows.length">
+            <div style="overflow-x:auto;">
+                <table class="screening-table div-table">
+                    <thead>
+                        <tr>
+                            <th style="width:70px;">代码</th>
+                            <th style="width:90px;">名称</th>
+                            <th style="width:90px;cursor:pointer;" @click="toggleSort('report_date')">报告期{{ sortArrow('report_date') }}</th>
+                            <th class="resizable" :style="{width: planWidth + 'px', minWidth: planWidth + 'px'}">方案<span class="resize-handle" @mousedown.prevent="startResize($event)"></span></th>
+                            <th style="width:70px;cursor:pointer;" @click="toggleSort('cash_per_10')">每10股{{ sortArrow('cash_per_10') }}</th>
+                            <th style="width:100px;cursor:pointer;" @click="toggleSort('dividend_yield')" title="股息率 = 每股派息 ÷ 除息日股价 × 100%，即一年现金分红相对股价的回报率">股息率{{ sortArrow('dividend_yield') }}<span class="hint-icon">?</span></th>
+                            <th style="width:100px;cursor:pointer;" @click="toggleSort('payout_ratio')" title="派息率（分红比例）= 每股派息 ÷ 每股收益 × 100%，即利润中拿来分红的比例">派息率{{ sortArrow('payout_ratio') }}<span class="hint-icon">?</span></th>
+                            <th style="width:100px;cursor:pointer;" @click="toggleSort('ex_dividend_date')">除息日{{ sortArrow('ex_dividend_date') }}</th>
+                            <th style="width:100px;">登记日</th>
+                            <th style="width:70px;">类型</th>
+                            <th style="width:80px;">状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(row, i) in rows" :key="row.stock_code + row.report_date" class="screening-row" @click="goStock(row.stock_code)">
+                            <td><strong>{{ row.stock_code }}</strong></td>
+                            <td>{{ row.stock_name }}</td>
+                            <td>{{ row.report_date }}</td>
+                            <td style="text-align:left;font-size:12px;white-space:nowrap;">{{ row.plan_profile || '-' }}</td>
+                            <td>{{ row.cash_per_10 != null ? row.cash_per_10.toFixed(2) : '-' }}</td>
+                            <td :class="row.dividend_yield != null && row.dividend_yield >= 3 ? 'up' : ''" :title="yieldTip(row)">{{ row.dividend_yield != null ? row.dividend_yield.toFixed(2) + '%' : '-' }}</td>
+                            <td :title="payoutTip(row)">{{ row.payout_ratio != null ? row.payout_ratio.toFixed(1) + '%' : '-' }}</td>
+                            <td>{{ row.ex_dividend_date || '-' }}</td>
+                            <td>{{ row.equity_record_date || '-' }}</td>
+                            <td><span v-if="row.is_mid_year" class="screening-tag" style="color:#00d4ff;">中期</span><span v-else class="screening-tag" style="color:var(--text-dim);">年度</span></td>
+                            <td>{{ row.assign_progress }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination" v-if="total > pageSize">
+                <button class="page-btn" :disabled="page <= 1" @click="page--; loadList()">‹</button>
+                <span class="page-info">{{ page }} / {{ Math.ceil(total / pageSize) }}</span>
+                <button class="page-btn" :disabled="page * pageSize >= total" @click="page++; loadList()">›</button>
+            </div>
+        </div>
+
+        <div v-else-if="!loading" class="card">
+            <div class="placeholder" style="height:100px;">
+                <p style="font-size:13px;color:var(--text-muted);">暂无分红记录</p>
             </div>
         </div>
     </div>
@@ -2021,6 +2159,57 @@
                     </button>
                     <span v-if="finResult" class="dm-toast dm-toast-ok">✓ {{ finResult }}</span>
                     <span v-if="finError" class="dm-toast dm-toast-err">✗ {{ finError }}</span>
+                </div>
+            </div>
+
+            <!-- Dividend Card -->
+            <div class="dm-card dm-card-dividend">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(0,212,255,0.12);">
+                        <span style="font-size:22px;">📊</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">分红数据</div>
+                        <div class="dm-card-subtitle">分红方案 · 股息率 · 除息日</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot" :class="divDotClass"></span>
+                        <span class="dm-status-text">{{ divStatusText }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row">
+                        <span>数据来源</span>
+                        <span class="dm-val">东方财富 RPT_SHAREBONUS_DET</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>最近更新</span>
+                        <span class="dm-val accent">{{ status.dividend?.latest_update || '-' }}</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>覆盖股票</span>
+                        <span class="dm-val">{{ status.dividend?.stock_count || 0 }} 只</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>记录总数</span>
+                        <span class="dm-val">{{ status.dividend?.record_count || 0 }} 条</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>最新报告期</span>
+                        <span class="dm-val">{{ status.dividend?.latest_report_date || '-' }}</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>更新方式</span>
+                        <span class="dm-val">UPSERT 增量（自上次更新后）</span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <button class="btn btn-primary" style="background:var(--accent);border-color:var(--accent);" @click="updateDividend" :disabled="divLoading">
+                        <span v-if="divLoading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ divLoading ? '更新中...' : '⟳ 更新分红数据' }}
+                    </button>
+                    <span v-if="divResult" class="dm-toast dm-toast-ok">✓ {{ divResult }}</span>
+                    <span v-if="divError" class="dm-toast dm-toast-err">✗ {{ divError }}</span>
                 </div>
             </div>
 
