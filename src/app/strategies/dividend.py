@@ -83,7 +83,7 @@ def get_dividend_summary(stock_code, latest_price=None):
 
 
 def _build_trend(done):
-    """按除息日归属自然年，聚合历年每股派息合计、平均股息率、分红次数。"""
+    """按除息日归属自然年，聚合历年每股派息合计、平均股息率、平均派息率、分红次数。"""
     years = {}
     for r in done:
         ex = r['ex_dividend_date']
@@ -91,17 +91,21 @@ def _build_trend(done):
             continue
         cps = float(r['cash_per_10']) / 10 if r['cash_per_10'] is not None else None
         yld = float(r['dividend_yield']) * 100 if r['dividend_yield'] is not None else None
+        pr = float(r['payout_ratio']) if r['payout_ratio'] is not None else None
         y = ex.year
-        item = years.setdefault(y, {'cash': 0.0, 'yields': [], 'times': 0})
+        item = years.setdefault(y, {'cash': 0.0, 'yields': [], 'payouts': [], 'times': 0})
         if cps is not None:
             item['cash'] += cps
         if yld is not None:
             item['yields'].append(yld)
+        if pr is not None:
+            item['payouts'].append(pr)
         item['times'] += 1
     return [{
         'year': y,
         'cash_per_share': round(v['cash'], 4),
         'dividend_yield': round(sum(v['yields']) / len(v['yields']), 2) if v['yields'] else None,
+        'payout_ratio': round(sum(v['payouts']) / len(v['payouts']), 1) if v['payouts'] else None,
         'times': v['times'],
     } for y, v in sorted(years.items())]
 

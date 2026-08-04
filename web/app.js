@@ -823,17 +823,20 @@ app.component('profile-page', {
             const W = p.clientWidth, H = p.clientHeight, pr = window.devicePixelRatio || 1;
             c.width = W * pr; c.height = H * pr; c.style.width = W + 'px'; c.style.height = H + 'px';
             ctx.scale(pr, pr);
-            const pad = { top: 12, bottom: 26, left: 44, right: 40 };
+            const pad = { top: 12, bottom: 26, left: 44, right: 68 };
             const cw = W - pad.left - pad.right, ch = H - pad.top - pad.bottom;
             const n = div.trend.length;
             const xs = div.trend.map((_, i) => pad.left + cw * (n === 1 ? 0.5 : i / (n - 1)));
             const cashMax = Math.max(...div.trend.map(t => t.cash_per_share || 0)) * 1.15 || 1;
             const ylds = div.trend.map(t => t.dividend_yield).filter(v => v != null);
             const yldMax = (ylds.length ? Math.max(...ylds) : 0) * 1.2 || 1;
+            const prs = div.trend.map(t => t.payout_ratio).filter(v => v != null);
+            const prMax = (prs.length ? Math.max(...prs) : 0) * 1.2 || 1;
             const barW = Math.min(28, cw / n * 0.55);
             function yc(v) { return pad.top + ch * (1 - v / cashMax); }
             function yy(v) { return pad.top + ch * (1 - v / yldMax); }
-            divChartGeo = { ctx, W, H, pad, cw, ch, xs, cashMax, yldMax, barW, yc, yy, trend: div.trend };
+            function yp(v) { return pad.top + ch * (1 - v / prMax); }
+            divChartGeo = { ctx, W, H, pad, cw, ch, xs, cashMax, yldMax, prMax, barW, yc, yy, yp, trend: div.trend };
 
             function draw() {
                 ctx.clearRect(0, 0, W, H);
@@ -860,6 +863,19 @@ app.component('profile-page', {
                     if (t.dividend_yield == null) return;
                     ctx.beginPath(); ctx.arc(xs[i], yy(t.dividend_yield), 2.5, 0, Math.PI * 2); ctx.fill();
                 });
+                ctx.beginPath(); ctx.strokeStyle = '#4ecdc4'; ctx.lineWidth = 2;
+                let pstarted = false;
+                div.trend.forEach((t, i) => {
+                    if (t.payout_ratio == null) return;
+                    const y = yp(t.payout_ratio);
+                    pstarted ? ctx.lineTo(xs[i], y) : (ctx.moveTo(xs[i], y), pstarted = true);
+                });
+                ctx.stroke();
+                ctx.fillStyle = '#4ecdc4';
+                div.trend.forEach((t, i) => {
+                    if (t.payout_ratio == null) return;
+                    ctx.beginPath(); ctx.arc(xs[i], yp(t.payout_ratio), 2.5, 0, Math.PI * 2); ctx.fill();
+                });
                 ctx.fillStyle = '#ccc'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
                 for (let i = 0; i <= 4; i++) {
                     ctx.fillText((cashMax * i / 4).toFixed(1), pad.left - 6, pad.top + ch * (1 - i / 4) + 3);
@@ -868,6 +884,9 @@ app.component('profile-page', {
                 for (let i = 0; i <= 4; i++) {
                     ctx.fillText((yldMax * i / 4).toFixed(1) + '%', pad.left + cw + 6, pad.top + ch * (1 - i / 4) + 3);
                 }
+                ctx.fillStyle = '#4ecdc4'; ctx.textAlign = 'left';
+                ctx.fillText('派息率%', pad.left + cw + 6, pad.top + 4);
+                ctx.fillText(prMax.toFixed(0) + '%', pad.left + cw + 6, pad.top + ch + 12);
                 ctx.fillStyle = '#e2e8f0'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
                 div.trend.forEach((t, i) => {
                     ctx.fillText(t.year, xs[i], H - pad.bottom + 14);
@@ -890,6 +909,7 @@ app.component('profile-page', {
                 const lines = [
                     `${t.year}年 每股派息：${t.cash_per_share != null ? t.cash_per_share.toFixed(2) : '-'}元`,
                     t.dividend_yield != null ? `股息率：${t.dividend_yield.toFixed(2)}%` : '股息率：-',
+                    t.payout_ratio != null ? `派息率：${t.payout_ratio.toFixed(1)}%` : '派息率：-',
                     `分红次数：${t.times}次`,
                 ];
                 const tw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16;
