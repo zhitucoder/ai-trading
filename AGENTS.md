@@ -97,6 +97,18 @@ pytdx 部分字段索引偏移。详细可靠性评估见 `docs/股票画像与�
 
 金融企业（证券/银行/保险）的财务报表格式不同，pytdx 固定列索引映射到错误数据项。详见 `docs/股票画像与筛选系统_当前架构设计.md`。
 
+### 总股本数据（必守）
+
+**总股本数据一律以 `stock_shares_dfcf` 表为准**（数据来源：东方财富F10接口，`source='dfcf'`）。
+
+- **禁止**使用 `fin_balance_sheet.share_capital` 字段计算股本/市值——pytdx 该字段对部分公司（尤其 A+H 股）不可靠（例：中国海油 600938 该字段为 751.8 亿股，实际总股本 475.3 亿股）
+- **禁止**使用旧 `stock_shares` 表（sina/em/manual 源）计算股本——旧表存在缺失（1080 只）与错误（如 600938=500亿股错误值）
+- 计算市值/PE/PB 时：`总股本` 取 `stock_shares_dfcf.total_shares`，`流通股本` 取 `float_shares`
+- 若需核实股本：用 `basic_eps` 交叉验证（归母净利 ÷ EPS = 总股本），或查询东方财富 F10 股本结构
+- 下载/更新脚本：`src/import_shares_dfcf.py`（可断点续传：`python import_shares_dfcf.py 起始序号 结束序号`）
+
+**股本字段口径**：`total_shares`=总股本、`float_shares`=无限售流通、`float_a_shares`=流通A股、`float_h_shares`=流通H股、`limited_shares`=限售股
+
 ---
 
 ## 独立页面报告 API
