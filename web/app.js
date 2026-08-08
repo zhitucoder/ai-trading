@@ -1300,8 +1300,10 @@ app.component('profile-page', {
         const filterContractLiabMax = ref(null);
         const filterRoeMin = ref(null);
         const filterRoeMax = ref(null);
-        const filterRoeTtmMin = ref(null);
-        const filterRoeTtmMax = ref(null);
+const filterRoeTtmMin = ref(null);
+const filterRoeTtmMax = ref(null);
+const filterPeMax = ref(null);
+const filterPegMax = ref(null);
         const filterDividendYieldMin = ref(null);
         const filterDividendYieldMax = ref(null);
         const filterHasDivThisYear = ref(false);
@@ -1560,6 +1562,8 @@ app.component('profile-page', {
                     roe_max: filterRoeMax.value || null,
                 roe_ttm_min: filterRoeTtmMin.value || null,
                 roe_ttm_max: filterRoeTtmMax.value || null,
+                pe_max: filterPeMax.value || null,
+                peg_max: filterPegMax.value || null,
                 dividend_yield_min: filterDividendYieldMin.value || null,
                 dividend_yield_max: filterDividendYieldMax.value || null,
                 has_dividend_this_year: filterHasDivThisYear.value || null,
@@ -1627,6 +1631,8 @@ app.component('profile-page', {
             filterRoeMax.value = null;
             filterRoeTtmMin.value = null;
             filterRoeTtmMax.value = null;
+            filterPeMax.value = null;
+            filterPegMax.value = null;
             filterDividendYieldMin.value = null;
             filterDividendYieldMax.value = null;
             filterHasDivThisYear.value = false;

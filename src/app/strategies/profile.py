@@ -1160,6 +1160,17 @@ def generate_profile(stock_code):
             ttm_profit = float(ttm_rows[0]['ttm_profit'])
             roe_ttm = round(ttm_profit / eq_val * 100, 4)
 
+        pe_ttm = None
+        peg = None
+        if ttm_rows and ttm_rows[0]['ttm_profit'] and float(ttm_rows[0]['ttm_profit']) > 0:
+            ttm_profit = float(ttm_rows[0]['ttm_profit'])
+            shares_row = query("SELECT total_shares FROM stock_shares_dfcf WHERE stock_code = %s", [stock_code])
+            total_shares = float(shares_row[0]['total_shares']) if shares_row and shares_row[0]['total_shares'] else None
+            if total_shares and total_shares > 0:
+                pe_ttm = round(latest_price * total_shares / ttm_profit, 2)
+                if profit_growth is not None and profit_growth > 0:
+                    peg = round(pe_ttm / profit_growth, 2)
+
         gm_val = None
         if annual_rows and len(annual_rows) > 0:
             r0 = annual_rows[0]
@@ -1192,6 +1203,8 @@ def generate_profile(stock_code):
             'net_profit_cagr_10y': profit_cagr_10y,
             'roe': annual_roe,
             'roe_ttm': roe_ttm,
+            'pe_ttm': pe_ttm,
+            'peg': peg,
         }
 
     price_change = round((latest_price - klines[-2]['close']) / klines[-2]['close'] * 100, 2) if len(klines) >= 2 else 0

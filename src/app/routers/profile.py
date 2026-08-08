@@ -211,6 +211,8 @@ class SearchRequest(BaseModel):
     roe_max: Optional[float] = None
     roe_ttm_min: Optional[float] = None
     roe_ttm_max: Optional[float] = None
+    pe_max: Optional[float] = None
+    peg_max: Optional[float] = None
     dividend_yield_min: Optional[float] = None
     dividend_yield_max: Optional[float] = None
     has_dividend_this_year: Optional[bool] = None
@@ -347,6 +349,13 @@ def search_profiles(body: SearchRequest):
             conditions.append(f'p.{col} IS NOT NULL AND p.{col} {op} %({field})s')
             params[field] = val
 
+    if body.pe_max is not None:
+        conditions.append('p.pe_ttm IS NOT NULL AND p.pe_ttm <= %(pe_max)s')
+        params['pe_max'] = body.pe_max
+    if body.peg_max is not None:
+        conditions.append('p.peg IS NOT NULL AND p.peg <= %(peg_max)s')
+        params['peg_max'] = body.peg_max
+
     dividend_filters = [
         ('dividend_yield_min', 'dividend_yield', '>='),
         ('dividend_yield_max', 'dividend_yield', '<='),
@@ -369,7 +378,8 @@ def search_profiles(body: SearchRequest):
     if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct', 'dividend_yield',
                          'contract_liab_to_assets',
                          'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
-                         'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y', 'roe', 'roe_ttm', 'gross_margin'):
+                         'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y', 'roe', 'roe_ttm', 'gross_margin',
+                         'pe_ttm', 'peg'):
         if body.sort_by == 'contract_liab_to_assets':
             sort_col = "CAST(JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS DECIMAL(10,2))"
         else:
@@ -395,6 +405,7 @@ def search_profiles(body: SearchRequest):
                p.stage_id, p.stage_confidence, p.tech_score, p.fund_score,
                p.revenue_growth, p.net_profit_growth, p.debt_ratio,
                p.roe, p.roe_ttm, p.gross_margin, p.prev_year_revenue,
+               p.pe_ttm, p.peg,
                p.dividend_yield,
                p.rev_cagr_3y, p.rev_cagr_5y, p.rev_cagr_10y,
                p.profit_cagr_3y, p.profit_cagr_5y, p.profit_cagr_10y,

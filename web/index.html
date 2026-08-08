@@ -1291,6 +1291,8 @@
                         <div class="profile-ind-item" v-if="profile.fin_data.net_profit_growth_rate != null"><div class="profile-ind-label">净利润增长率</div><div class="profile-ind-val" :class="valClass(profile.fin_data.net_profit_growth_rate)">{{ fmtGrowth(profile.fin_data.net_profit_growth_rate) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.roe != null"><div class="profile-ind-label">ROE（年报）</div><div class="profile-ind-val" :class="valClass(profile.fin_data.roe)">{{ profile.fin_data.roe.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.roe_ttm != null"><div class="profile-ind-label">ROE（TTM）</div><div class="profile-ind-val" :class="valClass(profile.fin_data.roe_ttm)">{{ profile.fin_data.roe_ttm.toFixed(2) }}%</div></div>
+<div class="profile-ind-item" v-if="profile.fin_data.pe_ttm != null"><div class="profile-ind-label" title="总市值 ÷ TTM归母净利润，总股本以 stock_shares_dfcf 为准">PE（TTM）</div><div class="profile-ind-val">{{ profile.fin_data.pe_ttm.toFixed(1) }}倍</div></div>
+<div class="profile-ind-item" v-if="profile.fin_data.peg != null"><div class="profile-ind-label" title="PE(TTM) ÷ 净利润增长率(单季同比)，<1 为成长性合理的低估标的">PEG</div><div class="profile-ind-val" :class="profile.fin_data.peg <= 1 ? 'up' : ''">{{ profile.fin_data.peg.toFixed(2) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.debt_ratio != null"><div class="profile-ind-label">资产负债率</div><div class="profile-ind-val" :class="debtClass(profile.fin_data.debt_ratio)">{{ profile.fin_data.debt_ratio.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.contract_liab_to_assets != null"><div class="profile-ind-label">合同负债占资产</div><div class="profile-ind-val" :class="valClass(10 - profile.fin_data.contract_liab_to_assets)">{{ profile.fin_data.contract_liab_to_assets.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_3y != null"><div class="profile-ind-label">营收3年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_3y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_3y) }}</div></div>
@@ -1459,6 +1461,14 @@
                 </div>
 
                 <div class="screening-section">
+                    <div class="screening-section-title">估值</div>
+                    <div class="screening-range-row">
+                        <div><label title="PE(TTM) = 总市值 ÷ 最近4季度归母净利润(TTM)，总股本以 stock_shares_dfcf 为准">PE(TTM) ≤</label><input type="number" v-model.number="filterPeMax" @input="onFilterChange" style="width:80px;" placeholder="倍"></div>
+                        <div><label title="PEG = PE(TTM) ÷ 净利润增长率(单季同比)，<1 为成长性合理的低估标的">PEG ≤</label><input type="number" v-model.number="filterPegMax" @input="onFilterChange" style="width:80px;" placeholder="倍"></div>
+                    </div>
+                </div>
+
+                <div class="screening-section">
                     <div class="screening-section-title">毛利率同比</div>
                     <div class="screening-range-row">
                         <div><label>本季毛利率同比 ≥</label><input type="number" v-model.number="filterGmGrowthQ" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
@@ -1559,6 +1569,8 @@
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('roe_ttm')">ROE(TTM){{ sortArrow('roe_ttm') }}</th>
                                 <th style="width:65px;cursor:pointer;" @click="toggleSort('gross_margin')">毛利率{{ sortArrow('gross_margin') }}</th>
                                 <th style="width:70px;">上年营收</th>
+                                <th style="width:80px;cursor:pointer;" @click="toggleSort('pe_ttm')" title="PE(TTM) = 总市值 ÷ TTM归母净利润，总股本以 stock_shares_dfcf 为准">PE(TTM){{ sortArrow('pe_ttm') }}</th>
+                                <th style="width:70px;cursor:pointer;" @click="toggleSort('peg')" title="PEG = PE(TTM) ÷ 净利润增长率(单季同比)，<1 为成长性合理">PEG{{ sortArrow('peg') }}</th>
                                 <th style="width:90px;cursor:pointer;" @click="toggleSort('contract_liab_to_assets')">合同负债{{ sortArrow('contract_liab_to_assets') }}</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('dividend_yield')" title="近12个月每股派息 / 最新价">股息率{{ sortArrow('dividend_yield') }}</th>
                                 <th>标签</th>
@@ -1587,6 +1599,8 @@
                                 <td :class="valClass(row.roe_ttm)">{{ row.roe_ttm != null ? row.roe_ttm.toFixed(2) + '%' : '-' }}</td>
                                 <td :class="valClass(row.gross_margin)">{{ row.gross_margin != null ? row.gross_margin.toFixed(2) + '%' : '-' }}</td>
                                 <td style="font-size:11px;">{{ row.prev_year_revenue != null ? fmtMoney(row.prev_year_revenue) : '-' }}</td>
+                                <td>{{ row.pe_ttm != null ? Number(row.pe_ttm).toFixed(1) : '-' }}</td>
+                                <td :class="row.peg != null && row.peg <= 1 ? 'up' : ''">{{ row.peg != null ? Number(row.peg).toFixed(2) : '-' }}</td>
                                 <td :class="valClass(10 - parseFloat(row.contract_liab_to_assets))">{{ row.contract_liab_to_assets != null ? parseFloat(row.contract_liab_to_assets).toFixed(2) + '%' : '-' }}</td>
                                 <td :class="row.dividend_yield != null && row.dividend_yield >= 3 ? 'up' : ''">{{ row.dividend_yield != null ? Number(row.dividend_yield).toFixed(2) + '%' : '-' }}</td>
                                 <td style="text-align:left;">

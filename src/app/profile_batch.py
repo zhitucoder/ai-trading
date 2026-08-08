@@ -24,6 +24,8 @@ def _active_tag_ids(result):
 def _to_profile_row(result, report_date, fin_report_date):
     ids = _active_tag_ids(result)
     fin = result.get('fin_data', {})
+    div = result.get('dividend') or {}
+    plan = div.get('plan') or {}
     row = {
         'stock_code': result['code'],
         'stock_name': result['name'],
@@ -34,15 +36,17 @@ def _to_profile_row(result, report_date, fin_report_date):
         'fund_score': result['scores']['fund'],
         'latest_price': result['latest_price'],
         'price_change_pct': result['price_change_pct'],
-        'dividend_yield': (result.get('dividend') or {}).get('yield_pct'),
-        'has_dividend_this_year': 1 if (result.get('dividend') or {}).get('this_year_cash_per_share') else 0,
-        'consecutive_dividend_years': (result.get('dividend') or {}).get('consecutive_years') or 0,
-        'has_mid_year_dividend': 1 if (result.get('dividend') or {}).get('plan', {}).get('is_mid_year') else 0,
+        'dividend_yield': div.get('yield_pct'),
+        'has_dividend_this_year': 1 if div.get('this_year_cash_per_share') else 0,
+        'consecutive_dividend_years': div.get('consecutive_years') or 0,
+        'has_mid_year_dividend': 1 if plan.get('is_mid_year') else 0,
         'revenue_growth': fin.get('revenue_growth_rate'),
         'net_profit_growth': fin.get('net_profit_growth_rate'),
         'debt_ratio': fin.get('debt_ratio'),
         'roe': fin.get('roe'),
         'roe_ttm': fin.get('roe_ttm'),
+        'pe_ttm': fin.get('pe_ttm'),
+        'peg': fin.get('peg'),
         'gross_margin': fin.get('gross_margin'),
         'prev_year_revenue': fin.get('prev_year_revenue'),
         'rev_cagr_3y': fin.get('revenue_cagr_3y'),
@@ -71,7 +75,7 @@ def _batch_insert(rows, conn):
           'latest_price', 'price_change_pct', 'dividend_yield',
           'has_dividend_this_year', 'consecutive_dividend_years', 'has_mid_year_dividend',
           'revenue_growth', 'net_profit_growth', 'debt_ratio', 'roe', 'roe_ttm',
-         'gross_margin', 'prev_year_revenue',
+         'gross_margin', 'prev_year_revenue', 'pe_ttm', 'peg',
          'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
          'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y',
          'data_date', 'fin_report_date', 'profile_json']
