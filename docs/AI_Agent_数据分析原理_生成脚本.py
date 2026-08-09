@@ -1,7 +1,7 @@
 lines = []
 a = lines.append
 
-a('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 760">')
+a('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 840">')
 a('<defs>')
 a('  <radialGradient id="glow" cx="50%" cy="50%" r="55%">')
 a('    <stop offset="0%" stop-color="#d4a574" stop-opacity="0.06"/>')
@@ -26,7 +26,7 @@ a('  .fn { font-family: "Cascadia Code","SF Mono","Courier New",monospace; font-
 a('  .repo { font-family: "Cascadia Code","SF Mono","Courier New",monospace; font-size: 14px; fill: #e8c49a; font-weight: 700; }')
 a('  .vx { font-size: 16px; fill: #7dd3fc; font-weight: 700; }')
 a('</style>')
-a('<rect width="960" height="760" fill="url(#glow)"/>')
+a('<rect width="960" height="840" fill="url(#glow)"/>')
 
 # 标题
 a('<text x="480" y="42" text-anchor="middle" class="ttl">ai-trading 财报分析原理</text>')
@@ -140,6 +140,8 @@ a('<text x="878" y="719" text-anchor="end" class="vx">欢迎交流 vx：fillWith
 
 a('</svg>')
 
-with open('/tmp/agent_diagram/agent_analysis.svg', 'w') as f:
+import os
+svg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'AI_Agent_数据分析原理.svg')
+with open(svg_path, 'w') as f:
     f.write('\n'.join(lines))
-print('SVG generated')
+print(f'SVG generated -> {svg_path}')

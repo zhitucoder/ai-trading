@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 760">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 840">
 <defs>
   <radialGradient id="glow" cx="50%" cy="50%" r="55%">
     <stop offset="0%" stop-color="#d4a574" stop-opacity="0.06"/>
@@ -23,7 +23,7 @@
   .repo { font-family: "Cascadia Code","SF Mono","Courier New",monospace; font-size: 14px; fill: #e8c49a; font-weight: 700; }
   .vx { font-size: 16px; fill: #7dd3fc; font-weight: 700; }
 </style>
-<rect width="960" height="760" fill="url(#glow)"/>
+<rect width="960" height="840" fill="url(#glow)"/>
 <text x="480" y="42" text-anchor="middle" class="ttl">ai-trading 财报分析原理</text>
 <text x="480" y="70" text-anchor="middle" class="sub">三步理解：从「建库 · 蒸馏」到「一句话生成专业报告」</text>
 <rect x="40" y="92" width="880" height="132" rx="10" fill="none" stroke="#d4a574" stroke-width="0.8" stroke-dasharray="6,4" opacity="0.6"/>
