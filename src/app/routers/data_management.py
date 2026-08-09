@@ -59,7 +59,7 @@ def data_status():
     kline_row = kline[0] if kline else {}
 
     sector = query("SELECT MAX(trade_date) AS max_date, COUNT(DISTINCT sector_code) AS sector_count FROM sector_kline")
-    sector_row = sector[0] if sector else {}
+    sector_kline_row = sector[0] if sector else {}
 
     fin = query("SELECT MAX(report_date) AS d, COUNT(*) AS cnt FROM fin_income")
     fin_row = fin[0] if fin else {}
@@ -67,14 +67,20 @@ def data_status():
     div = query("SELECT MAX(updated_at) AS d, COUNT(DISTINCT stock_code) AS sc, COUNT(*) AS cnt, MAX(report_date) AS rd FROM stock_dividend")
     div_row = div[0] if div else {}
 
+    sector = query("SELECT COUNT(*) AS sc FROM sectors")
+    sector_map = query("SELECT COUNT(*) AS mc FROM stock_sectors")
+    sector_row = sector[0] if sector else {}
+    sector_map_row = sector_map[0] if sector_map else {}
+    has_sector = (sector_row.get('sc') or 0) > 0
+
     return {
         'kline': {
             'latest_date': str(kline_row.get('max_date') or ''),
             'stock_count': kline_row.get('stock_count') or 0,
         },
         'sector_kline': {
-            'latest_date': str(sector_row.get('max_date') or ''),
-            'sector_count': sector_row.get('sector_count') or 0,
+            'latest_date': str(sector_kline_row.get('max_date') or ''),
+            'sector_count': sector_kline_row.get('sector_count') or 0,
         },
         'financial': {
             'latest_date': str(fin_row.get('d') or ''),
@@ -86,7 +92,12 @@ def data_status():
             'record_count': div_row.get('cnt') or 0,
             'latest_report_date': str(div_row.get('rd') or ''),
         },
-        'sector': {'status': 'pending', 'message': '待接入'},
+        'sector': {
+            'status': 'ok' if has_sector else 'pending',
+            'sector_count': sector_row.get('sc') or 0,
+            'mapping_count': sector_map_row.get('mc') or 0,
+            'message': '已同步' if has_sector else '待同步',
+        },
     }
 
 
@@ -303,7 +314,97 @@ def update_financial():
 
 @router.post('/data/update-sector')
 def update_sector():
-    return {'status': 'ok', 'message': '板块分类同步功能待接入'}
+    if not _update_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '同步任务已在执行中'}
+    try:
+        from ...import_sectors import (
+            parse_sector_definitions,
+            parse_stock_sector_mapping,
+            parse_industry_stock_mapping,
+        )
+
+        try:
+            sectors = parse_sector_definitions()
+        except FileNotFoundError:
+            return {'status': 'error', 'message': '通达信板块定义文件缺失（T0002/hq_cache/tdxzs.cfg）'}
+        except Exception as e:
+            return {'status': 'error', 'message': f'板块定义解析失败: {e}'}
+
+        try:
+            mappings = parse_stock_sector_mapping()
+            industry_mappings = parse_industry_stock_mapping(sectors)
+        except FileNotFoundError:
+            return {'status': 'error', 'message': '通达信板块映射文件缺失'}
+        except Exception as e:
+            return {'status': 'error', 'message': f'板块映射解析失败: {e}'}
+
+        all_mappings = mappings + industry_mappings
+
+        sector_stock_count = {}
+        for stock_code, sector_code in all_mappings:
+            sector_stock_count[sector_code] = sector_stock_count.get(sector_code, 0) + 1
+        for code, count in sector_stock_count.items():
+            if code in sectors:
+                sectors[code]['stock_count'] = count
+
+        conn = get_conn()
+        cursor = conn.cursor()
+
+        sector_rows = []
+        for s in sectors.values():
+            sector_rows.append((
+                s['sector_code'], s['sector_name'], s['category'],
+                s['category_cn'], s['sub_category'], s['level'],
+                s['tdx_industry_code'], s['stock_count'],
+            ))
+
+        sector_cat_map = {s['sector_code']: s['category'] for s in sectors.values()}
+        batch = []
+        for stock_code, sector_code in all_mappings:
+            cat = sector_cat_map.get(sector_code, 'unknown')
+            batch.append((stock_code, sector_code, cat))
+
+        sector_sql = """INSERT INTO sectors
+            (sector_code, sector_name, category, category_cn, sub_category, level, tdx_industry_code, stock_count)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+              sector_name=VALUES(sector_name), category=VALUES(category),
+              category_cn=VALUES(category_cn), sub_category=VALUES(sub_category),
+              level=VALUES(level), tdx_industry_code=VALUES(tdx_industry_code),
+              stock_count=VALUES(stock_count)"""
+        map_sql = """INSERT INTO stock_sectors (stock_code, sector_code, category)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE category=VALUES(category)"""
+
+        CHUNK = 5000
+        cursor.execute("START TRANSACTION")
+        try:
+            cursor.execute("DELETE FROM stock_sectors")
+            for i in range(0, len(batch), CHUNK):
+                cursor.executemany(map_sql, batch[i:i + CHUNK])
+
+            cursor.execute("DELETE FROM sectors")
+            for i in range(0, len(sector_rows), CHUNK):
+                cursor.executemany(sector_sql, sector_rows[i:i + CHUNK])
+
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            return {'status': 'error', 'message': '板块数据写入失败，已回滚'}
+
+        cursor.close()
+        conn.close()
+
+        return {
+            'status': 'ok',
+            'sector_count': len(sectors),
+            'mapping_count': len(all_mappings),
+            'message': f'板块分类同步完成（{len(sectors)} 个板块 / {len(all_mappings)} 条映射）',
+        }
+    finally:
+        _update_lock.release()
 
 
 @router.post('/data/update-dividend')

@@ -2239,8 +2239,8 @@
                         <div class="dm-card-subtitle">行业板块 · 概念板块 · 地域板块</div>
                     </div>
                     <div class="dm-card-status">
-                        <span class="dm-dot dm-dot-pending"></span>
-                        <span class="dm-status-text">待接入</span>
+                        <span class="dm-dot" :class="sectorDotClass"></span>
+                        <span class="dm-status-text">{{ sectorStatusText }}</span>
                     </div>
                 </div>
                 <div class="dm-card-body">
@@ -2253,14 +2253,25 @@
                         <span class="dm-val">行业 · 概念 · 地域</span>
                     </div>
                     <div class="dm-info-row">
+                        <span>板块数量</span>
+                        <span class="dm-val accent">{{ status.sector?.sector_count || 0 }} 个</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>股票映射</span>
+                        <span class="dm-val">{{ status.sector?.mapping_count || 0 }} 条</span>
+                    </div>
+                    <div class="dm-info-row">
                         <span>同步状态</span>
-                        <span class="dm-val pending">{{ status.sector?.message || '未接入' }}</span>
+                        <span class="dm-val">{{ status.sector?.message || '待同步' }}</span>
                     </div>
                 </div>
                 <div class="dm-card-footer">
-                    <button class="btn btn-outline" disabled>
-                        <span style="opacity:0.5;">同步板块分类 · 待开发</span>
+                    <button class="btn btn-primary" style="background:#f59e0b;border-color:#f59e0b;" @click="updateSector" :disabled="sectorLoading">
+                        <span v-if="sectorLoading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ sectorLoading ? '同步中...' : '⟳ 同步板块分类' }}
                     </button>
+                    <span v-if="sectorResult" class="dm-toast dm-toast-ok">✓ {{ sectorResult }}</span>
+                    <span v-if="sectorError" class="dm-toast dm-toast-err">✗ {{ sectorError }}</span>
                 </div>
             </div>
 

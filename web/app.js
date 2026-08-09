@@ -2251,6 +2251,40 @@ app.component('data-mgmt-page', {
             return divLoading.value ? '更新中' : (status.value.dividend?.latest_update ? '已同步' : '待接入');
         });
 
+        const sectorLoading = ref(false);
+        const sectorResult = ref('');
+        const sectorError = ref('');
+
+        const sectorDotClass = computed(() => {
+            return sectorLoading.value ? 'dm-dot-sync' : (status.value.sector?.sector_count ? 'dm-dot-online' : 'dm-dot-pending');
+        });
+
+        const sectorStatusText = computed(() => {
+            return sectorLoading.value ? '同步中' : (status.value.sector?.sector_count ? '已同步' : '待接入');
+        });
+
+        async function updateSector() {
+            sectorLoading.value = true;
+            sectorResult.value = '';
+            sectorError.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/data/update-sector`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    sectorResult.value = '同步任务已在执行中';
+                } else if (data.status === 'error') {
+                    sectorError.value = data.message || '同步失败';
+                } else {
+                    sectorResult.value = `同步完成：${data.sector_count} 个板块 / ${data.mapping_count} 条映射`;
+                    loadStatus();
+                }
+            } catch (e) {
+                sectorError.value = e.message;
+            } finally {
+                sectorLoading.value = false;
+            }
+        }
+
         async function updateDividend() {
             divLoading.value = true;
             divResult.value = '';
@@ -2342,6 +2376,7 @@ app.component('data-mgmt-page', {
             status, klineLoading, klineResult, klineError,
             finLoading, finResult, finError,
             divLoading, divResult, divError, divDotClass, divStatusText, updateDividend,
+            sectorLoading, sectorResult, sectorError, sectorDotClass, sectorStatusText, updateSector,
             lastSyncLabel, finDotClass, finStatusText,
             updateKline, updateFinancial,
             profileRefreshDot, profileRefreshStatusText,

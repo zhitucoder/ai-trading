@@ -1371,6 +1371,8 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .dm-dot-online { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.5); }
 .dm-dot-pending { background: var(--text-dim); }
+.dm-dot-sync { background: #f59e0b; animation: dm-dot-pulse 1s ease-in-out infinite; }
+@keyframes dm-dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .dm-status-text {
     font-size: 11px;
     color: var(--text-muted);
