@@ -67,11 +67,11 @@ AI 是能力的放大器——它帮你扩展知识边界，只做辅助决策�
 
 **1. AI股票分析课程介绍 · 课程大纲与演示**
 
-<a href="https://www.bilibili.com/video/BV1f3uZ6pEC4/" target="_blank"><img src="lession/对话式编程实践课-股票分析系统 4比3 small.jpg" alt="AI股票分析课程介绍-课程大纲与演示" width="720" /></a>
+<a href="https://www.bilibili.com/video/BV1f3uZ6pEC4/" target="_blank" rel="noopener noreferrer"><img src="lession/对话式编程实践课-股票分析系统 4比3 small.jpg" alt="AI股票分析课程介绍-课程大纲与演示" width="720" /></a>
 
 **2. 如何5分钟内生成专业的行业或公司分析**
 
-<a href="https://www.bilibili.com/video/BV1Q2uo66EuP/" target="_blank"><img src="lession/5分钟产出专业行业公司分析2 16：9 small.jpg" alt="如何5分钟内生成专业的行业或公司分析" width="720" /></a>
+<a href="https://www.bilibili.com/video/BV1Q2uo66EuP/" target="_blank" rel="noopener noreferrer"><img src="lession/5分钟产出专业行业公司分析2 16：9 small.jpg" alt="如何5分钟内生成专业的行业或公司分析" width="720" /></a>
 
 ---
 
