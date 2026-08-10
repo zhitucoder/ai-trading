@@ -67,11 +67,11 @@ AI 是能力的放大器——它帮你扩展知识边界，只做辅助决策�
 
 **1. AI股票分析课程介绍 · 课程大纲与演示**
 
-<a href="https://www.bilibili.com/video/BV1f3uZ6pEC4/" target="_blank" rel="noopener noreferrer" style="position:relative; display:block; max-width:720px;"><img src="lession/对话式编程实践课-股票分析系统 4比3 small.jpg" alt="AI股票分析课程介绍-课程大纲与演示" width="720" style="display:block; border-radius:8px;" /><span style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:76px; height:76px; background:rgba(0,0,0,0.55); border:3px solid #ffffff; border-radius:50%; display:flex; align-items:center; justify-content:center;"><svg viewBox="0 0 24 24" width="30" height="30" fill="#ffffff"><path d="M8 5v14l11-7z"/></svg></span></a>
+[![AI股票分析课程介绍-课程大纲与演示](lession/video_cover/课程大纲与演示.jpg)](https://www.bilibili.com/video/BV1f3uZ6pEC4/ "点击播放：AI股票分析课程介绍")
 
 **2. 如何5分钟内生成专业的行业或公司分析**
 
-<a href="https://www.bilibili.com/video/BV1Q2uo66EuP/" target="_blank" rel="noopener noreferrer" style="position:relative; display:block; max-width:720px;"><img src="lession/5分钟产出专业行业公司分析2 16：9 small.jpg" alt="如何5分钟内生成专业的行业或公司分析" width="720" style="display:block; border-radius:8px;" /><span style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:76px; height:76px; background:rgba(0,0,0,0.55); border:3px solid #ffffff; border-radius:50%; display:flex; align-items:center; justify-content:center;"><svg viewBox="0 0 24 24" width="30" height="30" fill="#ffffff"><path d="M8 5v14l11-7z"/></svg></span></a>
+[![如何5分钟内生成专业的行业或公司分析](lession/video_cover/5分钟生成分析.jpg)](https://www.bilibili.com/video/BV1Q2uo66EuP/ "点击播放：如何5分钟内生成专业分析")
 
 ---
 
