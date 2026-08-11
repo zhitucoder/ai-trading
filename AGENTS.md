@@ -78,6 +78,27 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 | `sectors` | 605 | Sector definitions (行业/地区/概念/风格) |
 | `stock_sectors` | 82k | Stock → sector mapping |
 
+### 分析预计算表（ads_*，必用）
+
+**行业/个股分析（六维/俯瞰）一律从 `ads_*` 表取数**，不要每次现算派生指标。统一脚本 `src/compute_ads.py` 生成，数据管理页「分析预计算」卡片一键更新（`POST /api/data/update-ads`，后台运行，进度见 `/api/data/ads/status`）。
+
+| 表 | Rows | 内容 |
+|---|---|---|
+| `ads_stock_annual` | 84k | 每股票×每年度财务（营收/成本/毛利/核心利润/净利/资产/负债/净现金/OCF/ROE/同比） |
+| `ads_stock_latest` | 5.5k | 每股票最新快照（市值/PE_TTM/股息率/最新营收净利同比/最新年报指标） |
+| `ads_sector_annual` | 14k | 每板块×每年度汇总（总营收/总净利/平均毛利/平均ROE/负债率/同比） |
+| `ads_sector_latest` | 559 | 每板块最新快照（总市值/最新汇总/同比） |
+
+**ads_* 关键口径**：
+- `core_profit`（核心利润）= 营收 − 成本 − 销售费用 − 管理费用；`core_margin` = 核心利润/营收
+- `net_cash`（净现金）= 现金 + 交易性金融资产 − 短期借款 − 长期借款
+- `net_cash_ratio`（净现比）= 经营现金流 / 归母净利
+- 市值/PE：`总股本` 取 `stock_shares_dfcf.total_shares`（同"总股本数据"规则）
+- `pe_ttm` = 市值 / TTM归母净利（最新报告期累计 + 上年年报 − 上年同期累计）
+- 数据损坏行已排除/截断（负费用行、极端比值 ±99999 截断），可直接使用
+
+**重要**：`fin_*` 原始表有损坏字段，派生指标一律以 `ads_*` 为准；若某字段在 `ads_*` 中缺失（如金融股），再回查 `fin_*` 可信字段。
+
 ### Table reliability
 
 pytdx 部分字段索引偏移。详细可靠性评估见 `docs/股票画像与筛选系统_当前架构设计.md`。

@@ -2372,6 +2372,39 @@ app.component('data-mgmt-page', {
             loadProfileRefreshStatus();
         });
 
+        const adsLoading = ref(false);
+        const adsResult = ref('');
+        const adsError = ref('');
+
+        const adsDotClass = computed(() => {
+            return adsLoading.value ? 'dm-dot-sync' : (status.value.ads?.last_run ? 'dm-dot-online' : 'dm-dot-pending');
+        });
+        const adsStatusText = computed(() => {
+            return adsLoading.value ? '计算中' : (status.value.ads?.status === 'running' ? '运行中' : (status.value.ads?.last_run ? '已计算' : '待计算'));
+        });
+
+        async function updateAds() {
+            adsLoading.value = true;
+            adsResult.value = '';
+            adsError.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/data/update-ads`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    adsResult.value = '预计算任务已在执行中';
+                } else if (data.status === 'error') {
+                    adsError.value = data.message || '计算失败';
+                } else {
+                    adsResult.value = data.message || '预计算已启动';
+                }
+                setTimeout(loadStatus, 1500);
+            } catch (e) {
+                adsError.value = e.message;
+            } finally {
+                adsLoading.value = false;
+            }
+        }
+
         return {
             status, klineLoading, klineResult, klineError,
             finLoading, finResult, finError,
@@ -2382,6 +2415,7 @@ app.component('data-mgmt-page', {
             profileRefreshDot, profileRefreshStatusText,
             profileRefreshing, refreshProgressBar, profileRefreshDone, profileRefreshData,
             triggerDataRefresh, loadProfileRefreshStatus,
+            adsLoading, adsResult, adsError, adsDotClass, adsStatusText, updateAds,
         };
     },
 });

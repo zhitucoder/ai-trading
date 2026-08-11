@@ -2316,6 +2316,53 @@
                     <span v-if="profileRefreshDone" class="dm-toast dm-toast-ok">✓ {{ profileRefreshDone }}</span>
                 </div>
             </div>
+
+            <!-- Analysis Precompute Card -->
+            <div class="dm-card dm-card-ads">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(16,185,129,0.12);">
+                        <span style="font-size:22px;">🧮</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">分析预计算</div>
+                        <div class="dm-card-subtitle">ads_* 派生指标 · 六维分析/行业俯瞰直接取数</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot" :class="adsDotClass"></span>
+                        <span class="dm-status-text">{{ adsStatusText }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row">
+                        <span>个股年度财务</span>
+                        <span class="dm-val accent">{{ status.ads?.stock_annual || 0 }} 条</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>个股最新快照</span>
+                        <span class="dm-val">{{ status.ads?.stock_latest || 0 }} 条</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>行业年度汇总</span>
+                        <span class="dm-val">{{ status.ads?.sector_annual || 0 }} 条</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>行业最新快照</span>
+                        <span class="dm-val">{{ status.ads?.sector_latest || 0 }} 条</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>上次计算</span>
+                        <span class="dm-val">{{ status.ads?.last_run || '从未' }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <button class="btn btn-primary" style="background:var(--green);border-color:var(--green);" @click="updateAds" :disabled="adsLoading">
+                        <span v-if="adsLoading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ adsLoading ? '计算中...' : '⟳ 更新分析预计算' }}
+                    </button>
+                    <span v-if="adsResult" class="dm-toast dm-toast-ok">✓ {{ adsResult }}</span>
+                    <span v-if="adsError" class="dm-toast dm-toast-err">✗ {{ adsError }}</span>
+                </div>
+            </div>
         </div>
     </div>
 </template>

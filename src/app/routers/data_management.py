@@ -17,6 +17,7 @@ RECORD_FMT = '<IIIIIfII'
 RECORD_SIZE = 32
 
 _update_lock = threading.Lock()
+_ads_lock = threading.Lock()
 
 
 def _parse_day_file_after(filepath, since):
@@ -73,6 +74,17 @@ def data_status():
     sector_map_row = sector_map[0] if sector_map else {}
     has_sector = (sector_row.get('sc') or 0) > 0
 
+    ads = query("""
+        SELECT
+          (SELECT COUNT(*) FROM ads_stock_annual) AS stock_annual,
+          (SELECT COUNT(*) FROM ads_stock_latest) AS stock_latest,
+          (SELECT COUNT(*) FROM ads_sector_annual) AS sector_annual,
+          (SELECT COUNT(*) FROM ads_sector_latest) AS sector_latest,
+          (SELECT MAX(started_at) FROM ads_refresh_log) AS last_run,
+          (SELECT status FROM ads_refresh_log ORDER BY id DESC LIMIT 1) AS last_status
+    """)
+    ads_row = ads[0] if ads else {}
+
     return {
         'kline': {
             'latest_date': str(kline_row.get('max_date') or ''),
@@ -97,6 +109,14 @@ def data_status():
             'sector_count': sector_row.get('sc') or 0,
             'mapping_count': sector_map_row.get('mc') or 0,
             'message': '已同步' if has_sector else '待同步',
+        },
+        'ads': {
+            'stock_annual': ads_row.get('stock_annual') or 0,
+            'stock_latest': ads_row.get('stock_latest') or 0,
+            'sector_annual': ads_row.get('sector_annual') or 0,
+            'sector_latest': ads_row.get('sector_latest') or 0,
+            'last_run': str(ads_row.get('last_run') or ''),
+            'status': ads_row.get('last_status') or 'idle',
         },
     }
 
@@ -432,3 +452,72 @@ def update_dividend():
         return {'status': 'error', 'message': '抓取超时（>10分钟）'}
     finally:
         _update_lock.release()
+
+
+@router.get('/data/ads/status')
+def ads_status():
+    row = query("""
+        SELECT status, total_stocks, computed_stocks, error_stocks,
+               started_at, finished_at, message
+        FROM ads_refresh_log ORDER BY id DESC LIMIT 1
+    """)
+    if not row:
+        return {'status': 'idle', 'computed': 0, 'total': 0, 'message': '尚未预计算'}
+    r = row[0]
+    return {
+        'status': r.get('status') or 'idle',
+        'total': r.get('total_stocks') or 0,
+        'computed': r.get('computed_stocks') or 0,
+        'errors': r.get('error_stocks') or 0,
+        'started_at': str(r.get('started_at') or ''),
+        'finished_at': str(r.get('finished_at') or ''),
+        'message': r.get('message') or '',
+    }
+
+
+@router.post('/data/update-ads')
+def update_ads():
+    if not _ads_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '预计算任务已在执行中'}
+    from ...compute_ads import compute
+
+    def _run():
+        conn = None
+        log_id = None
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO ads_refresh_log (status, total_stocks, computed_stocks, error_stocks, started_at)
+                VALUES ('running', 0, 0, 0, NOW())
+            """)
+            conn.commit()
+            log_id = cur.lastrowid
+            cur.close()
+
+            result = compute(progress_cb=None)
+
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE ads_refresh_log SET status='done', total_stocks=%s,
+                       computed_stocks=%s, finished_at=NOW(), message=%s WHERE id=%s
+            """, (result['stock_latest'], result['stock_latest'],
+                  f"个股年度{result['stock_annual']} / 行业年度{result['sector_annual']} / "
+                  f"个股快照{result['stock_latest']} / 行业快照{result['sector_latest']}，"
+                  f"耗时{result['elapsed_seconds']}s", log_id))
+            conn.commit()
+        except Exception as e:
+            if conn:
+                cur = conn.cursor()
+                cur.execute("""
+                    UPDATE ads_refresh_log SET status='error', finished_at=NOW(), message=%s WHERE id=%s
+                """, (str(e)[-450:], log_id))
+                conn.commit()
+        finally:
+            if conn:
+                conn.close()
+            _ads_lock.release()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'message': '分析预计算已启动（后台运行）'}
