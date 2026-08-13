@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="zh-CN" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: #0a0e1a;
+      }
+      body {
+        font-family: "WenQuanYi Micro Hei", "WenQuanYi Zen Hei", "Noto Sans CJK SC", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      @font-face {
+        font-family: "WenQuanYi Micro Hei";
+        src: local("WenQuanYi Micro Hei");
+      }
+      @font-face {
+        font-family: "WenQuanYi Zen Hei";
+        src: local("WenQuanYi Zen Hei");
+      }
+      @font-face {
+        font-family: "Noto Sans CJK SC";
+        src: local("Noto Sans CJK SC");
+      }
+
+      .scene {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+      }
+      .scene-inner {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 160px 100px;
+        box-sizing: border-box;
+      }
+
+      #scene1 { background: #0a0e1a; z-index: 1; }
+      #scene2 { background: #0f1a33; z-index: 2; opacity: 0; }
+      #scene3 { background: #0a1424; z-index: 3; opacity: 0; }
+      #scene4 { background: #101228; z-index: 4; opacity: 0; }
+      #scene5 { background: #0a0e1a; z-index: 5; opacity: 0; }
+
+      /* ── decorative grid ── */
+      .grid-bg {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-image:
+          linear-gradient(rgba(100,149,237,0.06) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(100,149,237,0.06) 1px, transparent 1px);
+        background-size: 90px 90px;
+      }
+      .glow {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(120px);
+        opacity: 0.5;
+      }
+      .glow-1 { width: 700px; height: 700px; background: #1a3a7a; top: -200px; right: -200px; }
+      .glow-2 { width: 600px; height: 600px; background: #0f5c4a; bottom: -150px; left: -150px; }
+      .glow-gold { width: 500px; height: 500px; background: #8a6d1f; top: 40%; left: 30%; opacity: 0.3; }
+
+      /* ── typography ── */
+      .kicker {
+        font-size: 40px;
+        color: #e2b714;
+        letter-spacing: 10px;
+        font-weight: 600;
+        margin-bottom: 40px;
+      }
+      .title-big {
+        font-size: 120px;
+        color: #ffffff;
+        font-weight: 900;
+        line-height: 1.2;
+        letter-spacing: 6px;
+      }
+      .title-mid {
+        font-size: 88px;
+        color: #ffffff;
+        font-weight: 900;
+        line-height: 1.25;
+      }
+      .title-line {
+        width: 160px;
+        height: 8px;
+        background: linear-gradient(90deg, transparent, #e2b714, #ffd700, #e2b714, transparent);
+        border-radius: 4px;
+        margin: 44px 0;
+      }
+      .subtitle {
+        font-size: 46px;
+        color: #aab2cf;
+        line-height: 1.6;
+        font-weight: 400;
+      }
+      .subtitle b {
+        color: #ffd700;
+        font-weight: 800;
+      }
+
+      /* ── stat cards ── */
+      .stat-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 36px;
+        margin-top: 20px;
+      }
+      .stat-card {
+        background: rgba(30, 33, 54, 0.6);
+        border: 1px solid rgba(100, 149, 237, 0.25);
+        border-radius: 24px;
+        padding: 36px 44px;
+        display: flex;
+        align-items: baseline;
+        gap: 20px;
+      }
+      .stat-num {
+        font-size: 88px;
+        font-weight: 900;
+        color: #ffd700;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .stat-unit {
+        font-size: 40px;
+        color: #ffd700;
+        font-weight: 700;
+      }
+      .stat-label {
+        font-size: 40px;
+        color: #c8d2e8;
+        font-weight: 500;
+      }
+
+      /* ── feature rows ── */
+      .feature-row {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        background: rgba(30, 33, 54, 0.5);
+        border-left: 8px solid #e2b714;
+        border-radius: 16px;
+        padding: 32px 40px;
+        margin-bottom: 28px;
+      }
+      .feature-icon {
+        font-size: 52px;
+        flex-shrink: 0;
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: #1f2c4d;
+        border: 2px solid #e2b714;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffd700;
+        font-weight: 900;
+      }
+      .feature-text {
+        font-size: 44px;
+        color: #eef2ff;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+
+      /* ── CTA card ── */
+      .cta-card {
+        background: rgba(26, 37, 65, 0.7);
+        border: 2px solid #e2b714;
+        border-radius: 32px;
+        padding: 56px 48px;
+        margin-top: 20px;
+      }
+      .cta-title {
+        font-size: 52px;
+        color: #ffffff;
+        font-weight: 900;
+        text-align: center;
+        margin-bottom: 40px;
+      }
+      .cta-row {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        margin-bottom: 30px;
+      }
+      .cta-badge {
+        width: 88px;
+        height: 88px;
+        border-radius: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+        font-weight: 900;
+        flex-shrink: 0;
+      }
+      .cta-badge-github { background: #24292e; color: #fff; }
+      .cta-badge-gitee { background: #c71d23; color: #fff; }
+      .cta-badge-xueqiu { background: #0f4c81; color: #ffd700; }
+      .cta-name {
+        font-size: 46px;
+        color: #ffd700;
+        font-weight: 800;
+      }
+      .cta-desc {
+        font-size: 36px;
+        color: #aab2cf;
+      }
+      .cta-foot {
+        margin-top: 36px;
+        padding-top: 32px;
+        border-top: 1px solid rgba(100,149,237,0.3);
+        font-size: 34px;
+        color: #7c86a6;
+        text-align: center;
+        line-height: 1.6;
+      }
+
+      /* ── big number center ── */
+      .big-num {
+        font-size: 300px;
+        font-weight: 900;
+        color: #e2b714;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+      }
+      .big-num-label {
+        font-size: 52px;
+        color: #ffffff;
+        font-weight: 800;
+        text-align: center;
+        margin-top: 40px;
+      }
+
+      .spacer { flex: 1; }
+      .progress {
+        position: absolute;
+        top: 0; left: 0;
+        height: 12px;
+        background: linear-gradient(90deg, #e2b714, #ffd700);
+        width: 0;
+        z-index: 50;
+      }
+      .brand-tag {
+        position: absolute;
+        top: 80px;
+        left: 0; right: 0;
+        text-align: center;
+        font-size: 32px;
+        color: #5a6a8a;
+        letter-spacing: 8px;
+        z-index: 40;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="95"
+      data-width="1080"
+      data-height="1920"
+    >
+      <!-- ================= SCENE 1 · HOOK ================= -->
+      <div id="scene1" class="scene">
+        <div class="grid-bg"></div>
+        <div class="glow glow-1" data-layout-allow-overflow></div>
+        <div class="glow glow-2" data-layout-allow-overflow></div>
+        <div class="progress" id="progress"></div>
+        <div class="scene-inner">
+          <div style="text-align:center">
+            <div class="kicker" id="s1-kicker">中国高端装备 · 全球名片</div>
+            <div class="title-big" id="s1-t1">你坐的高铁</div>
+            <div class="title-big" id="s1-t2">可能是它造的</div>
+            <div class="title-line" id="s1-line" style="margin-left:auto;margin-right:auto"></div>
+            <div class="subtitle" id="s1-sub" style="text-align:center">中国中车 · 全球轨道交通第一</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= SCENE 2 · NUMBERS ================= -->
+      <div id="scene2" class="scene">
+        <div class="grid-bg"></div>
+        <div class="glow glow-1" data-layout-allow-overflow></div>
+        <div class="scene-inner">
+          <div class="kicker" id="s2-kicker">一年到底有多大？</div>
+          <div class="title-mid" id="s2-title">几个数字看懂中车</div>
+          <div class="title-line" id="s2-line"></div>
+          <div class="stat-grid">
+            <div class="stat-card" id="s2-c1">
+              <span class="stat-num" id="num-rev">0</span>
+              <span class="stat-unit">亿</span>
+              <span class="stat-label">营收</span>
+            </div>
+            <div class="stat-card" id="s2-c2">
+              <span class="stat-num" id="num-profit">0</span>
+              <span class="stat-unit">亿</span>
+              <span class="stat-label">净利</span>
+            </div>
+            <div class="stat-card" id="s2-c3">
+              <span class="stat-num">3</span>
+              <span class="stat-unit">辆里</span>
+              <span class="stat-label">1辆来自中车</span>
+            </div>
+          </div>
+          <div class="spacer"></div>
+          <div class="subtitle" id="s2-sub">复兴号 · 雅万高铁 · 中老铁路</div>
+        </div>
+      </div>
+
+      <!-- ================= SCENE 3 · TRANSFORMATION ================= -->
+      <div id="scene3" class="scene">
+        <div class="grid-bg"></div>
+        <div class="glow glow-2" data-layout-allow-overflow></div>
+        <div class="glow glow-gold" data-layout-allow-overflow></div>
+        <div class="scene-inner">
+          <div class="kicker" id="s3-kicker">它早就不只是造火车</div>
+          <div class="title-mid" id="s3-title">技术平移 · 双赛道</div>
+          <div class="title-line" id="s3-line"></div>
+          <div style="margin-top:30px">
+            <div class="feature-row" id="s3-f1">
+              <span class="feature-icon">◆</span>
+              <span class="feature-text">风电叶片 · 全球前三</span>
+            </div>
+            <div class="feature-row" id="s3-f2">
+              <span class="feature-icon">●</span>
+              <span class="feature-text">储能系统 · 全国第一</span>
+            </div>
+            <div class="feature-row" id="s3-f3">
+              <span class="feature-icon">▲</span>
+              <span class="feature-text">数据中心发电曲轴 · 全球仅3家</span>
+            </div>
+            <div class="feature-row" id="s3-f4">
+              <span class="feature-icon">■</span>
+              <span class="feature-text">每3块钱收入 · 1块来自新能源</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= SCENE 4 · FINANCIALS ================= -->
+      <div id="scene4" class="scene">
+        <div class="grid-bg"></div>
+        <div class="glow glow-1" data-layout-allow-overflow></div>
+        <div class="scene-inner">
+          <div class="kicker" id="s4-kicker">股价低迷 · 分红不手软</div>
+          <div class="title-mid" id="s4-title">股东回报真金白银</div>
+          <div class="title-line" id="s4-line"></div>
+          <div class="stat-grid">
+            <div class="stat-card" id="s4-c1">
+              <span class="stat-num" id="num-div">0</span>
+              <span class="stat-unit">亿</span>
+              <span class="stat-label">年度分红</span>
+            </div>
+            <div class="stat-card" id="s4-c2">
+              <span class="stat-num" id="num-payout">0</span>
+              <span class="stat-unit">%</span>
+              <span class="stat-label">分红率 · 超一半</span>
+            </div>
+            <div class="stat-card" id="s4-c3">
+              <span class="stat-num" id="num-cash">0</span>
+              <span class="stat-unit">亿</span>
+              <span class="stat-label">净现金</span>
+            </div>
+          </div>
+          <div class="spacer"></div>
+          <div class="subtitle" id="s4-sub"><b>首次中期分红</b> · 核心利润率连升5年</div>
+        </div>
+      </div>
+
+      <!-- ================= SCENE 5 · SUMMARY + CTA ================= -->
+      <div id="scene5" class="scene">
+        <div class="grid-bg"></div>
+        <div class="glow glow-1" data-layout-allow-overflow></div>
+        <div class="glow glow-gold" data-layout-allow-overflow></div>
+        <div class="scene-inner">
+          <div style="text-align:center">
+            <div class="kicker" id="s5-kicker" style="text-align:center">一句话看懂中车</div>
+            <div class="title-mid" id="s5-t" style="text-align:center">轨道 + 清洁能源<br>双赛道隐形冠军</div>
+            <div class="title-line" id="s5-line" style="margin-left:auto;margin-right:auto"></div>
+          </div>
+          <div class="spacer"></div>
+          <div class="cta-card" id="s5-cta">
+            <div class="cta-title">想看更多公司深度分析？</div>
+            <div class="cta-row" id="cta-github">
+              <div class="cta-badge cta-badge-github">GH</div>
+              <div>
+                <div class="cta-name">GitHub · 开源项目</div>
+                <div class="cta-desc">zhitucoder/ai-trading</div>
+              </div>
+            </div>
+            <div class="cta-row" id="cta-gitee">
+              <div class="cta-badge cta-badge-gitee">GT</div>
+              <div>
+                <div class="cta-name">Gitee · 开源镜像</div>
+                <div class="cta-desc">zhitucoder/ai-trading</div>
+              </div>
+            </div>
+            <div class="cta-row" id="cta-xueqiu">
+              <div class="cta-badge cta-badge-xueqiu">雪</div>
+              <div>
+                <div class="cta-name">雪球 · 浩哥AI量化财报</div>
+                <div class="cta-desc">更多财报分析 · 欢迎关注</div>
+              </div>
+            </div>
+            <div class="cta-foot" id="cta-foot">两分钟生成行业 / 个股深度分析<br>地址见简介 · 评论区交流</div>
+          </div>
+        </div>
+      </div>
+
+      <audio id="voice-s1" src="audio/s1.m4a" data-start="0.5" data-duration="7.0" data-track-index="20" data-volume="1"></audio>
+      <audio id="voice-s2" src="audio/s2.m4a" data-start="7.8" data-duration="14.4" data-track-index="20" data-volume="1"></audio>
+      <audio id="voice-s3" src="audio/s3.m4a" data-start="23.8" data-duration="23.6" data-track-index="20" data-volume="1"></audio>
+      <audio id="voice-s4" src="audio/s4.m4a" data-start="51.8" data-duration="16.0" data-track-index="20" data-volume="1"></audio>
+      <audio id="voice-s5" src="audio/s5.m4a" data-start="76.8" data-duration="16.2" data-track-index="20" data-volume="1"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // ── helpers ──
+      function countUp(id, to, dur, start, ease) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const obj = { v: 0 };
+        tl.to(obj, {
+          v: to,
+          duration: dur,
+          ease: ease || "power3.out",
+          onUpdate: () => { el.textContent = Math.round(obj.v).toLocaleString(); }
+        }, start);
+      }
+
+      // ── Scene 1 · hook entrance (0-6s) ──
+      tl.from("#s1-kicker", { opacity: 0, y: -40, duration: 0.8, ease: "power3.out" }, 0.3);
+      tl.from("#s1-t1", { opacity: 0, y: 60, duration: 0.7, ease: "power3.out" }, 1.0);
+      tl.from("#s1-t2", { opacity: 0, y: 60, duration: 0.7, ease: "power3.out" }, 1.6);
+      tl.from("#s1-line", { scaleX: 0, duration: 0.8, ease: "power2.out" }, 2.3);
+      tl.from("#s1-sub", { opacity: 0, y: 30, duration: 0.8, ease: "power2.out" }, 2.8);
+
+      // progress bar
+      tl.to("#progress", { width: "100%", duration: 95, ease: "none" }, 0);
+
+      // ── transition 1→2 (6-7.5s) · blur crossfade ──
+      tl.to("#scene1", { opacity: 0, filter: "blur(12px)", scale: 1.03, duration: 0.8, ease: "power2.inOut" }, 6.0);
+      tl.set("#scene1", { visibility: "hidden" }, 6.8);
+      tl.fromTo("#scene2",
+        { opacity: 0, filter: "blur(12px)", scale: 0.97 },
+        { opacity: 1, filter: "blur(0px)", scale: 1, duration: 0.8, ease: "power2.inOut" }, 6.1);
+
+      // ── Scene 2 · numbers (7.5-22s) ──
+      tl.from("#s2-kicker", { opacity: 0, x: -50, duration: 0.6, ease: "power2.out" }, 7.8);
+      tl.from("#s2-title", { opacity: 0, y: 40, duration: 0.6, ease: "power2.out" }, 8.2);
+      tl.from("#s2-line", { scaleX: 0, duration: 0.6, ease: "power2.out" }, 8.8);
+      tl.from("#s2-c1", { opacity: 0, y: 50, duration: 0.5, ease: "power3.out" }, 9.5);
+      tl.from("#s2-c2", { opacity: 0, y: 50, duration: 0.5, ease: "power3.out" }, 10.2);
+      tl.from("#s2-c3", { opacity: 0, y: 50, duration: 0.5, ease: "power3.out" }, 10.9);
+      tl.from("#s2-sub", { opacity: 0, y: 30, duration: 0.6, ease: "power2.out" }, 12.5);
+      countUp("num-rev", 2731, 2.2, 9.5);
+      countUp("num-profit", 132, 2.2, 10.2);
+
+      // ── transition 2→3 (22-23.5s) · push-up ──
+      tl.to("#scene2", { opacity: 0, y: -120, duration: 0.7, ease: "power2.inOut" }, 22);
+      tl.set("#scene2", { visibility: "hidden" }, 22.7);
+      tl.fromTo("#scene3",
+        { opacity: 0, y: 120 },
+        { opacity: 1, y: 0, duration: 0.7, ease: "power2.inOut" }, 22.1);
+
+      // ── Scene 3 · features (23.5-50s) ──
+      tl.from("#s3-kicker", { opacity: 0, x: -50, duration: 0.5, ease: "power2.out" }, 23.8);
+      tl.from("#s3-title", { opacity: 0, y: 40, duration: 0.5, ease: "power2.out" }, 24.2);
+      tl.from("#s3-line", { scaleX: 0, duration: 0.5, ease: "power2.out" }, 24.7);
+      tl.from("#s3-f1", { opacity: 0, x: -70, duration: 0.5, ease: "power3.out" }, 25.4);
+      tl.from("#s3-f2", { opacity: 0, x: -70, duration: 0.5, ease: "power3.out" }, 26.2);
+      tl.from("#s3-f3", { opacity: 0, x: -70, duration: 0.5, ease: "power3.out" }, 27.0);
+      tl.from("#s3-f4", { opacity: 0, x: -70, duration: 0.5, ease: "power3.out" }, 27.8);
+
+      // ── transition 3→4 (50-51.5s) · crossfade ──
+      tl.to("#scene3", { opacity: 0, duration: 0.7, ease: "power2.inOut" }, 50);
+      tl.set("#scene3", { visibility: "hidden" }, 50.7);
+      tl.fromTo("#scene4",
+        { opacity: 0 },
+        { opacity: 1, duration: 0.7, ease: "power2.inOut" }, 50.1);
+
+      // ── Scene 4 · financials (51.5-75s) ──
+      tl.from("#s4-kicker", { opacity: 0, x: -50, duration: 0.5, ease: "power2.out" }, 51.8);
+      tl.from("#s4-title", { opacity: 0, y: 40, duration: 0.5, ease: "power2.out" }, 52.2);
+      tl.from("#s4-line", { scaleX: 0, duration: 0.5, ease: "power2.out" }, 52.7);
+      tl.from("#s4-c1", { opacity: 0, y: 50, duration: 0.5, ease: "power3.out" }, 53.4);
+      tl.from("#s4-c2", { opacity: 0, y: 50, duration: 0.5, ease: "power3.out" }, 54.1);
+      tl.from("#s4-c3", { opacity: 0, y: 50, duration: 0.5, ease: "power3.out" }, 54.8);
+      tl.from("#s4-sub", { opacity: 0, y: 30, duration: 0.6, ease: "power2.out" }, 57);
+      countUp("num-div", 66, 2.0, 53.4);
+      countUp("num-payout", 50, 2.0, 54.1);
+      countUp("num-cash", 590, 2.0, 54.8);
+
+      // ── transition 4→5 (75-76.5s) · radial/dissolve ──
+      tl.to("#scene4", { opacity: 0, filter: "blur(10px)", scale: 1.02, duration: 0.8, ease: "power2.inOut" }, 75);
+      tl.set("#scene4", { visibility: "hidden" }, 75.8);
+      tl.fromTo("#scene5",
+        { opacity: 0, filter: "blur(10px)", scale: 0.98 },
+        { opacity: 1, filter: "blur(0px)", scale: 1, duration: 0.8, ease: "power2.inOut" }, 75.1);
+
+      // ── Scene 5 · summary + CTA (76.5-95s) ──
+      tl.from("#s5-kicker", { opacity: 0, y: -30, duration: 0.5, ease: "power2.out" }, 76.8);
+      tl.from("#s5-t", { opacity: 0, y: 40, duration: 0.6, ease: "power3.out" }, 77.2);
+      tl.from("#s5-line", { scaleX: 0, duration: 0.6, ease: "power2.out" }, 78.0);
+      tl.from("#s5-cta", { opacity: 0, y: 60, duration: 0.6, ease: "power3.out" }, 79.0);
+      tl.from("#cta-github", { opacity: 0, x: -60, duration: 0.5, ease: "power3.out" }, 81.0);
+      tl.from("#cta-gitee", { opacity: 0, x: -60, duration: 0.5, ease: "power3.out" }, 82.0);
+      tl.from("#cta-xueqiu", { opacity: 0, x: -60, duration: 0.5, ease: "power3.out" }, 83.0);
+      tl.from("#cta-foot", { opacity: 0, y: 20, duration: 0.6, ease: "power2.out" }, 85.0);
+
+      // final scene hard kill at timeline end (satisfies lint)
+      tl.set("#scene5", { visibility: "hidden" }, 95);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
