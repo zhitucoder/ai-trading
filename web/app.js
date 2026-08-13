@@ -1060,7 +1060,6 @@ app.component('profile-page', {
             ctx.clearRect(0, 0, W, H);
 
             const n = data.years.length;
-            const xs = data.years.map((_, i) => pad.left + cw * i / (n - 1 || 1));
 
             const rMax = Math.max(...data.revenues) * 1.15;
             const pMin = Math.min(...data.profits) * 1.1;
@@ -1085,14 +1084,17 @@ app.component('profile-page', {
 
             const yearStart = data.years[0];
             const yearEnd = data.years[n - 1];
-            const msStart = new Date(yearStart, 0, 1).getTime();
-            const msEnd = new Date(yearEnd, 11, 31).getTime();
+            const wkFirst = wk.length ? new Date(wk[0].date).getTime() : null;
+            const wkLast = wk.length ? new Date(wk[wk.length - 1].date).getTime() : null;
+            const msStart = Math.min(new Date(yearStart, 0, 1).getTime(), wkFirst != null ? wkFirst : Infinity);
+            const msEnd = Math.max(new Date(yearEnd, 11, 31).getTime(), wkLast != null ? wkLast : -Infinity);
             const msRange = msEnd - msStart || 1;
 
             function dateToX(dateStr) {
                 const t = new Date(dateStr).getTime();
                 return pad.left + cw * (t - msStart) / msRange;
             }
+            const xs = data.years.map(y => dateToX(new Date(y, 6, 1)));
 
             ctx.strokeStyle = 'rgba(255,255,255,0.05)';
             ctx.lineWidth = 1*dpr;
