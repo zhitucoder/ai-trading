@@ -16,3 +16,6 @@ build/
 node_modules/
 package-lock.json
 package.json
+
+# 定期报告PDF下载（data/reports/）
+data/

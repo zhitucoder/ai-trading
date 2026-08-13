@@ -18,6 +18,7 @@ RECORD_SIZE = 32
 
 _update_lock = threading.Lock()
 _ads_lock = threading.Lock()
+_dmdl_lock = threading.Lock()
 
 
 def _parse_day_file_after(filepath, since):
@@ -521,3 +522,219 @@ def update_ads():
     t = threading.Thread(target=_run, daemon=True)
     t.start()
     return {'status': 'started', 'message': '分析预计算已启动（后台运行）'}
+
+
+# ── 定期报告下载（年报/季报） ──
+_reports_lock = threading.Lock()
+
+
+@router.get('/data/reports/status')
+def reports_status():
+    rows = query("""
+        SELECT source, report_year, report_period, COUNT(*) AS cnt,
+               COALESCE(SUM(file_size), 0) AS total_bytes
+        FROM report_pdf GROUP BY source, report_year, report_period
+        ORDER BY report_year DESC, source, report_period
+    """)
+    return {
+        'running': _reports_lock.locked(),
+        'groups': rows,
+        'total_files': sum(r['cnt'] for r in rows),
+        'total_bytes': sum(r['total_bytes'] for r in rows),
+    }
+
+
+@router.post('/data/update-reports')
+def update_reports(source: str = 'cninfo', period: str = 'annual', interval: float = 5.0):
+    if not _reports_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '报告下载已在执行中'}
+    import subprocess
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parent.parent.parent / 'download_reports.py'
+
+    def _run():
+        log_path = Path('/tmp/report_download_api.log')
+        try:
+            with open(log_path, 'w') as f:
+                subprocess.run(
+                    [sys.executable, str(script), '--source', source, '--period', period,
+                     '--interval', str(interval)],
+                    stdout=f, stderr=subprocess.STDOUT, timeout=60 * 60 * 12,
+                )
+        except subprocess.TimeoutExpired:
+            pass
+        finally:
+            _reports_lock.release()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'source': source, 'period': period,
+            'message': f'报告下载已启动（{source}·{period}，后台运行）'}
+
+
+# ═══════════ 达摩达兰估值 ═══════════
+
+@router.get('/dmdl/valuation')
+def dmdl_valuation(min_score: int = 0, stage: str = '', min_cap: float = 0,
+                   eq_quality: str = 'A,B', stock_code: str = '', limit: int = 50):
+    if stock_code:
+        # 按代码查：直接查 static+mkt（绕过视图的C级过滤，保证任意股票可查）
+        return query("""
+            SELECT s.stock_code, s.stock_name, s.life_stage, s.earnings_quality, s.risk_penalty,
+                   s.roic, s.wacc, s.roic_minus_wacc,
+                   m.trade_date, m.market_cap, m.pe_ttm, m.pb,
+                   ROUND(s.val_low/1e8,2) AS intrinsic_low,
+                   ROUND(s.val_final/1e8,2) AS intrinsic_value,
+                   ROUND(s.val_high/1e8,2) AS intrinsic_high,
+                   ROUND((s.val_final/1e8/NULLIF(m.market_cap,0)-1)*100,2) AS margin_of_safety,
+                   GREATEST(0, ROUND(
+                      (CASE WHEN s.val_final/1e8 > m.market_cap THEN 50 ELSE 0 END)
+                    + (CASE WHEN s.roic_minus_wacc > 0 THEN 20 ELSE 0 END)
+                    + (CASE WHEN s.roic > 0.10 THEN 15 ELSE 0 END)
+                    + (CASE WHEN s.roic_minus_wacc > 0.05 THEN 15 ELSE 0 END)
+                    - COALESCE(s.risk_penalty,0), 0)) AS score,
+                   sv.sector_name, sv.pe_median, sv.pb_median
+            FROM ads_dmdl_static s
+            JOIN ads_dmdl_mkt_daily m ON m.stock_code = s.stock_code
+              AND m.trade_date = (SELECT MAX(trade_date) FROM ads_dmdl_mkt_daily)
+            LEFT JOIN ads_dmdl_sector_val sv ON sv.sector_code = (
+                SELECT ss.sector_code FROM stock_sectors ss
+                JOIN sectors se ON ss.sector_code=se.sector_code
+                WHERE ss.stock_code=s.stock_code AND se.category='industry'
+                  AND se.level<=1 AND se.sector_name NOT LIKE 'TDX%%' LIMIT 1)
+              AND sv.trade_date = m.trade_date
+            WHERE s.stock_code = %s
+            LIMIT 1
+        """, (stock_code,))
+    where = ["m.market_cap >= %s"]
+    params = [min_cap]
+    where.append("FIND_IN_SET(s.earnings_quality, %s)")
+    params.append(eq_quality)
+    if min_score > 0:
+        where.append("score >= %s")
+        params.append(min_score)
+    if stage:
+        where.append("s.life_stage = %s")
+        params.append(stage)
+    sql = f"""
+        SELECT s.stock_code, s.stock_name, s.life_stage, s.earnings_quality, s.risk_penalty,
+               s.roic, s.wacc, s.roic_minus_wacc,
+               m.trade_date, m.market_cap, m.pe_ttm, m.pb,
+               v.intrinsic_low, v.intrinsic_value, v.intrinsic_high,
+               v.margin_of_safety, v.score,
+               v.sector_name, v.pe_median, v.pb_median
+        FROM v_dmdl_valuation v
+        JOIN ads_dmdl_static s ON s.stock_code = v.stock_code
+        JOIN ads_dmdl_mkt_daily m ON m.stock_code = v.stock_code AND m.trade_date = v.trade_date
+        WHERE {' AND '.join(where)}
+        ORDER BY v.score DESC, v.margin_of_safety DESC
+        LIMIT %s
+    """
+    params.append(limit)
+    return query(sql, params)
+
+
+@router.get('/dmdl/stock/{code}')
+def dmdl_stock(code: str):
+    row = query("""
+        SELECT s.stock_code, s.stock_name, s.report_date, s.life_stage,
+               s.roic, s.wacc, s.roic_minus_wacc, s.earnings_quality, s.risk_penalty,
+               s.norm_profit_5y, s.ttm_profit, s.growth_rate,
+               s.val_eps_normal, s.val_dcf, s.val_bv,
+               s.val_low, s.val_high, s.val_final,
+               m.trade_date, m.close_price, m.market_cap, m.pe_ttm, m.pb,
+               v.intrinsic_low, v.intrinsic_value, v.intrinsic_high,
+               v.margin_of_safety, v.score,
+               v.sector_name, v.pe_median, v.pb_median
+        FROM ads_dmdl_static s
+        LEFT JOIN ads_dmdl_mkt_daily m ON m.stock_code = s.stock_code
+          AND m.trade_date = (SELECT MAX(trade_date) FROM ads_dmdl_mkt_daily)
+        LEFT JOIN v_dmdl_valuation v ON v.stock_code = s.stock_code
+        WHERE s.stock_code = %s
+    """, (code,))
+    if not row:
+        return {'status': 'error', 'message': f'未找到 {code}'}
+    return row[0]
+
+
+@router.get('/dmdl/sector-val')
+def dmdl_sector_val():
+    return query("""
+        SELECT sector_code, sector_name, trade_date, stock_count,
+               sector_pe, sector_pb, pe_median, pe_pctl_low, pe_pctl_high,
+               pb_median, pb_pctl_low, pb_pctl_high, fair_pe, fair_pb
+        FROM ads_dmdl_sector_val
+        WHERE trade_date = (SELECT MAX(trade_date) FROM ads_dmdl_sector_val)
+        ORDER BY stock_count DESC
+    """)
+
+
+@router.get('/dmdl/status')
+def dmdl_status():
+    static = query("SELECT COUNT(*) c, MAX(updated_at) d FROM ads_dmdl_static")
+    mkt = query("SELECT COUNT(*) c, MAX(trade_date) d FROM ads_dmdl_mkt_daily")
+    sector = query("SELECT COUNT(*) c, MAX(trade_date) d FROM ads_dmdl_sector_val")
+    view = query("SELECT COUNT(*) c FROM v_dmdl_valuation")
+    return {
+        'static': {'count': static[0]['c'] if static else 0, 'updated': str(static[0]['d']) if static else ''},
+        'mkt': {'count': mkt[0]['c'] if mkt else 0, 'latest_date': str(mkt[0]['d']) if mkt else ''},
+        'sector': {'count': sector[0]['c'] if sector else 0, 'latest_date': str(sector[0]['d']) if sector else ''},
+        'valuation_view': {'count': view[0]['c'] if view else 0},
+    }
+
+
+@router.post('/dmdl/update')
+def dmdl_update():
+    if not _dmdl_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '估值预计算任务已在执行中'}
+    from ...compute_dmdl import compute_static, compute_mkt, compute_sector_val
+    import pymysql
+    from ..database import get_conn
+
+    def _run():
+        conn = get_conn()
+        try:
+            log_path = Path('/tmp/dmdl_update.log')
+            with open(log_path, 'w') as f:
+                f.write('')
+            def wlog(msg):
+                with open(log_path, 'a') as f:
+                    f.write(msg + '\n')
+            wlog('静态估值重算...')
+            compute_static(conn, wlog)
+            wlog('市值快照更新...')
+            td = compute_mkt(conn, wlog)
+            wlog('行业基准更新...')
+            compute_sector_val(conn, wlog, td)
+            cur = conn.cursor()
+            cur.execute(open('/home/rick/workspace/ai-trading/src/compute_dmdl.py', encoding='utf-8')
+                        .read().split('VIEW_SQL = """')[1].split('"""')[0])
+            conn.commit()
+            wlog('视图已刷新')
+        except Exception as e:
+            with open('/tmp/dmdl_update.log', 'a') as f:
+                f.write(f'ERROR: {e}\n')
+        finally:
+            conn.close()
+            _dmdl_lock.release()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'message': '达摩达兰估值预计算已启动（后台运行）'}
+
+
+@router.get('/dmdl/update/status')
+def dmdl_update_status():
+    if _dmdl_lock.locked():
+        status = 'running'
+    else:
+        status = 'idle'
+    log_tail = ''
+    try:
+        from pathlib import Path
+        lines = Path('/tmp/dmdl_update.log').read_text(encoding='utf-8').strip().split('\n')
+        log_tail = '\n'.join(lines[-5:])
+    except Exception:
+        pass
+    return {'status': status, 'log_tail': log_tail}

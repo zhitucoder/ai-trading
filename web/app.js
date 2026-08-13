@@ -43,8 +43,11 @@ const app = createApp({
             { id: 'dividend', label: '分红列表', icon: '❖' },
             { id: 'debate', label: 'AI多空辩论', icon: '⚖' },
             { id: 'expert', label: '蒸馏专家', icon: '⚗' },
+            { id: 'dmdl', label: '估值榜', icon: '⚖' },
             { id: 'query', label: '智能问数', icon: '✦' },
             { id: 'data_mgmt', label: '数据管理', icon: '⚙' },
+            { id: 'data_catalog', label: '数据资产', icon: '🗂' },
+            { id: 'data_lineage', label: '数据血缘', icon: '⛓' },
         ];
         const navPages = computed(() => pages);
         provide('currentPage', currentPage);
@@ -906,6 +909,8 @@ app.component('profile-page', {
                 const barTop = g.pad.top + g.ch - bh;
                 if (my < barTop - 4 || my > g.pad.top + g.ch) { draw(); return; }
                 draw();
+                ctx.fillStyle = 'rgba(100,149,237,0.95)';
+                ctx.fillRect(x - barW / 2, barTop, barW, bh);
                 const lines = [
                     `${t.year}年 每股派息：${t.cash_per_share != null ? t.cash_per_share.toFixed(2) : '-'}元`,
                     t.dividend_yield != null ? `股息率：${t.dividend_yield.toFixed(2)}%` : '股息率：-',
@@ -921,8 +926,6 @@ app.component('profile-page', {
                 ctx.beginPath(); ctx.roundRect(tx, ty, tw, th, 4); ctx.fill(); ctx.stroke();
                 ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
                 lines.forEach((l, i) => ctx.fillText(l, tx + 8, ty + 16 + i * 16));
-                ctx.fillStyle = 'rgba(100,149,237,0.95)';
-                ctx.fillRect(x - barW / 2, barTop, barW, bh);
             }
 
             c.onmousemove = onMove;
@@ -2370,6 +2373,7 @@ app.component('data-mgmt-page', {
         onMounted(() => {
             loadStatus();
             loadProfileRefreshStatus();
+            loadDmdlStatus();
         });
 
         const adsLoading = ref(false);
@@ -2405,6 +2409,39 @@ app.component('data-mgmt-page', {
             }
         }
 
+        const dmdlLoading = ref(false);
+        const dmdlResult = ref('');
+        const dmdlStatus = ref(null);
+
+        const dmdlDotClass = computed(() => {
+            return dmdlLoading.value ? 'dm-dot-sync' : (dmdlStatus.value?.static?.count ? 'dm-dot-online' : 'dm-dot-pending');
+        });
+        const dmdlStatusText = computed(() => {
+            return dmdlLoading.value ? '计算中' : (dmdlStatus.value?.static?.count ? '已计算' : '待计算');
+        });
+
+        async function loadDmdlStatus() {
+            try {
+                const r = await fetch(`${API_BASE}/dmdl/status`);
+                dmdlStatus.value = await r.json();
+            } catch (e) {}
+        }
+
+        async function updateDmdl() {
+            dmdlLoading.value = true;
+            dmdlResult.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/dmdl/update`, { method: 'POST' });
+                const data = await r.json();
+                dmdlResult.value = data.message || '已启动';
+                setTimeout(loadDmdlStatus, 3000);
+            } catch (e) {
+                dmdlResult.value = '失败: ' + e.message;
+            } finally {
+                dmdlLoading.value = false;
+            }
+        }
+
         return {
             status, klineLoading, klineResult, klineError,
             finLoading, finResult, finError,
@@ -2416,7 +2453,120 @@ app.component('data-mgmt-page', {
             profileRefreshing, refreshProgressBar, profileRefreshDone, profileRefreshData,
             triggerDataRefresh, loadProfileRefreshStatus,
             adsLoading, adsResult, adsError, adsDotClass, adsStatusText, updateAds,
+            dmdlLoading, dmdlResult, dmdlStatus, dmdlDotClass, dmdlStatusText, updateDmdl,
         };
+    },
+});
+
+// ── 达摩达兰估值 ──
+app.component('dmdl-page', {
+    template: '#dmdl-tpl',
+    setup() {
+        const rows = ref([]);
+        const loading = ref(false);
+        const selected = ref(null);
+        const status = ref({ mkt: {}, sector: {}, valuation_view: {} });
+        const filters = reactive({ stage: '', min_score: 0, stock_code: '' });
+        const stockQuery = ref('');
+        const stockSuggestions = ref([]);
+        const stockSuggestionIdx = ref(-1);
+        let searchTimer = null;
+
+        function stageLabel(s) {
+            const map = { growth: '成长', cycle: '周期', finance: '金融', turnaround: '困境反转', decline: '衰退' };
+            return map[s] || s || '-';
+        }
+
+        async function onStockInput() {
+            const q = stockQuery.value.trim();
+            if (q.length < 1) { stockSuggestions.value = []; return; }
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(q)}`);
+                    const d = await r.json();
+                    stockSuggestions.value = d.rows || [];
+                    stockSuggestionIdx.value = -1;
+                } catch (e) {}
+            }, 150);
+        }
+
+        function onStockKeydown(e) {
+            const len = stockSuggestions.value.length;
+            if (len === 0) return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); stockSuggestionIdx.value = Math.min(stockSuggestionIdx.value + 1, len - 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); stockSuggestionIdx.value = Math.max(stockSuggestionIdx.value - 1, 0); }
+            else if (e.key === 'Enter' && stockSuggestionIdx.value >= 0) {
+                e.preventDefault();
+                selectStock(stockSuggestions.value[stockSuggestionIdx.value].stock_code);
+            }
+        }
+
+        function selectFirstSuggestion() {
+            if (stockSuggestions.value.length) {
+                selectStock(stockSuggestions.value[0].stock_code);
+            } else if (stockQuery.value.trim()) {
+                selectStock(stockQuery.value.trim());
+            }
+        }
+
+        async function selectStock(code) {
+            stockQuery.value = code;
+            stockSuggestions.value = [];
+            stockSuggestionIdx.value = -1;
+            filters.stock_code = code;
+            await Promise.all([loadValuation(), openStock(code)]);
+        }
+
+        async function loadValuation() {
+            loading.value = true;
+            try {
+                const params = new URLSearchParams();
+                if (filters.stock_code) {
+                    params.set('stock_code', filters.stock_code);
+                } else {
+                    if (filters.stage) params.set('stage', filters.stage);
+                    if (filters.min_score) params.set('min_score', filters.min_score);
+                }
+                params.set('limit', 100);
+                const r = await fetch(`${API_BASE}/dmdl/valuation?${params}`);
+                rows.value = await r.json();
+                const s = await (await fetch(`${API_BASE}/dmdl/status`)).json();
+                status.value = s;
+            } catch (e) { console.error(e); }
+            finally { loading.value = false; }
+        }
+
+        async function openStock(code) {
+            try {
+                const r = await fetch(`${API_BASE}/dmdl/stock/${code}`);
+                selected.value = await r.json();
+                if (selected.value.stock_name && stockQuery.value !== selected.value.stock_code) {
+                    stockQuery.value = `${selected.value.stock_code} ${selected.value.stock_name}`;
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function resetFilter() {
+            filters.stock_code = '';
+            stockQuery.value = '';
+            selected.value = null;
+            loadValuation();
+        }
+
+        watch([() => filters.stage, () => filters.min_score], () => {
+            if (filters.stock_code) {
+                filters.stock_code = '';
+                stockQuery.value = '';
+            }
+            loadValuation();
+        });
+        watch(() => filters.stock_code, loadValuation);
+        onMounted(loadValuation);
+
+        return { rows, loading, selected, status, filters, stageLabel, loadValuation, openStock, resetFilter,
+                 stockQuery, stockSuggestions, stockSuggestionIdx,
+                 onStockInput, onStockKeydown, selectFirstSuggestion, selectStock, fmt, fmtGrowth, fmtMoney };
     },
 });
 
@@ -3058,6 +3208,501 @@ app.component('strong-stocks-page', {
             loadStocks, loadChart, loadTopStocks, barWidth, openSectorStock,
             toggleStock, toggleSort, sortArrow, goBack, goToStock,
             fmt, fmtGrowth, fmtMoney, valClass, CHART_COLORS: window.CHART_COLORS,
+        };
+    },
+});
+
+app.component('data-catalog-page', {
+    template: '#data-catalog-tpl',
+    setup() {
+        const currentPage = inject('currentPage');
+        const q = ref('');
+        const category = ref('全部');
+        const sort = ref('table_name');
+        const total = ref(0);
+        const rows = ref([]);
+        const loading = ref(false);
+        const error = ref('');
+        const refreshing = ref(false);
+
+        const suggestions = ref([]);
+        const suggestionIdx = ref(-1);
+        let searchTimer = null;
+
+        const categories = ['全部', '行情', '财务', '板块与股本', '预计算分析', '用户与日志'];
+        const sortOptions = [
+            { value: 'table_name', label: '按名称' },
+            { value: 'latest_date', label: '按最新日期' },
+            { value: 'row_count', label: '按行数' },
+        ];
+
+        const selectedTable = ref('');
+        const detail = ref(null);
+        const detailLoading = ref(false);
+        const columns = ref([]);
+        const columnsLoading = ref(false);
+
+        async function loadList() {
+            loading.value = true;
+            error.value = '';
+            try {
+                const params = new URLSearchParams({
+                    category: category.value === '全部' ? '' : category.value,
+                    q: q.value.trim(),
+                    sort: sort.value,
+                });
+                const r = await fetch(`${API_BASE}/governance/tables?${params}`);
+                const d = await r.json();
+                if (d.error) { error.value = d.error; return; }
+                total.value = d.total || 0;
+                rows.value = d.rows || [];
+            } catch (e) {
+                error.value = e.message;
+            } finally {
+                loading.value = false;
+            }
+        }
+
+        async function onSearchInput() {
+            const query = q.value.trim();
+            if (query.length < 1) { suggestions.value = []; return; }
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/governance/tables/suggest?q=${encodeURIComponent(query)}`);
+                    const d = await r.json();
+                    suggestions.value = d.rows || [];
+                    suggestionIdx.value = -1;
+                } catch (e) {}
+            }, 150);
+        }
+
+        function onSearchKeydown(e) {
+            const len = suggestions.value.length;
+            if (len === 0) return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); suggestionIdx.value = Math.min(suggestionIdx.value + 1, len - 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); suggestionIdx.value = Math.max(suggestionIdx.value - 1, 0); }
+            else if (e.key === 'Enter' && suggestionIdx.value >= 0) {
+                e.preventDefault();
+                selectSuggestion(suggestions.value[suggestionIdx.value]);
+            }
+        }
+
+        function onSearchEnter() {
+            if (suggestionIdx.value >= 0) return;
+            suggestions.value = [];
+            loadList();
+        }
+
+        function selectSuggestion(s) {
+            q.value = s.table_name;
+            suggestions.value = [];
+            suggestionIdx.value = -1;
+            showDetail(s.table_name);
+        }
+
+        function clearSearch() {
+            q.value = '';
+            suggestions.value = [];
+            loadList();
+        }
+
+        function setCategory(c) {
+            category.value = c;
+            loadList();
+        }
+
+        function setSort(s) {
+            sort.value = s;
+            loadList();
+        }
+
+        async function refreshMeta() {
+            refreshing.value = true;
+            try {
+                await fetch(`${API_BASE}/governance/refresh`, { method: 'POST' });
+                await loadList();
+            } catch (e) {
+                error.value = e.message;
+            } finally {
+                refreshing.value = false;
+            }
+        }
+
+        async function showDetail(t) {
+            selectedTable.value = t;
+            detail.value = null;
+            columns.value = [];
+            detailLoading.value = true;
+            columnsLoading.value = true;
+            try {
+                const r = await fetch(`${API_BASE}/governance/tables/${encodeURIComponent(t)}`);
+                const d = await r.json();
+                if (!d.error) detail.value = d;
+            } catch (e) {}
+            detailLoading.value = false;
+            try {
+                const r2 = await fetch(`${API_BASE}/governance/tables/${encodeURIComponent(t)}/columns`);
+                const d2 = await r2.json();
+                if (!d2.error) columns.value = d2.rows || [];
+            } catch (e) {}
+            columnsLoading.value = false;
+        }
+
+        function staleClass(r) {
+            if (!r.latest_date) return '';
+            const today = new Date();
+            const d = new Date(r.latest_date);
+            const diff = Math.floor((today - d) / (1000 * 60 * 60 * 24));
+            if (diff <= 7) return 'dg-stale-new';
+            if (diff <= 30) return 'dg-stale-warn';
+            return 'dg-stale-old';
+        }
+
+        function goLineage(t) {
+            window._lineageTable = t;
+            window._lineageField = null;
+            currentPage.value = 'data_lineage';
+        }
+
+        function goFieldLineage(t, col) {
+            window._lineageTable = t;
+            window._lineageField = col;
+            currentPage.value = 'data_lineage';
+        }
+
+        onMounted(() => {
+            loadList();
+        });
+
+        return {
+            q, category, sort, total, rows, loading, error, refreshing,
+            suggestions, suggestionIdx, categories, sortOptions,
+            selectedTable, detail, detailLoading, columns, columnsLoading,
+            onSearchInput, onSearchKeydown, onSearchEnter, selectSuggestion,
+            clearSearch, setCategory, setSort, refreshMeta,
+            showDetail, staleClass, goLineage, goFieldLineage,
+        };
+    },
+});
+
+app.component('data-lineage-page', {
+    template: '#data-lineage-tpl',
+    setup() {
+        const currentPage = inject('currentPage');
+        const tableInput = ref('');
+        const activeView = ref('table');
+        const currentTable = ref('');
+        const currentField = ref('');
+        const lineageData = ref(null);
+        const fieldData = ref(null);
+        const loading = ref(false);
+        const error = ref('');
+        const cyContainer = ref(null);
+        let cy = null;
+
+        const suggestions = ref([]);
+        const suggestionIdx = ref(-1);
+        let searchTimer = null;
+
+        const clickedTableName = ref('');
+        const clickedColumns = ref([]);
+        const edgeTip = ref({ show: false, x: 0, y: 0, text: '' });
+
+        const fieldUpstreamNotes = computed(() => {
+            if (!fieldData.value || !fieldData.value.upstream.length) return '';
+            const notes = fieldData.value.upstream.map(u => u.note).filter(n => n);
+            return notes.length ? notes[0] : '';
+        });
+
+        function nodeColor(t) {
+            if (t.startsWith('ads_stock')) return '#f59e0b';
+            if (t.startsWith('ads_sector')) return '#7c3aed';
+            if (t.startsWith('fin_') || t.startsWith('daily_kline') || t.startsWith('stock_') || t.startsWith('sector') || t === 'stocks') return '#1e3a5f';
+            return '#475569';
+        }
+
+        function nodeTextColor(t) {
+            if (t.startsWith('ads_stock')) return '#000';
+            return '#e2e8f0';
+        }
+
+        function buildTableGraph(data) {
+            const elements = [];
+            const targetId = data.table;
+            elements.push({
+                data: { id: targetId, label: data.table_comment || targetId, enName: targetId, isTarget: true },
+            });
+            (data.upstream || []).forEach(u => {
+                if (u.table === targetId) return; // 过滤自引用边
+                elements.push({
+                    data: { id: u.table, label: u.table_comment || u.table, enName: u.table, isUpstream: true },
+                });
+                elements.push({
+                    data: { source: u.table, target: targetId, edges: u.edges || [] },
+                });
+            });
+            (data.downstream || []).forEach(d => {
+                elements.push({
+                    data: { id: d.table, label: d.table_comment || d.table, enName: d.table, isDownstream: true },
+                });
+                elements.push({
+                    data: { source: targetId, target: d.table },
+                });
+            });
+            return elements;
+        }
+
+        function buildFieldGraph(data) {
+            const elements = [];
+            const centerId = `${data.table}.${data.field}`;
+            elements.push({
+                data: { id: centerId, label: data.field_comment || data.field, enName: `${data.table}.${data.field}`, isTarget: true },
+            });
+            (data.upstream || []).forEach(u => {
+                const uid = `${u.source_table}.${u.source_field}`;
+                elements.push({
+                    data: { id: uid, label: `${u.source_field}\n${u.source_table}`, enName: uid, isUpstream: true, tableName: u.source_table },
+                });
+                elements.push({
+                    data: { source: uid, target: centerId, transform: u.transform, formula: u.formula, note: u.note },
+                });
+            });
+            (data.downstream || []).forEach(d => {
+                const did = `${d.target_table}.${d.target_field}`;
+                elements.push({
+                    data: { id: did, label: `${d.target_field}\n${d.target_table}`, enName: did, isDownstream: true, tableName: d.target_table },
+                });
+                elements.push({
+                    data: { source: centerId, target: did },
+                });
+            });
+            return elements;
+        }
+
+        function renderGraph(elements, isField) {
+            if (cy) { cy.destroy(); cy = null; }
+            nextTick(() => {
+                const el = cyContainer.value;
+                if (!el || !window.cytoscape) return;
+                const colorFn = isField
+                    ? (n) => n.data('isTarget') ? '#00d4ff' : (n.data('isUpstream') ? '#f59e0b' : '#7c3aed')
+                    : (n) => {
+                        if (n.data('isTarget')) return '#00d4ff';
+                        return nodeColor(n.data('enName') || n.id());
+                    };
+                const textColorFn = isField
+                    ? (n) => n.data('isTarget') ? '#000' : '#e2e8f0'
+                    : (n) => n.data('isTarget') ? '#000' : nodeTextColor(n.data('enName') || n.id());
+
+                cy = window.cytoscape({
+                    container: el,
+                    elements,
+                    style: [
+                        {
+                            selector: 'node',
+                            style: {
+                                'label': 'data(label)',
+                                'text-valign': 'center',
+                                'text-halign': 'center',
+                                'text-wrap': 'wrap',
+                                'text-max-width': '120px',
+                                'font-size': '11px',
+                                'color': '#e2e8f0',
+                                'background-color': (n) => colorFn(n),
+                                'border-width': (n) => n.data('isTarget') ? 3 : 1,
+                                'border-color': (n) => n.data('isTarget') ? '#00d4ff' : 'rgba(255,255,255,0.2)',
+                                'width': 80,
+                                'height': 50,
+                                'shape': 'round-rectangle',
+                                'text-margin-y': 0,
+                            },
+                        },
+                        {
+                            selector: 'edge',
+                            style: {
+                                'width': 2,
+                                'line-color': 'rgba(0,212,255,0.4)',
+                                'target-arrow-color': 'rgba(0,212,255,0.6)',
+                                'target-arrow-shape': 'triangle',
+                                'curve-style': 'bezier',
+                                'arrow-scale': 1.2,
+                            },
+                        },
+                    ],
+                    layout: {
+                        name: 'breadthfirst',
+                        directed: true,
+                        padding: 30,
+                        spacingFactor: 1.5,
+                        animate: false,
+                    },
+                });
+                cy.fit(undefined, 40);
+                cy.on('tap', 'node', async (evt) => {
+                    const node = evt.target;
+                    const tableName = node.data('enName') || node.id();
+                    if (isField) return;
+                    const tid = tableName.split('.')[0];
+                    clickedTableName.value = tid;
+                    clickedColumns.value = [];
+                    try {
+                        const r = await fetch(`${API_BASE}/governance/tables/${encodeURIComponent(tid)}/columns`);
+                        const d = await r.json();
+                        if (!d.error) clickedColumns.value = d.rows || [];
+                    } catch (e) {}
+                });
+                cy.on('mouseover', 'edge', (evt) => {
+                    const edge = evt.target;
+                    const pos = edge.renderedPosition();
+                    let text = '';
+                    const edges = edge.data('edges');
+                    if (edges && edges.length) {
+                        text = edges.slice(0, 4).map(e =>
+                            `${e.target_column} ← ${e.transform || 'direct'}${e.formula ? ' | ' + e.formula : ''}`).join('\n');
+                    } else if (edge.data('transform')) {
+                        text = `转换: ${edge.data('transform')}`;
+                        if (edge.data('formula')) text += `\n公式: ${edge.data('formula')}`;
+                        if (edge.data('note')) text += `\n口径: ${edge.data('note')}`;
+                    }
+                    if (text) {
+                        edgeTip.value = { show: true, x: pos.x, y: pos.y - 12, text };
+                    }
+                });
+                cy.on('mouseout', 'edge', () => { edgeTip.value.show = false; });
+                cy.on('pan zoom', () => { edgeTip.value.show = false; });
+            });
+        }
+
+        async function loadTableLineage(t) {
+            if (!t) return;
+            activeView.value = 'table';
+            currentTable.value = t;
+            currentField.value = '';
+            lineageData.value = null;
+            fieldData.value = null;
+            error.value = '';
+            loading.value = true;
+            try {
+                const r = await fetch(`${API_BASE}/governance/lineage/table/${encodeURIComponent(t)}`);
+                const d = await r.json();
+                if (d.error) { error.value = d.error; loading.value = false; return; }
+                lineageData.value = d;
+                renderGraph(buildTableGraph(d), false);
+            } catch (e) {
+                error.value = e.message;
+            } finally {
+                loading.value = false;
+            }
+        }
+
+        async function loadFieldLineage(t, col) {
+            if (!t || !col) return;
+            activeView.value = 'field';
+            currentTable.value = t;
+            currentField.value = col;
+            lineageData.value = null;
+            fieldData.value = null;
+            error.value = '';
+            loading.value = true;
+            try {
+                const r = await fetch(`${API_BASE}/governance/lineage/field/${encodeURIComponent(t)}/${encodeURIComponent(col)}`);
+                const d = await r.json();
+                if (d.error) { error.value = d.error; loading.value = false; return; }
+                fieldData.value = d;
+                renderGraph(buildFieldGraph(d), true);
+            } catch (e) {
+                error.value = e.message;
+            } finally {
+                loading.value = false;
+            }
+        }
+
+        function goFieldView(t, col) {
+            clickedColumns.value = [];
+            loadFieldLineage(t, col);
+        }
+
+        function backToTableView() {
+            if (currentTable.value) {
+                loadTableLineage(currentTable.value);
+            }
+        }
+
+        function fitGraph() {
+            if (cy) cy.fit(undefined, 40);
+        }
+
+        function reloadGraph() {
+            if (activeView.value === 'table' && currentTable.value) {
+                loadTableLineage(currentTable.value);
+            } else if (activeView.value === 'field' && currentTable.value && currentField.value) {
+                loadFieldLineage(currentTable.value, currentField.value);
+            }
+        }
+
+        async function onSearchInput() {
+            const query = tableInput.value.trim();
+            if (query.length < 1) { suggestions.value = []; return; }
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/governance/tables/suggest?q=${encodeURIComponent(query)}`);
+                    const d = await r.json();
+                    suggestions.value = d.rows || [];
+                    suggestionIdx.value = -1;
+                } catch (e) {}
+            }, 150);
+        }
+
+        function onSearchKeydown(e) {
+            const len = suggestions.value.length;
+            if (len === 0) return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); suggestionIdx.value = Math.min(suggestionIdx.value + 1, len - 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); suggestionIdx.value = Math.max(suggestionIdx.value - 1, 0); }
+            else if (e.key === 'Enter' && suggestionIdx.value >= 0) {
+                e.preventDefault();
+                selectSuggestion(suggestions.value[suggestionIdx.value]);
+            }
+        }
+
+        function onSearchEnter() {
+            if (suggestionIdx.value >= 0) return;
+            suggestions.value = [];
+            loadTableLineage(tableInput.value.trim());
+        }
+
+        function selectSuggestion(s) {
+            tableInput.value = s.table_name;
+            suggestions.value = [];
+            suggestionIdx.value = -1;
+            loadTableLineage(s.table_name);
+        }
+
+        onMounted(() => {
+            if (window._lineageTable) {
+                tableInput.value = window._lineageTable;
+                if (window._lineageField) {
+                    loadFieldLineage(window._lineageTable, window._lineageField);
+                } else {
+                    loadTableLineage(window._lineageTable);
+                }
+                window._lineageTable = null;
+                window._lineageField = null;
+            }
+        });
+
+        onUnmounted(() => {
+            if (cy) { cy.destroy(); cy = null; }
+        });
+
+        return {
+            tableInput, activeView, currentTable, currentField,
+            lineageData, fieldData, loading, error, cyContainer,
+            suggestions, suggestionIdx,
+            clickedTableName, clickedColumns, fieldUpstreamNotes, edgeTip,
+            onSearchInput, onSearchKeydown, onSearchEnter, selectSuggestion,
+            loadTableLineage, goFieldView, backToTableView, fitGraph, reloadGraph,
         };
     },
 });

@@ -34,10 +34,13 @@
         <dividend-page v-else-if="currentPage === 'dividend'"></dividend-page>
         <debate-page v-else-if="currentPage === 'debate'"></debate-page>
         <expert-page v-else-if="currentPage === 'expert'"></expert-page>
+        <dmdl-page v-else-if="currentPage === 'dmdl'"></dmdl-page>
         <query-page v-else-if="currentPage === 'query'"></query-page>
         <data-mgmt-page v-else-if="currentPage === 'data_mgmt'"></data-mgmt-page>
         <strong-page v-else-if="currentPage === 'strong'"></strong-page>
         <strong-stocks-page v-else-if="currentPage === 'strong_stocks'"></strong-stocks-page>
+        <data-catalog-page v-else-if="currentPage === 'data_catalog'"></data-catalog-page>
+        <data-lineage-page v-else-if="currentPage === 'data_lineage'"></data-lineage-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
@@ -2363,6 +2366,151 @@
                     <span v-if="adsError" class="dm-toast dm-toast-err">✗ {{ adsError }}</span>
                 </div>
             </div>
+
+            <!-- Damodaran Valuation Card -->
+            <div class="dm-card dm-card-dmdl">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(226,183,20,0.12);">
+                        <span style="font-size:22px;">⚖</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">达摩达兰估值</div>
+                        <div class="dm-card-subtitle">ads_dmdl_* · 三引擎内在价值 vs 市值</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot" :class="dmdlDotClass"></span>
+                        <span class="dm-status-text">{{ dmdlStatusText }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row">
+                        <span>静态估值</span>
+                        <span class="dm-val accent">{{ dmdlStatus?.static?.count || 0 }} 只 · {{ dmdlStatus?.static?.updated || '-' }}</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>市值快照</span>
+                        <span class="dm-val">{{ dmdlStatus?.mkt?.count || 0 }} 只 @ {{ dmdlStatus?.mkt?.latest_date || '-' }}</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>行业基准</span>
+                        <span class="dm-val">{{ dmdlStatus?.sector?.count || 0 }} 个</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>估值视图(A/B质量)</span>
+                        <span class="dm-val">{{ dmdlStatus?.valuation_view?.count || 0 }} 只</span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <button class="btn btn-primary" style="background:#e2b714;border-color:#e2b714;color:#18192f;" @click="updateDmdl" :disabled="dmdlLoading">
+                        <span v-if="dmdlLoading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ dmdlLoading ? '计算中...' : '⟳ 更新估值预计算' }}
+                    </button>
+                    <span v-if="dmdlResult" class="dm-toast dm-toast-ok">✓ {{ dmdlResult }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="dmdl-tpl">
+    <div class="topbar">
+        <h2>达摩达兰估值</h2>
+        <span class="badge">故事→数字→价值</span>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+            <div class="config-item" style="min-width:200px;position:relative;margin:0;">
+                <input v-model="stockQuery" placeholder="输入代码/名称搜索，如 600519 / 贵州茅台"
+                       @input="onStockInput" @keydown="onStockKeydown" @keyup.enter="selectFirstSuggestion"
+                       style="width:220px;background:#1a1a2e;color:#e0e0e0;border:1px solid #0f3460;padding:6px 10px;border-radius:6px;">
+                <div v-if="stockSuggestions.length" class="stock-suggestions">
+                    <div v-for="(s, i) in stockSuggestions" :key="s.stock_code"
+                         class="stock-suggestion-item" :class="{active: stockSuggestionIdx === i}"
+                         @click="selectStock(s.stock_code)" @mouseenter="stockSuggestionIdx = i">
+                        <strong>{{ s.stock_code }}</strong> {{ s.stock_name }}
+                    </div>
+                </div>
+            </div>
+            <select v-model="filters.stage" class="dm-val" style="background:#1a1a2e;color:#e0e0e0;border:1px solid #0f3460;padding:4px 8px;border-radius:6px;">
+                <option value="">全部阶段</option>
+                <option value="growth">成长</option>
+                <option value="cycle">周期</option>
+                <option value="finance">金融</option>
+                <option value="turnaround">困境反转</option>
+                <option value="decline">衰退</option>
+            </select>
+            <select v-model="filters.min_score" class="dm-val" style="background:#1a1a2e;color:#e0e0e0;border:1px solid #0f3460;padding:4px 8px;border-radius:6px;">
+                <option :value="0">评分≥0</option>
+                <option :value="60">评分≥60</option>
+                <option :value="80">评分≥80</option>
+                <option :value="90">评分≥90</option>
+            </select>
+            <button class="btn btn-outline btn-sm" @click="loadValuation" v-if="!filters.stock_code">⟳ 刷新</button>
+            <button class="btn btn-outline btn-sm" @click="resetFilter" v-else>✕ 清除筛选</button>
+        </div>
+    </div>
+    <div class="content">
+        <div v-if="loading" class="dm-strip"><span class="dot-pulse"></span> 加载估值数据...</div>
+        <div v-else>
+            <div class="dm-info-row" style="padding:6px 12px;background:rgba(16,185,129,0.08);border-radius:8px;margin-bottom:12px;">
+                <span>估值日期</span>
+                <span class="dm-val accent">{{ status.mkt?.latest_date || '-' }}</span>
+                <span style="margin-left:20px;">已估值</span>
+                <span class="dm-val">{{ status.valuation_view?.count || 0 }} 只（A/B质量）</span>
+                <span style="margin-left:20px;">行业基准</span>
+                <span class="dm-val">{{ status.sector?.count || 0 }} 个</span>
+                <span v-if="filters.stock_code" style="margin-left:20px;color:#ffd700;">当前筛选: {{ filters.stock_code }}</span>
+            </div>
+            <table class="query-table" style="width:100%;">
+                <thead><tr>
+                    <th>股票</th><th>阶段</th><th>行业</th><th>市值(亿)</th>
+                    <th data-tip="内在价值 = 三引擎加权估值（正常化PE法×30% + DCF×50% + 净资产PB法×20%，成长股权重），悲观/乐观情景取区间，基准=val_final/1e8(亿)">内在价值(亿)</th>
+                    <th data-tip="低估幅度 = (内在价值 − 市值) ÷ 市值 × 100%。正数=被低估（越大越便宜），负数=被高估">低估幅度</th>
+                    <th>评分</th>
+                    <th data-tip="ROIC投入资本回报率 = 税后经营利润(NOPAT) ÷ 投入资本。NOPAT=核心利润×(1−税率)，投入资本=净资产+有息负债−现金。衡量生意本身赚钱能力">ROIC</th>
+                    <th data-tip="WACC加权平均资本成本 = 股权成本×股权占比 + 债权成本×债权占比。Ke=2%无风险利率+β×5.5%风险溢价。代表股东+债主要求的平均回报">WACC</th>
+                    <th>PE</th><th>行业PE中位</th>
+                </tr></thead>
+                <tbody>
+                    <tr v-for="r in rows" :key="r.stock_code" @click="openStock(r.stock_code)" style="cursor:pointer;">
+                        <td><span class="dm-val accent">{{ r.stock_name }}</span><br><span style="color:#7c86a6;font-size:11px;">{{ r.stock_code }}</span></td>
+                        <td><span class="badge">{{ stageLabel(r.life_stage) }}</span></td>
+                        <td>{{ r.sector_name || '-' }}</td>
+                        <td class="num">{{ fmt(r.market_cap) }}</td>
+                        <td class="num" :data-tip="`内在价值区间：${fmt(r.intrinsic_low)} ~ ${fmt(r.intrinsic_high)} 亿（悲观/乐观情景）`">{{ fmt(r.intrinsic_value) }}</td>
+                        <td :class="r.margin_of_safety > 0 ? 'up' : 'down'" :data-tip="`内在价值${fmt(r.intrinsic_value)}亿 vs 市值${fmt(r.market_cap)}亿 → ${fmtGrowth(r.margin_of_safety)}`">{{ fmtGrowth(r.margin_of_safety) }}</td>
+                        <td><b :style="{color: r.score >= 80 ? '#ffd700' : '#e0e0e0'}">{{ r.score }}</b></td>
+                        <td class="num" :data-tip="`ROIC ${(r.roic*100).toFixed(1)}% vs WACC ${(r.wacc*100).toFixed(1)}%，超额回报 ${((r.roic-r.wacc)*100).toFixed(1)}个百分点`">{{ (r.roic*100).toFixed(1) }}%</td>
+                        <td class="num" :data-tip="`${r.sector_name||'—'}行业平均资金成本。ROIC>WACC 说明增长创造价值`">{{ (r.wacc*100).toFixed(1) }}%</td>
+                        <td class="num">{{ fmt(r.pe_ttm) }}</td>
+                        <td class="num">{{ fmt(r.pe_median) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div v-if="selected" class="dm-card" style="margin-top:20px;">
+            <div class="dm-card-header">
+                <div class="dm-card-meta">
+                    <div class="dm-card-title">{{ selected.stock_name }} <span style="font-size:14px;color:#7c86a6;">{{ selected.stock_code }}</span></div>
+                    <div class="dm-card-subtitle">{{ selected.sector_name || '' }} · {{ stageLabel(selected.life_stage) }} · 盈利质量 {{ selected.earnings_quality }}</div>
+                </div>
+                <button class="btn btn-outline btn-sm" @click="selected=null">✕</button>
+            </div>
+            <div class="dm-card-body">
+                <div class="dm-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+                    <div class="dm-strip-item"><span class="dm-strip-val">{{ fmt(selected.market_cap) }}</span><span class="dm-strip-label">市值(亿)</span></div>
+                    <div class="dm-strip-item" data-tip="内在价值 = 三引擎加权（正常化PE×30% + DCF×50% + 净资产PB×20%），区间=悲观/乐观情景"><span class="dm-strip-val">{{ fmt(selected.intrinsic_value) }}</span><span class="dm-strip-label">内在价值(亿)</span></div>
+                    <div class="dm-strip-item" :data-tip="`低估幅度 = (内在价值${fmt(selected.intrinsic_value)}亿 − 市值${fmt(selected.market_cap)}亿) ÷ 市值。正数=被低估`"><span class="dm-strip-val" :style="{color:selected.margin_of_safety>0?'#4ade80':'#f87171'}">{{ fmtGrowth(selected.margin_of_safety) }}</span><span class="dm-strip-label">低估幅度</span></div>
+                    <div class="dm-strip-item" style="color:#ffd700"><span class="dm-strip-val" style="color:#ffd700">{{ selected.score }}</span><span class="dm-strip-label">评分</span></div>
+                    <div class="dm-strip-item" data-tip="ROIC = 税后经营利润 ÷ 投入资本（净资产+有息负债−现金）。衡量生意本身赚钱能力"><span class="dm-strip-val">{{ (selected.roic*100).toFixed(1) }}%</span><span class="dm-strip-label">ROIC</span></div>
+                    <div class="dm-strip-item" data-tip="WACC = 股权成本×股权占比 + 债权成本×债权占比。股东+债主要求的平均回报"><span class="dm-strip-val">{{ (selected.wacc*100).toFixed(1) }}%</span><span class="dm-strip-label">WACC</span></div>
+                    <div class="dm-strip-item"><span class="dm-strip-val">{{ fmt(selected.pe_ttm) }}</span><span class="dm-strip-label">PE(TTM)</span></div>
+                    <div class="dm-strip-item"><span class="dm-strip-val">{{ fmt(selected.pb) }}</span><span class="dm-strip-label">PB</span></div>
+                </div>
+                <div style="margin-top:12px;font-size:13px;color:#aab2cf;">
+                    <div>正常化利润: <b class="dm-val">{{ fmtMoney(selected.norm_profit_5y) }}</b> · TTM净利: <b class="dm-val">{{ fmtMoney(selected.ttm_profit) }}</b> · 增长率假设: <b class="dm-val">{{ (selected.growth_rate*100).toFixed(1) }}%</b></div>
+                    <div style="margin-top:6px;">三引擎: E1正常化PE <b class="dm-val">{{ fmtMoney(selected.val_eps_normal) }}</b> · E2 DCF <b class="dm-val">{{ fmtMoney(selected.val_dcf) }}</b> · E3净资产 <b class="dm-val">{{ fmtMoney(selected.val_bv) }}</b></div>
+                    <div style="margin-top:6px;">价值区间: <b class="dm-val">{{ fmt(selected.intrinsic_low) }}</b> ~ <b class="dm-val">{{ fmt(selected.intrinsic_high) }}</b> 亿 · 行业PE中位 <b class="dm-val">{{ fmt(selected.pe_median) }}</b></div>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -2711,8 +2859,258 @@
     </div>
 </template>
 
+<!-- ══════ 数据资产目录 ══════ -->
+<template id="data-catalog-tpl">
+    <div class="topbar">
+        <h2>数据资产目录</h2>
+        <span class="badge">共 {{ total }} 张表</span>
+    </div>
+    <div class="content">
+        <div class="card">
+            <div class="dg-toolbar">
+                <div class="config-item" style="position:relative;flex:1;min-width:260px;">
+                    <input v-model="q" placeholder="输入表名前缀/中文名搜索..."
+                           @input="onSearchInput" @keydown="onSearchKeydown"
+                           @keyup.enter="onSearchEnter"
+                           style="width:100%;" />
+                    <div v-if="suggestions.length" class="stock-suggestions">
+                        <div v-for="(s,i) in suggestions" :key="s.table_name"
+                             class="stock-suggestion-item" :class="{active:suggestionIdx===i}"
+                             @click="selectSuggestion(s)" @mouseenter="suggestionIdx=i">
+                            <strong>{{ s.table_name }}</strong> {{ s.table_comment }}
+                            <span class="badge">{{ s.category }}</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-outline btn-sm" @click="clearSearch" v-if="q">✕ 清除</button>
+                <button class="btn btn-outline btn-sm" @click="refreshMeta" :disabled="refreshing">
+                    {{ refreshing ? '刷新中...' : '⟳ 刷新元数据' }}
+                </button>
+            </div>
+            <div class="dg-chips">
+                <button v-for="c in categories" :key="c"
+                        class="screening-stage-btn" :class="{active: category === c}"
+                        @click="setCategory(c)">{{ c }}</button>
+            </div>
+            <div class="dg-sort-row">
+                <span style="font-size:12px;color:var(--text-muted);">排序：</span>
+                <button v-for="s in sortOptions" :key="s.value"
+                        class="screening-stage-btn" :class="{active: sort === s.value}"
+                        @click="setSort(s.value)" style="font-size:11px;padding:4px 12px;">{{ s.label }}</button>
+            </div>
+        </div>
+
+        <div v-if="loading" class="loading"><div class="spinner"></div> 加载中...</div>
+        <div v-else-if="error" class="card" style="border-color:var(--red);color:var(--red);">{{ error }}</div>
+        <div v-else-if="rows.length === 0" class="card" style="color:var(--text-muted);text-align:center;padding:40px;">无匹配数据</div>
+        <div v-else class="card" style="padding:0;">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>表名</th>
+                            <th>中文名</th>
+                            <th>分类</th>
+                            <th>数据来源</th>
+                            <th>行数</th>
+                            <th>最新数据日期</th>
+                            <th>列数</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="r in rows" :key="r.table_name"
+                            class="screening-row"
+                            :class="{'dg-row-selected': selectedTable === r.table_name}"
+                            @click="showDetail(r.table_name)">
+                            <td style="text-align:left;font-weight:700;color:var(--accent);">{{ r.table_name }}</td>
+                            <td style="text-align:left;">{{ r.table_comment || '—' }}</td>
+                            <td><span class="badge" v-if="r.category">{{ r.category }}</span><span v-else style="color:var(--text-dim);">—</span></td>
+                            <td style="text-align:left;font-size:12px;color:var(--text-muted);">{{ r.source || '—' }}</td>
+                            <td>{{ r.row_count != null ? r.row_count.toLocaleString() : '—' }}</td>
+                            <td><span :class="staleClass(r)">{{ r.latest_date || '—' }}</span></td>
+                            <td>{{ r.column_count || '—' }}</td>
+                            <td @click.stop>
+                                <button class="dg-link-btn" @click="goLineage(r.table_name)">血缘</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Detail Panel -->
+        <div v-if="detailLoading" class="loading"><div class="spinner"></div> 加载表详情...</div>
+        <div v-else-if="detail" class="card">
+            <div class="card-title">
+                <span style="color:var(--accent);font-weight:700;">{{ detail.table_name }}</span>
+                <span style="margin-left:8px;color:var(--text-muted);">{{ detail.table_comment }}</span>
+                <button class="btn btn-outline btn-sm" style="margin-left:auto;" @click="detail = null">✕ 关闭</button>
+            </div>
+            <div class="dg-detail-grid">
+                <div>
+                    <div style="font-size:13px;line-height:1.8;">
+                        <div><span style="color:var(--text-muted);">描述：</span>{{ detail.description || '—' }}</div>
+                        <div><span style="color:var(--text-muted);">分类：</span>{{ detail.category || '—' }}</div>
+                        <div><span style="color:var(--text-muted);">来源：</span>{{ detail.source || '—' }}</div>
+                        <div><span style="color:var(--text-muted);">刷新方式：</span>{{ detail.refresh_method || '—' }}</div>
+                        <div><span style="color:var(--text-muted);">行数：</span>{{ detail.row_count != null ? detail.row_count.toLocaleString() : '—' }}</div>
+                        <div><span style="color:var(--text-muted);">上游：</span>{{ detail.upstream_count || 0 }} 表 &nbsp;|&nbsp; <span style="color:var(--text-muted);">下游：</span>{{ detail.downstream_count || 0 }} 表</div>
+                    </div>
+                    <div v-if="detail.recent_logs && detail.recent_logs.length" style="margin-top:12px;">
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">最近刷新日志</div>
+                        <div v-for="(log, i) in detail.recent_logs" :key="i" style="font-size:12px;color:var(--text-muted);padding:4px 0;border-bottom:1px dashed rgba(255,255,255,0.05);">
+                            {{ log.started_at || '' }} {{ log.status || '' }} {{ log.message || '' }}
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">字段列表（{{ columns.length }}）</div>
+                    <div v-if="columnsLoading" class="loading"><div class="spinner"></div></div>
+                    <div v-else class="dg-col-table">
+                        <table>
+                            <thead>
+                                <tr><th>列名</th><th>注释</th><th>类型</th><th>键</th><th>血缘</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="c in columns" :key="c.column_name" class="screening-row">
+                                    <td style="text-align:left;font-weight:600;">{{ c.column_name }}</td>
+                                    <td style="text-align:left;font-size:12px;color:var(--text-muted);">{{ c.column_comment || '—' }}</td>
+                                    <td style="font-size:12px;">{{ c.data_type }}</td>
+                                    <td>{{ c.key || '—' }}</td>
+                                    <td>
+                                        <button v-if="c.has_lineage" class="dg-link-btn" @click="goFieldLineage(detail.table_name, c.column_name)">查看血缘</button>
+                                        <span v-else style="color:var(--text-dim);">—</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- ══════ 数据血缘 ══════ -->
+<template id="data-lineage-tpl">
+    <div class="topbar">
+        <h2>数据血缘</h2>
+        <span class="badge" v-if="activeView === 'table' && currentTable">{{ currentTable }}</span>
+        <span class="badge" v-else-if="activeView === 'field' && currentTable">{{ currentTable }}.{{ currentField }}</span>
+        <span class="badge" v-else>选择表名</span>
+    </div>
+    <div class="content">
+        <!-- Entry card -->
+        <div class="card">
+            <div class="dg-toolbar">
+                <div class="config-item" style="position:relative;flex:1;min-width:260px;">
+                    <input v-model="tableInput" placeholder="输入表名搜索（如 ads_stock_latest）..."
+                           @input="onSearchInput" @keydown="onSearchKeydown"
+                           @keyup.enter="onSearchEnter"
+                           style="width:100%;" />
+                    <div v-if="suggestions.length" class="stock-suggestions">
+                        <div v-for="(s,i) in suggestions" :key="s.table_name"
+                             class="stock-suggestion-item" :class="{active:suggestionIdx===i}"
+                             @click="selectSuggestion(s)" @mouseenter="suggestionIdx=i">
+                            <strong>{{ s.table_name }}</strong> {{ s.table_comment }}
+                            <span class="badge">{{ s.category }}</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-sm" @click="loadTableLineage(tableInput)" :disabled="!tableInput.trim()">▶ 查看血缘</button>
+            </div>
+            <div v-if="activeView === 'field'" style="margin-top:10px;">
+                <button class="btn btn-outline btn-sm" @click="backToTableView">← 返回表级</button>
+            </div>
+        </div>
+
+        <div v-if="error" class="card" style="border-color:var(--red);color:var(--red);">{{ error }}</div>
+
+        <div v-if="lineageData || fieldData" class="card" style="padding:0;">
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);">
+                <button class="btn btn-outline btn-sm" @click="fitGraph">适配视窗</button>
+                <button class="btn btn-outline btn-sm" @click="reloadGraph">重置</button>
+                <span style="font-size:12px;color:var(--text-muted);margin-left:auto;">滚轮缩放 · 拖拽平移 · 点击节点查看字段</span>
+            </div>
+            <div class="dg-cy" ref="cyContainer"></div>
+            <div v-if="edgeTip.show" class="dg-edge-tip" :style="{left: edgeTip.x + 'px', top: edgeTip.y + 'px'}">{{ edgeTip.text }}</div>
+            <div class="dg-node-legend">
+                <span class="dg-legend-chip" style="background:#1e3a5f;color:#7f9cc0;">原始表</span>
+                <span class="dg-legend-chip" style="background:#f59e0b;color:#000;">ads_stock_*</span>
+                <span class="dg-legend-chip" style="background:#7c3aed;color:#fff;">ads_sector_*</span>
+                <span class="dg-legend-chip" style="background:#475569;color:#fff;">其他</span>
+                <span class="dg-legend-chip" style="background:transparent;border:2px solid #00d4ff;color:#00d4ff;">目标表</span>
+            </div>
+        </div>
+
+        <!-- Node click: column panel (table view) -->
+        <div v-if="activeView === 'table' && clickedColumns.length" class="card">
+            <div class="card-title">
+                <span style="color:var(--accent);">{{ clickedTableName }}</span>
+                <span style="color:var(--text-muted);margin-left:8px;">字段列表</span>
+                <button class="btn btn-outline btn-sm" style="margin-left:auto;" @click="clickedColumns = []">✕ 关闭</button>
+            </div>
+            <div class="dg-col-table">
+                <table>
+                    <thead><tr><th>列名</th><th>注释</th><th>类型</th><th>血缘</th></tr></thead>
+                    <tbody>
+                        <tr v-for="c in clickedColumns" :key="c.column_name" class="screening-row">
+                            <td style="text-align:left;font-weight:600;">{{ c.column_name }}</td>
+                            <td style="text-align:left;font-size:12px;color:var(--text-muted);">{{ c.column_comment || '—' }}</td>
+                            <td style="font-size:12px;">{{ c.data_type }}</td>
+                            <td>
+                                <button v-if="c.has_lineage" class="dg-link-btn" @click="goFieldView(clickedTableName, c.column_name)">查看血缘</button>
+                                <span v-else style="color:var(--text-dim);">—</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Field view sidebar panel -->
+        <div v-if="activeView === 'field' && fieldData" class="card">
+            <div class="card-title">
+                <span style="color:var(--accent);">{{ fieldData.table }}.{{ fieldData.field }}</span>
+                <span style="color:var(--text-muted);margin-left:8px;">{{ fieldData.field_comment || '' }}</span>
+            </div>
+            <div class="dg-detail-grid">
+                <div>
+                    <div style="font-size:13px;line-height:1.8;">
+                        <div v-if="fieldUpstreamNotes"><span style="color:var(--text-muted);">口径说明：</span>{{ fieldUpstreamNotes }}</div>
+                    </div>
+                    <div style="margin-top:12px;">
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">上游字段（{{ fieldData.upstream.length }}）</div>
+                        <div v-for="(u, i) in fieldData.upstream" :key="i" style="font-size:12px;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.05);">
+                            <div><strong style="color:var(--accent);">{{ u.source_table }}.{{ u.source_field }}</strong> <span style="color:var(--text-muted);">{{ u.source_comment || '' }}</span></div>
+                            <div style="color:var(--text-muted);font-size:11px;">转换：{{ u.transform }}{{ u.formula ? ' · 公式：' + u.formula : '' }}{{ u.note ? ' · ' + u.note : '' }}</div>
+                        </div>
+                        <div v-if="!fieldData.upstream.length" style="color:var(--text-dim);font-size:12px;">无上游</div>
+                    </div>
+                </div>
+                <div>
+                    <div style="margin-top:12px;">
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">下游字段（{{ fieldData.downstream.length }}）</div>
+                        <div v-for="(d, i) in fieldData.downstream" :key="i" style="font-size:12px;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.05);">
+                            <strong style="color:var(--accent);">{{ d.target_table }}.{{ d.target_field }}</strong> <span style="color:var(--text-muted);">{{ d.target_comment || '' }}</span>
+                        </div>
+                        <div v-if="!fieldData.downstream.length" style="color:var(--text-dim);font-size:12px;">无下游</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="!lineageData && !fieldData && !error && !loading" class="card" style="color:var(--text-muted);text-align:center;padding:40px;">
+            输入表名查看数据血缘关系图
+        </div>
+        <div v-if="loading" class="loading"><div class="spinner"></div> 加载血缘数据...</div>
+    </div>
+</template>
+
 <script src="https://unpkg.com/vue@3.4/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

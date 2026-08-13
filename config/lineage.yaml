@@ -1,0 +1,178 @@
+# 数据血缘配置（数据治理平台）
+# 依据 src/compute_ads.py 的 SQL/Python 映射整理，由 src/init_governance.py 灌入 data_lineage 表
+# 字段血缘约定：
+#   from: 源字段列表 ["表.字段"]；transform: direct直取 / derive计算 / aggregate聚合 / lookup查表 / self自引用
+#   formula: 转换公式（展示用，非可执行代码）
+
+tables:
+  # ─────────────────────────── 一级预计算：ads_stock_annual ───────────────────────────
+  - name: ads_stock_annual
+    comment: 每股票×每年度财务（年报口径，仅取12月31日报告期）
+    upstream: [fin_income, fin_balance_sheet, fin_cash_flow]
+    downstream: [ads_stock_latest, ads_sector_annual]
+    note: 质量门槛：过滤营业成本/销售费用/管理费用为负的损坏行；派生指标统一截断到 ±99999
+    fields:
+      - {name: stock_code,         from: [fin_income.stock_code],                   transform: direct}
+      - {name: report_date,        from: [fin_income.report_date],                  transform: direct, note: "仅取 MONTH=12 AND DAY=31 的年报"}
+      - {name: operating_revenue,  from: [fin_income.operating_revenue],            transform: direct}
+      - {name: operating_cost,     from: [fin_income.operating_cost],               transform: direct}
+      - {name: gross_profit,       from: [fin_income.operating_revenue, fin_income.operating_cost],
+         transform: derive, formula: "operating_revenue - operating_cost"}
+      - {name: gross_margin,       from: [fin_income.operating_revenue, fin_income.operating_cost],
+         transform: derive, formula: "(operating_revenue - operating_cost) / operating_revenue * 100"}
+      - {name: selling_expense,    from: [fin_income.selling_expense],              transform: direct}
+      - {name: admin_expense,      from: [fin_income.admin_expense],                transform: direct}
+      - {name: finance_expense,    from: [fin_income.finance_expense],              transform: direct}
+      - {name: core_profit,        from: [fin_income.operating_revenue, fin_income.operating_cost,
+                                          fin_income.selling_expense, fin_income.admin_expense],
+         transform: derive, formula: "revenue - cost - selling_expense - admin_expense"}
+      - {name: core_margin,        from: [ads_stock_annual.core_profit, fin_income.operating_revenue],
+         transform: derive, formula: "core_profit / operating_revenue * 100"}
+      - {name: parent_net_profit,  from: [fin_income.parent_net_profit],            transform: direct}
+      - {name: net_margin,         from: [fin_income.parent_net_profit, fin_income.operating_revenue],
+         transform: derive, formula: "parent_net_profit / operating_revenue * 100"}
+      - {name: total_assets,       from: [fin_balance_sheet.total_assets],          transform: direct}
+      - {name: total_liabilities,  from: [fin_balance_sheet.total_liabilities],     transform: direct}
+      - {name: total_equity,       from: [fin_balance_sheet.total_equity],          transform: direct}
+      - {name: debt_ratio,         from: [fin_balance_sheet.total_liabilities, fin_balance_sheet.total_assets],
+         transform: derive, formula: "total_liabilities / total_assets * 100"}
+      - {name: cash,               from: [fin_balance_sheet.cash],                  transform: direct}
+      - {name: trading_fa,         from: [fin_balance_sheet.trading_fa],            transform: direct}
+      - {name: cash_plus_tfa,      from: [fin_balance_sheet.cash, fin_balance_sheet.trading_fa],
+         transform: derive, formula: "cash + trading_fa"}
+      - {name: short_borrow,       from: [fin_balance_sheet.short_term_borrow],     transform: direct}
+      - {name: long_borrow,        from: [fin_balance_sheet.long_term_borrow],      transform: direct}
+      - {name: interest_debt,      from: [fin_balance_sheet.short_term_borrow, fin_balance_sheet.long_term_borrow],
+         transform: derive, formula: "short_term_borrow + long_term_borrow"}
+      - {name: net_cash,           from: [fin_balance_sheet.cash, fin_balance_sheet.trading_fa,
+                                          fin_balance_sheet.short_term_borrow, fin_balance_sheet.long_term_borrow],
+         transform: derive, formula: "cash + trading_fa - short_term_borrow - long_term_borrow"}
+      - {name: accounts_receivable, from: [fin_balance_sheet.accounts_receivable],  transform: direct}
+      - {name: inventory,          from: [fin_balance_sheet.inventory],             transform: direct}
+      - {name: fixed_assets,       from: [fin_balance_sheet.fixed_assets],          transform: direct}
+      - {name: goodwill,           from: [fin_balance_sheet.goodwill],              transform: direct}
+      - {name: op_cash_flow,       from: [fin_cash_flow.op_cash_flow],              transform: direct}
+      - {name: net_cash_ratio,     from: [fin_cash_flow.op_cash_flow, fin_income.parent_net_profit],
+         transform: derive, formula: "op_cash_flow / parent_net_profit（净现比）"}
+      - {name: roe,                from: [fin_income.parent_net_profit, fin_balance_sheet.total_equity],
+         transform: derive, formula: "parent_net_profit / total_equity * 100"}
+      - {name: revenue_yoy,        from: [ads_stock_annual.operating_revenue],
+         transform: self, formula: "本年度 / 上年同期 - 1", note: "同股票 report_date 减1年自连接，上年营收>0 才计算"}
+      - {name: profit_yoy,         from: [ads_stock_annual.parent_net_profit],
+         transform: self, formula: "本年度 / 上年同期 - 1", note: "同上，分母取绝对值"}
+
+  # ─────────────────────────── 一级预计算：ads_stock_latest ───────────────────────────
+  - name: ads_stock_latest
+    comment: 每股票最新快照（Python 侧多源合并，非单条SQL）
+    upstream: [fin_income, ads_stock_annual, daily_kline, stock_shares_dfcf, stock_dividend, stocks]
+    downstream: [ads_sector_latest]
+    note: 最新报告期取 fin_income 按 report_date 降序 ROW_NUMBER=1；TTM归母净利=最新报告期累计+上年年报-上年同期累计
+    fields:
+      - {name: stock_code,         from: [fin_income.stock_code],
+         transform: direct, note: "取 fin_income 每股票最新报告期"}
+      - {name: stock_name,         from: [stocks.stock_name],                        transform: lookup}
+      - {name: report_date,        from: [fin_income.report_date],                   transform: direct}
+      - {name: annual_report_date, from: [ads_stock_annual.report_date],
+         transform: direct, note: "该股票在 ads_stock_annual 中的最新年报日期"}
+      - {name: latest_price,       from: [daily_kline.close_price],
+         transform: lookup, note: "取 close_price>0 的最新 trade_date 收盘价"}
+      - {name: total_shares,       from: [stock_shares_dfcf.total_shares],           transform: lookup}
+      - {name: market_cap,         from: [daily_kline.close_price, stock_shares_dfcf.total_shares],
+         transform: derive, formula: "latest_price * total_shares / 1e8（亿元）"}
+      - {name: pe_ttm,             from: [ads_stock_latest.market_cap, fin_income.parent_net_profit],
+         transform: derive, formula: "market_cap * 1e8 / TTM归母净利", note: "TTM=最新报告期累计+上年年报-上年同期累计"}
+      - {name: dividend_yield,     from: [stock_dividend.dividend_yield, stock_dividend.cash_per_10, daily_kline.close_price],
+         transform: lookup, formula: "优先取最新实施分配的 dividend_yield，缺失时 cash_per_10/10/price*100"}
+      - {name: revenue,            from: [fin_income.operating_revenue],             transform: direct}
+      - {name: profit,             from: [fin_income.parent_net_profit],             transform: direct}
+      - {name: revenue_yoy,        from: [fin_income.operating_revenue],
+         transform: derive, formula: "最新报告期 / 上年同期 - 1", note: "Python 侧自连接 fin_income 重算，非取 ads_stock_annual"}
+      - {name: profit_yoy,         from: [fin_income.parent_net_profit],
+         transform: derive, formula: "最新报告期 / 上年同期 - 1（分母取绝对值）"}
+      - {name: revenue_annual,     from: [ads_stock_annual.operating_revenue],       transform: direct}
+      - {name: profit_annual,      from: [ads_stock_annual.parent_net_profit],       transform: direct}
+      - {name: gross_margin,       from: [ads_stock_annual.gross_margin],            transform: direct}
+      - {name: core_margin,        from: [ads_stock_annual.core_margin],             transform: direct}
+      - {name: net_margin,         from: [ads_stock_annual.net_margin],              transform: direct}
+      - {name: roe,                from: [ads_stock_annual.roe],                     transform: direct}
+      - {name: roe_ttm,            from: [ads_stock_annual.roe],
+         transform: direct, note: "⚠ 已知问题：当前实现=roe（非TTM），见 compute_ads.py:426"}
+      - {name: debt_ratio,         from: [ads_stock_annual.debt_ratio],              transform: direct}
+      - {name: net_cash,           from: [ads_stock_annual.net_cash],                transform: direct}
+      - {name: net_cash_ratio,     from: [ads_stock_annual.net_cash_ratio],          transform: direct}
+      - {name: op_cash_flow,       from: [ads_stock_annual.op_cash_flow],            transform: direct}
+
+  # ─────────────────────────── 二级预计算：ads_sector_annual ───────────────────────────
+  - name: ads_sector_annual
+    comment: 每板块×每年度汇总（二级聚合：基于 ads_stock_annual）
+    upstream: [ads_stock_annual, stock_sectors, sectors]
+    downstream: [ads_sector_latest]
+    note: 按 sector_code + report_date 分组聚合
+    fields:
+      - {name: sector_code,        from: [stock_sectors.sector_code],                transform: aggregate, formula: "GROUP BY"}
+      - {name: category,           from: [sectors.category],                         transform: aggregate, formula: "MAX"}
+      - {name: sector_name,        from: [sectors.sector_name],                      transform: aggregate, formula: "MAX"}
+      - {name: report_date,        from: [ads_stock_annual.report_date],             transform: aggregate, formula: "JOIN 继承"}
+      - {name: stock_count,        from: [stock_sectors.stock_code],                 transform: aggregate, formula: "COUNT(DISTINCT)"}
+      - {name: total_revenue,      from: [ads_stock_annual.operating_revenue],       transform: aggregate, formula: "SUM"}
+      - {name: total_net_profit,   from: [ads_stock_annual.parent_net_profit],       transform: aggregate, formula: "SUM"}
+      - {name: avg_gross_margin,   from: [ads_stock_annual.gross_margin],            transform: aggregate, formula: "AVG"}
+      - {name: avg_roe,            from: [ads_stock_annual.roe],                     transform: aggregate, formula: "AVG"}
+      - {name: avg_debt_ratio,     from: [ads_stock_annual.debt_ratio],              transform: aggregate, formula: "AVG"}
+      - {name: revenue_yoy,        from: [ads_sector_annual.total_revenue],
+         transform: self, formula: "本年 / 上年 - 1", note: "板块自身 report_date 减1年自连接"}
+      - {name: profit_yoy,         from: [ads_sector_annual.total_net_profit],
+         transform: self, formula: "本年 / 上年 - 1"}
+
+  # ─────────────────────────── 二级预计算：ads_sector_latest ───────────────────────────
+  - name: ads_sector_latest
+    comment: 每板块最新快照（二级聚合：基于 ads_stock_latest）
+    upstream: [ads_stock_latest, ads_sector_annual, stock_sectors, sectors]
+    downstream: []
+    note: 按 sector_code 分组；report_date 取板块内股票最新年报日期的 MAX
+    fields:
+      - {name: sector_code,        from: [stock_sectors.sector_code],                transform: aggregate, formula: "GROUP BY"}
+      - {name: category,           from: [sectors.category],                         transform: aggregate, formula: "MAX"}
+      - {name: sector_name,        from: [sectors.sector_name],                      transform: aggregate, formula: "MAX"}
+      - {name: report_date,        from: [ads_stock_latest.annual_report_date],      transform: aggregate, formula: "MAX"}
+      - {name: stock_count,        from: [ads_stock_latest.stock_code],              transform: aggregate, formula: "COUNT(DISTINCT)"}
+      - {name: total_market_cap,   from: [ads_stock_latest.market_cap],              transform: aggregate, formula: "SUM"}
+      - {name: total_revenue,      from: [ads_stock_latest.revenue_annual],          transform: aggregate, formula: "SUM"}
+      - {name: total_net_profit,   from: [ads_stock_latest.profit_annual],           transform: aggregate, formula: "SUM"}
+      - {name: revenue_yoy,        from: [ads_sector_annual.revenue_yoy],
+         transform: aggregate, formula: "MAX", note: "取该板块最新报告期的已算同比"}
+      - {name: profit_yoy,         from: [ads_sector_annual.profit_yoy],             transform: aggregate, formula: "MAX"}
+      - {name: avg_gross_margin,   from: [ads_stock_latest.gross_margin],            transform: aggregate, formula: "AVG"}
+      - {name: avg_roe,            from: [ads_stock_latest.roe],                     transform: aggregate, formula: "AVG"}
+      - {name: avg_debt_ratio,     from: [ads_stock_latest.debt_ratio],              transform: aggregate, formula: "AVG"}
+
+  # ─────────────────────────── 其他预计算表（表级血缘） ───────────────────────────
+  - name: ads_annual_cagr
+    comment: 年化增长率(CAGR)统计表（3/5/10年营收与净利CAGR）
+    upstream: [fin_income]
+    downstream: [stock_profiles]
+    fields: []
+
+  - name: ads_sector_finance
+    comment: 板块财务汇总（基于单季度财务 fin_quarterly）
+    upstream: [fin_quarterly, stock_sectors]
+    downstream: []
+    fields: []
+
+  - name: sector_prosperity
+    comment: 板块景气度评分
+    upstream: [fin_income, fin_ratios, fin_balance_sheet, stock_sectors]
+    downstream: []
+    fields: []
+
+  - name: zxm_stock_tags
+    comment: 张新民战略视角财务分析标签表
+    upstream: [fin_income, fin_balance_sheet, fin_cash_flow, fin_quarterly, fin_extended, fin_contract_bs, stocks]
+    downstream: []
+    fields: []
+
+  - name: stock_profiles
+    comment: 股票画像预计算表
+    upstream: [fin_income, fin_balance_sheet, fin_cash_flow, daily_kline, ads_annual_cagr, stock_dividend, fin_contract_bs]
+    downstream: []
+    fields: []

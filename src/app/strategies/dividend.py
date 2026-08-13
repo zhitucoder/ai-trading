@@ -83,40 +83,46 @@ def get_dividend_summary(stock_code, latest_price=None):
 
 
 def _build_trend(done):
-    """按除息日归属自然年，聚合历年每股派息合计、平均股息率、平均派息率、分红次数。"""
+    """按报告年度（利润归属年度）聚合，历年每股派息合计、平均股息率、合并派息率、分红次数。"""
     years = {}
     for r in done:
-        ex = r['ex_dividend_date']
-        if not ex:
+        rd = r['report_date']
+        if not rd:
             continue
         cps = float(r['cash_per_10']) / 10 if r['cash_per_10'] is not None else None
         yld = float(r['dividend_yield']) * 100 if r['dividend_yield'] is not None else None
-        pr = float(r['payout_ratio']) if r['payout_ratio'] is not None else None
-        y = ex.year
-        item = years.setdefault(y, {'cash': 0.0, 'yields': [], 'payouts': [], 'times': 0})
+        eps = float(r['eps']) if r['eps'] is not None else None
+        y = rd.year
+        item = years.setdefault(y, {'cash': 0.0, 'yields': [], 'eps': None, 'times': 0})
         if cps is not None:
             item['cash'] += cps
         if yld is not None:
             item['yields'].append(yld)
-        if pr is not None:
-            item['payouts'].append(pr)
+        if eps is not None and rd.month == 12 and rd.day == 31:
+            item['eps'] = eps
         item['times'] += 1
-    return [{
-        'year': y,
-        'cash_per_share': round(v['cash'], 4),
-        'dividend_yield': round(sum(v['yields']) / len(v['yields']), 2) if v['yields'] else None,
-        'payout_ratio': round(sum(v['payouts']) / len(v['payouts']), 1) if v['payouts'] else None,
-        'times': v['times'],
-    } for y, v in sorted(years.items())]
+    out = []
+    for y, v in sorted(years.items()):
+        pr = None
+        if v['eps']:
+            pr = round(v['cash'] / v['eps'] * 100, 1)
+        out.append({
+            'year': y,
+            'cash_per_share': round(v['cash'], 4),
+            'dividend_yield': round(sum(v['yields']) / len(v['yields']), 2) if v['yields'] else None,
+            'payout_ratio': pr,
+            'times': v['times'],
+        })
+    return out
 
 
 def _consecutive_years(done):
-    """最近连续每年都有分红的年数（按除息日归属年份）。"""
+    """最近连续每年都有分红的年数（按报告年度归属年份）。"""
     years = set()
     for r in done:
-        ex = r['ex_dividend_date']
-        if ex:
-            years.add(ex.year)
+        rd = r['report_date']
+        if rd:
+            years.add(rd.year)
     if not years:
         return 0
     count = 0

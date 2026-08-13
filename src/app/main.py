@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from .routers import screening, backtest, profile, debate, vcp, expert, data_management, query, strong
+from .routers import screening, backtest, profile, debate, vcp, expert, data_management, query, strong, governance
 
 app = FastAPI(title='AI Trading System')
 
@@ -24,6 +24,7 @@ app.include_router(expert.router, prefix='/api/expert', tags=['专家'])
 app.include_router(data_management.router, prefix='/api', tags=['数据管理'])
 app.include_router(query.router, prefix='/api/query', tags=['智能问数'])
 app.include_router(strong.router, prefix='/api', tags=['强势板块'])
+app.include_router(governance.router, prefix='/api/governance', tags=['数据治理'])
 
 web_dir = Path(__file__).resolve().parent.parent.parent / 'web'
 
