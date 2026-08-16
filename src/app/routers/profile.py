@@ -30,6 +30,18 @@ def get_profile(stock_code: str, refresh: bool = False):
     from ..strategies.dividend import get_dividend_summary
     data['intro'] = get_stock_intro(stock_code)
     data['dividend'] = get_dividend_summary(stock_code, latest_price=data.get('latest_price'))
+    ads = query("SELECT market_cap FROM ads_stock_latest WHERE stock_code = %s", [stock_code])
+    if ads and ads[0]:
+        data['market_cap'] = float(ads[0]['market_cap']) if ads[0]['market_cap'] is not None else None
+        if data.get('fin_data') is None:
+            data['fin_data'] = {}
+        data['fin_data']['market_cap'] = data['market_cap']
+    net_margin_row = query("SELECT net_margin FROM stock_profiles WHERE stock_code = %s AND net_margin IS NOT NULL ORDER BY data_date DESC LIMIT 1", [stock_code])
+    if net_margin_row and net_margin_row[0].get('net_margin') is not None:
+        data['net_margin'] = float(net_margin_row[0]['net_margin'])
+        if data.get('fin_data') is None:
+            data['fin_data'] = {}
+        data['fin_data']['net_margin'] = data['net_margin']
     return data
 
 
@@ -211,6 +223,10 @@ class SearchRequest(BaseModel):
     roe_max: Optional[float] = None
     roe_ttm_min: Optional[float] = None
     roe_ttm_max: Optional[float] = None
+    net_margin_min: Optional[float] = None
+    net_margin_max: Optional[float] = None
+    market_cap_min: Optional[float] = None
+    market_cap_max: Optional[float] = None
     pe_max: Optional[float] = None
     peg_max: Optional[float] = None
     dividend_yield_min: Optional[float] = None
@@ -333,6 +349,11 @@ def search_profiles(body: SearchRequest):
     if has_zxm:
         zxm_join = 'JOIN zxm_stock_tags z ON z.stock_code = p.stock_code AND z.report_date = (SELECT MAX(z2.report_date) FROM zxm_stock_tags z2 WHERE z2.stock_code = p.stock_code)'
 
+    ads_join = 'JOIN ads_stock_latest a ON a.stock_code = p.stock_code'
+    has_ads = any(getattr(body, f, None) is not None for f in ('market_cap_min', 'market_cap_max'))
+    if not has_ads and body.sort_by in ('market_cap', 'net_margin'):
+        has_ads = True
+
     if body.sectors:
         placeholders = ','.join([f'%({k})s' for k in [f'sector_{i}' for i in range(len(body.sectors))]])
         sector_params = {f'sector_{i}': s for i, s in enumerate(body.sectors)}
@@ -348,6 +369,21 @@ def search_profiles(body: SearchRequest):
         if val is not None:
             conditions.append(f'p.{col} IS NOT NULL AND p.{col} {op} %({field})s')
             params[field] = val
+
+    if body.net_margin_min is not None or body.net_margin_max is not None:
+        conditions.append('p.net_margin IS NOT NULL')
+    if body.net_margin_min is not None:
+        conditions.append('p.net_margin >= %(net_margin_min)s')
+        params['net_margin_min'] = body.net_margin_min
+    if body.net_margin_max is not None:
+        conditions.append('p.net_margin <= %(net_margin_max)s')
+        params['net_margin_max'] = body.net_margin_max
+    if body.market_cap_min is not None:
+        conditions.append('a.market_cap IS NOT NULL AND a.market_cap >= %(market_cap_min)s')
+        params['market_cap_min'] = body.market_cap_min
+    if body.market_cap_max is not None:
+        conditions.append('a.market_cap IS NOT NULL AND a.market_cap <= %(market_cap_max)s')
+        params['market_cap_max'] = body.market_cap_max
 
     if body.pe_max is not None:
         conditions.append('p.pe_ttm IS NOT NULL AND p.pe_ttm <= %(pe_max)s')
@@ -384,6 +420,10 @@ def search_profiles(body: SearchRequest):
             sort_col = "CAST(JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS DECIMAL(10,2))"
         else:
             sort_col = f'p.{body.sort_by}'
+    elif body.sort_by in ('net_margin',):
+        sort_col = 'p.net_margin'
+    elif body.sort_by == 'market_cap':
+        sort_col = 'a.market_cap'
     elif body.sort_by in zxm_field_map:
         sort_col = f'z.{zxm_field_map[body.sort_by]}'
     sort_dir = 'DESC' if body.sort_order == 'desc' else 'ASC'
@@ -394,24 +434,29 @@ def search_profiles(body: SearchRequest):
     latest = query("SELECT MAX(data_date) AS d FROM stock_profiles")[0]['d']
 
     join_clause = zxm_join
+    if has_ads:
+        join_clause = (zxm_join + ' ' + ads_join).strip()
     count_sql = f"SELECT COUNT(*) AS c FROM stock_profiles p {join_clause} WHERE p.data_date = %(ldate)s AND {where}"
     count_params = {'ldate': str(latest), **params}
     total = query(count_sql, count_params)[0]['c']
 
     tag_cols_sql = ', '.join(f'p.{c}' for c in TAG_COLUMNS)
     zxm_select = ', '.join(f'z.{db_col} AS {body_field}' for body_field, db_col in zxm_field_map.items()) if has_zxm else ''
+    ads_select = ', a.market_cap AS market_cap' if has_ads else ''
     sql = f"""
         SELECT p.stock_code, p.stock_name, p.latest_price, p.price_change_pct,
                p.stage_id, p.stage_confidence, p.tech_score, p.fund_score,
                p.revenue_growth, p.net_profit_growth, p.debt_ratio,
                p.roe, p.roe_ttm, p.gross_margin, p.prev_year_revenue,
                p.pe_ttm, p.peg,
+               p.net_margin AS net_margin,
                p.dividend_yield,
                p.rev_cagr_3y, p.rev_cagr_5y, p.rev_cagr_10y,
                p.profit_cagr_3y, p.profit_cagr_5y, p.profit_cagr_10y,
                JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS contract_liab_to_assets,
                {tag_cols_sql}
                {',' + zxm_select if zxm_select else ''}
+               {ads_select}
         FROM stock_profiles p {join_clause}
         WHERE p.data_date = %(ldate)s AND {where}
         ORDER BY {sort_col} {sort_dir}

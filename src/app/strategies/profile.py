@@ -1178,6 +1178,21 @@ def generate_profile(stock_code):
             r0_cost = float(r0['operating_cost']) if r0.get('operating_cost') else 0
             if r0_rev > 0:
                 gm_val = round((r0_rev - r0_cost) / r0_rev * 100, 4)
+
+        # 最新报告期销售净利率 = 最新报告期累计归母净利 / 最新报告期累计营收 × 100
+        net_margin = None
+        latest_inc = query("""
+            SELECT operating_revenue, parent_net_profit
+            FROM fin_income
+            WHERE stock_code = %s
+            ORDER BY report_date DESC
+            LIMIT 1
+        """, [stock_code])
+        if latest_inc and latest_inc[0].get('operating_revenue') and float(latest_inc[0]['operating_revenue']) > 0:
+            _rev = float(latest_inc[0]['operating_revenue'])
+            _pnp = float(latest_inc[0]['parent_net_profit']) if latest_inc[0].get('parent_net_profit') is not None else 0
+            net_margin = round(_pnp / _rev * 100, 4)
+
         prev_rev_val = None
         if len(annual_rows) > 1:
             r1 = annual_rows[1]
@@ -1205,6 +1220,7 @@ def generate_profile(stock_code):
             'roe_ttm': roe_ttm,
             'pe_ttm': pe_ttm,
             'peg': peg,
+            'net_margin': net_margin,
         }
 
     price_change = round((latest_price - klines[-2]['close']) / klines[-2]['close'] * 100, 2) if len(klines) >= 2 else 0

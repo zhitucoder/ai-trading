@@ -45,6 +45,7 @@ def _to_profile_row(result, report_date, fin_report_date):
         'debt_ratio': fin.get('debt_ratio'),
         'roe': fin.get('roe'),
         'roe_ttm': fin.get('roe_ttm'),
+        'net_margin': fin.get('net_margin'),
         'pe_ttm': fin.get('pe_ttm'),
         'peg': fin.get('peg'),
         'gross_margin': fin.get('gross_margin'),
@@ -78,6 +79,7 @@ def _batch_insert(rows, conn):
          'gross_margin', 'prev_year_revenue', 'pe_ttm', 'peg',
          'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
          'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y',
+         'net_margin',
          'data_date', 'fin_report_date', 'profile_json']
         + TAG_COLUMNS
     )

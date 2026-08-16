@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS stock_profiles (
     revenue_growth DECIMAL(10,2) COMMENT '营收增长率 %',
     net_profit_growth DECIMAL(10,2) COMMENT '净利润增长率 %',
     debt_ratio DECIMAL(10,4) COMMENT '资产负债率 %',
+    net_margin DECIMAL(10,4) COMMENT '销售净利率 %（最新报告期累计）',
     {TAG_DDL},
     profile_json JSON NOT NULL,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

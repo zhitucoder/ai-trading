@@ -1305,7 +1305,21 @@ app.component('profile-page', {
         const filterContractLiabMax = ref(null);
         const filterRoeMin = ref(null);
         const filterRoeMax = ref(null);
-const filterRoeTtmMin = ref(null);
+        const filterNetMarginMin = ref(null);
+        const filterNetMarginMax = ref(null);
+        const filterMarketCapRange = ref('');
+        const marketCapRanges = [
+            { label: '50亿以下', min: 0, max: 50 },
+            { label: '50~100亿', min: 50, max: 100 },
+            { label: '100~200亿', min: 100, max: 200 },
+            { label: '200~300亿', min: 200, max: 300 },
+            { label: '300~500亿', min: 300, max: 500 },
+            { label: '500~1000亿', min: 500, max: 1000 },
+            { label: '1000~5000亿', min: 1000, max: 5000 },
+            { label: '5000~10000亿', min: 5000, max: 10000 },
+            { label: '1万亿以上', min: 10000, max: null },
+        ];
+        const filterRoeTtmMin = ref(null);
 const filterRoeTtmMax = ref(null);
 const filterPeMax = ref(null);
 const filterPegMax = ref(null);
@@ -1565,6 +1579,10 @@ const filterPegMax = ref(null);
                     contract_liab_max: filterContractLiabMax.value || null,
                     roe_min: filterRoeMin.value || null,
                     roe_max: filterRoeMax.value || null,
+                    net_margin_min: filterNetMarginMin.value || null,
+                    net_margin_max: filterNetMarginMax.value || null,
+                    market_cap_min: filterMarketCapRange.value ? (marketCapRanges.find(r => r.label === filterMarketCapRange.value) || {}).min ?? null : null,
+                    market_cap_max: filterMarketCapRange.value ? (marketCapRanges.find(r => r.label === filterMarketCapRange.value) || {}).max ?? null : null,
                 roe_ttm_min: filterRoeTtmMin.value || null,
                 roe_ttm_max: filterRoeTtmMax.value || null,
                 pe_max: filterPeMax.value || null,
@@ -1634,6 +1652,9 @@ const filterPegMax = ref(null);
             filterContractLiabMax.value = null;
             filterRoeMin.value = null;
             filterRoeMax.value = null;
+            filterNetMarginMin.value = null;
+            filterNetMarginMax.value = null;
+            filterMarketCapRange.value = '';
             filterRoeTtmMin.value = null;
             filterRoeTtmMax.value = null;
             filterPeMax.value = null;
@@ -1768,6 +1789,7 @@ const filterPegMax = ref(null);
             filterGmGrowthQ, filterGmGrowth2y,
             filterContractLiabMin, filterContractLiabMax,
             filterRoeMin, filterRoeMax, filterRoeTtmMin, filterRoeTtmMax,
+            filterNetMarginMin, filterNetMarginMax, filterMarketCapRange, marketCapRanges,
             filterDividendYieldMin, filterDividendYieldMax,
             filterHasDivThisYear, filterHasMidYear, filterConsecutiveDivYears,
             filterRevCagr3yMin, filterRevCagr3yMax, filterRevCagr5yMin, filterRevCagr5yMax,

@@ -1297,6 +1297,8 @@
 <div class="profile-ind-item" v-if="profile.fin_data.pe_ttm != null"><div class="profile-ind-label" title="总市值 ÷ TTM归母净利润，总股本以 stock_shares_dfcf 为准">PE（TTM）</div><div class="profile-ind-val">{{ profile.fin_data.pe_ttm.toFixed(1) }}倍</div></div>
 <div class="profile-ind-item" v-if="profile.fin_data.peg != null"><div class="profile-ind-label" title="PE(TTM) ÷ 净利润增长率(单季同比)，<1 为成长性合理的低估标的">PEG</div><div class="profile-ind-val" :class="profile.fin_data.peg <= 1 ? 'up' : ''">{{ profile.fin_data.peg.toFixed(2) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.debt_ratio != null"><div class="profile-ind-label">资产负债率</div><div class="profile-ind-val" :class="debtClass(profile.fin_data.debt_ratio)">{{ profile.fin_data.debt_ratio.toFixed(2) }}%</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.net_margin != null"><div class="profile-ind-label" title="销售净利率 = 净利润 ÷ 营业收入">销售净利率</div><div class="profile-ind-val" :class="valClass(profile.fin_data.net_margin)">{{ profile.fin_data.net_margin.toFixed(2) }}%</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.market_cap != null"><div class="profile-ind-label" title="总市值（亿元）">总市值</div><div class="profile-ind-val accent">{{ profile.fin_data.market_cap.toFixed(1) }}亿</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.contract_liab_to_assets != null"><div class="profile-ind-label">合同负债占资产</div><div class="profile-ind-val" :class="valClass(10 - profile.fin_data.contract_liab_to_assets)">{{ profile.fin_data.contract_liab_to_assets.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_3y != null"><div class="profile-ind-label">营收3年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_3y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_3y) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_5y != null"><div class="profile-ind-label">营收5年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_5y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_5y) }}</div></div>
@@ -1472,6 +1474,20 @@
                 </div>
 
                 <div class="screening-section">
+                    <div class="screening-section-title">盈利与市值</div>
+                    <div class="screening-range-row">
+                        <div><label title="销售净利率 = 净利润 ÷ 营业收入，来自 ads_stock_latest">销售净利率 ≥</label><input type="number" v-model.number="filterNetMarginMin" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label>销售净利率 ≤</label><input type="number" v-model.number="filterNetMarginMax" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label>总市值区间</label>
+                            <select v-model="filterMarketCapRange" @change="onFilterChange" style="width:120px;">
+                                <option value="">不限</option>
+                                <option v-for="r in marketCapRanges" :key="r.label" :value="r.label">{{ r.label }}</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="screening-section">
                     <div class="screening-section-title">毛利率同比</div>
                     <div class="screening-range-row">
                         <div><label>本季毛利率同比 ≥</label><input type="number" v-model.number="filterGmGrowthQ" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
@@ -1570,6 +1586,8 @@
                                     <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_10y')">10Y净利CAGR{{ sortArrow('profit_cagr_10y') }}</th>
                                 <th style="width:70px;cursor:pointer;" @click="toggleSort('roe')">ROE{{ sortArrow('roe') }}</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('roe_ttm')">ROE(TTM){{ sortArrow('roe_ttm') }}</th>
+                                <th style="width:70px;cursor:pointer;" @click="toggleSort('net_margin')" title="销售净利率 = 净利润 ÷ 营业收入">净利率{{ sortArrow('net_margin') }}</th>
+                                <th style="width:80px;cursor:pointer;" @click="toggleSort('market_cap')" title="总市值（亿元）">市值(亿){{ sortArrow('market_cap') }}</th>
                                 <th style="width:65px;cursor:pointer;" @click="toggleSort('gross_margin')">毛利率{{ sortArrow('gross_margin') }}</th>
                                 <th style="width:70px;">上年营收</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('pe_ttm')" title="PE(TTM) = 总市值 ÷ TTM归母净利润，总股本以 stock_shares_dfcf 为准">PE(TTM){{ sortArrow('pe_ttm') }}</th>
@@ -1600,6 +1618,8 @@
                                 <td :class="valClass(row.profit_cagr_10y)">{{ row.profit_cagr_10y != null ? fmtGrowth(row.profit_cagr_10y) : '-' }}</td>
                                 <td :class="valClass(row.roe)">{{ row.roe != null ? row.roe.toFixed(2) + '%' : '-' }}</td>
                                 <td :class="valClass(row.roe_ttm)">{{ row.roe_ttm != null ? row.roe_ttm.toFixed(2) + '%' : '-' }}</td>
+                                <td :class="valClass(row.net_margin)">{{ row.net_margin != null ? Number(row.net_margin).toFixed(2) + '%' : '-' }}</td>
+                                <td :class="row.market_cap != null && row.market_cap < 50 ? 'down' : ''">{{ row.market_cap != null ? Number(row.market_cap).toFixed(1) : '-' }}</td>
                                 <td :class="valClass(row.gross_margin)">{{ row.gross_margin != null ? row.gross_margin.toFixed(2) + '%' : '-' }}</td>
                                 <td style="font-size:11px;">{{ row.prev_year_revenue != null ? fmtMoney(row.prev_year_revenue) : '-' }}</td>
                                 <td>{{ row.pe_ttm != null ? Number(row.pe_ttm).toFixed(1) : '-' }}</td>
