@@ -1,8 +1,9 @@
 import json
+import io
 import threading
 from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 from typing import List, Optional
 from ..database import query, execute
@@ -122,6 +123,14 @@ def profile_fin_chart(stock_code: str):
         ORDER BY week_start
     """, [stock_code])
 
+    fund_rows = query("""
+        SELECT end_date, quarter, report_type, fund_count, active_count, passive_count,
+               total_amount, total_mkv, close_price, intra_high
+        FROM ads_stock_fund
+        WHERE stock_code = %s
+        ORDER BY end_date
+    """, [stock_code])
+
     years, revenues, profits, growth_rates = [], [], [], []
     prev_np = None
     for r in rev_rows:
@@ -140,7 +149,17 @@ def profile_fin_chart(stock_code: str):
             'weekly_kline': [{'date': r['week_start'].strftime('%Y-%m-%d') if hasattr(r['week_start'], 'strftime') else str(r['week_start'])[:10],
                               'open': float(r['open_price']), 'high': float(r['high_price']),
                               'low': float(r['low_price']), 'close': float(r['close_price'])}
-                             for r in kline_rows]}
+                             for r in kline_rows],
+            'fund_series': [{'end_date': r['end_date'].strftime('%Y-%m-%d') if hasattr(r['end_date'], 'strftime') else str(r['end_date'])[:10],
+                             'quarter': r['quarter'], 'report_type': r['report_type'],
+                             'fund_count': r['fund_count'] or 0,
+                             'active_count': r['active_count'] or 0,
+                             'passive_count': r['passive_count'] or 0,
+                             'total_amount': float(r['total_amount'] or 0),
+                             'total_mkv': float(r['total_mkv'] or 0),
+                             'close_price': float(r['close_price'] or 0),
+                             'intra_high': float(r['intra_high'] or 0)}
+                            for r in fund_rows]}
 
 
 # ── 触发刷新 ──
@@ -821,3 +840,124 @@ h1{{font-size:20px;color:#00d4ff;margin-bottom:4px}}.sub{{font-size:15px;color:#
 <div><h1>{stock_code} {sname}</h1><div class=sub><span class=rating>{rating}</span> <span class=pl>{pattern}</span></div></div>
 <div class=grid>{dim_html}</div>{risk_html}
 <div class=footer>六维分析方法论财务诊断 v1.0 · 数据基于最新年报</div></html>"""
+
+
+# ── 基金持仓与股价联动 matplotlib 图（复用 fund-holding-analysis skill 画法） ──
+_matplotlib_loaded = False
+_plt = None
+
+
+def _ensure_matplotlib():
+    global _matplotlib_loaded, _plt
+    if _matplotlib_loaded:
+        return _plt
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.font_manager as fm
+    for f in ['/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+              '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc']:
+        try:
+            fm.fontManager.addfont(f)
+            plt.rcParams['font.family'] = fm.FontProperties(fname=f).get_name()
+            break
+        except Exception:
+            pass
+    plt.rcParams['axes.unicode_minus'] = False
+    _plt = plt
+    _matplotlib_loaded = True
+    return _plt
+
+
+@router.get('/profile/{stock_code}/fund-chart-img')
+def profile_fund_chart_img(stock_code: str, width: int = 760):
+    """返回 matplotlib 三面板 PNG（复用 fund-holding-analysis skill 画法）：
+    上=股价(收盘+盘中高点)，中=持仓基金家数，下=基金持股量柱。
+    数据来源：ads_stock_fund 预计算表。"""
+    rows = query(
+        "SELECT end_date, quarter, report_type, fund_count, total_amount, "
+        "close_price, intra_high FROM ads_stock_fund "
+        "WHERE stock_code=%s ORDER BY end_date", [stock_code])
+    if not rows:
+        raise HTTPException(404, 'ads_stock_fund 无数据，请先运行分析预计算更新')
+    if len(rows) < 2:
+        raise HTTPException(404, '数据不足 2 个报告期')
+    name = ''
+    r = query("SELECT stock_name FROM stocks WHERE stock_code=%s", [stock_code])
+    if r:
+        name = r[0].get('stock_name') or ''
+    suffix = 'SH' if stock_code.startswith('6') else 'SZ'
+
+    plt = _ensure_matplotlib()
+    ends = [str(x['end_date']) for x in rows]
+    labels = [x['quarter'] for x in rows]
+    is_full = [x['report_type'] != 'Q' for x in rows]
+    prices = [float(x['close_price'] or 0) for x in rows]
+    highs = [float(x['intra_high'] or 0) for x in rows]
+    funds = [int(x['fund_count'] or 0) for x in rows]
+    shares = [float(x['total_amount'] or 0) / 1e8 for x in rows]
+
+    x = list(range(len(rows)))
+    fig, axes = plt.subplots(3, 1, figsize=(10.5, 6.8), sharex=True,
+                             gridspec_kw={'height_ratios': [1.1, 1, 1]})
+    fig.patch.set_facecolor('#ffffff')
+
+    ax = axes[0]
+    ax.plot(x, prices, color='#e23b3b', lw=2.2, marker='o', ms=5, zorder=3,
+            label='季度末收盘价(不复权)')
+    ax.scatter(x, highs, color='#ff8c1a', marker='^', s=55, zorder=4,
+               label='季度内盘中最高(不复权)')
+    ax.set_ylabel('股价 (元)', fontsize=10)
+    ax.set_title(f'{name}({stock_code}) 股价与基金持仓联动关系 ({labels[0]}–{labels[-1]})',
+                 fontsize=13, fontweight='bold', pad=8)
+    ax.grid(axis='y', ls='--', alpha=0.35)
+    for xi, v in zip(x, prices):
+        ax.annotate(f'{v:.0f}', (xi, v), textcoords='offset points',
+                    xytext=(0, 6), ha='center', fontsize=7, color='#e23b3b')
+    ax.legend(loc='upper left', fontsize=8)
+    if any(highs):
+        peak_i = max(range(len(highs)), key=lambda i: highs[i])
+        ax.annotate(f'历史顶点 {highs[peak_i]:.2f}\n({ends[peak_i]} 盘中)',
+                    xy=(peak_i, highs[peak_i]),
+                    xytext=(peak_i - 2.5, highs[peak_i] + max(prices) * 0.12),
+                    fontsize=8, color='#ff8c1a', fontweight='bold',
+                    arrowprops=dict(arrowstyle='->', color='#ff8c1a', lw=1.2))
+
+    ax = axes[1]
+    full_x = [xi for xi, f in enumerate(is_full) if f]
+    part_x = [xi for xi, f in enumerate(is_full) if not f]
+    ax.plot(full_x, [funds[i] for i in full_x], color='#2b7bd4', lw=2.2,
+            marker='s', ms=6, label='半年报/年报(全部持仓)')
+    ax.plot(part_x, [funds[i] for i in part_x], color='#2b7bd4', lw=1.4,
+            marker='o', ms=6, ls='--', label='季报(仅前十大重仓)', alpha=0.75)
+    ax.set_ylabel('持仓基金数 (只)', fontsize=10)
+    ax.grid(axis='y', ls='--', alpha=0.35)
+    ax.legend(loc='upper left', fontsize=9)
+    for xi in full_x:
+        ax.annotate(f'{funds[xi]}', (xi, funds[xi]), textcoords='offset points',
+                    xytext=(0, 5), ha='center', fontsize=7.5, color='#2b7bd4')
+
+    ax = axes[2]
+    ax.bar(x, shares, color=['#4a9d5f' if f else '#8fc9a3' for f in is_full],
+           width=0.62, label='基金持股总量(亿股)')
+    ax.set_ylabel('基金持股 (亿股)', fontsize=10)
+    ax.grid(axis='y', ls='--', alpha=0.35)
+    for xi, v in zip(x, shares):
+        ax.annotate(f'{v:.2f}', (xi, v), textcoords='offset points',
+                    xytext=(0, 4), ha='center', fontsize=7.5, color='#2b5f3c')
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=8, rotation=0)
+    ax.set_xlabel('报告期', fontsize=10)
+
+    fig.text(0.5, 0.012,
+             '注：股价为不复权口径。季报(3/9月)仅披露前十大重仓股，基金数与持股量天然偏低；'
+             '半年报/年报(6/12月)披露全部持仓。深绿柱=半年报/年报口径，浅绿柱=季报口径。',
+             ha='center', fontsize=7.5, color='#666')
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.99])
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+    return Response(content=buf.getvalue(), media_type='image/png')

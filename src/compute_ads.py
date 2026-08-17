@@ -139,6 +139,27 @@ def create_tables(cur):
           message VARCHAR(500) COMMENT '运行摘要'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='分析预计算刷新日志（每POST /api/data/update-ads一条）'
     """)
+    cur.execute("""
+        CREATE TABLE ads_stock_fund (
+          id INT AUTO_INCREMENT PRIMARY KEY COMMENT '自增ID',
+          stock_code  VARCHAR(10) NOT NULL COMMENT '股票代码(600519)',
+          end_date    VARCHAR(8)  NOT NULL COMMENT '报告期(20210331…)',
+          quarter     CHAR(6)     COMMENT '季度标签(21Q1…)',
+          report_type CHAR(1)     COMMENT '披露口径: F=半年报/年报(全部持仓), Q=季报(前十大)',
+          fund_count      INT      COMMENT '持仓基金家数(全部)',
+          active_count    INT      COMMENT '主动基金家数',
+          passive_count   INT      COMMENT '被动(指数/ETF)基金家数',
+          total_amount    DECIMAL(20,4) COMMENT '基金持仓总股数(股)',
+          total_mkv       DECIMAL(20,4) COMMENT '基金持仓总市值(元)',
+          total_shares    BIGINT   COMMENT '当期总股本(股, 取stock_shares_dfcf, 用于送转识别)',
+          close_price     DECIMAL(10,2) COMMENT '季度末收盘价(不复权)',
+          intra_high      DECIMAL(10,2) COMMENT '季内盘中最高价(不复权)',
+          update_time     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                          ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间(插入/更新自动写入)',
+          UNIQUE KEY uk_stock_q (stock_code, end_date),
+          KEY idx_date (end_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='个股×季度 基金持仓聚合(基金家数/持股量/市值)+季度股价(预计算, 画像页联动图用)'
+    """)
 
 
 def _clamp(sql_expr):
@@ -238,6 +259,102 @@ LEFT JOIN ads_sector_annual a ON a.sector_code = ss.sector_code
 GROUP BY ss.sector_code
 """
 
+# 报告期常量：22个季度（2021Q1-2026Q2）
+FUND_ENDS = ['20210331','20210630','20210930','20211231','20220331','20220630',
+             '20220930','20221231','20230331','20230630','20230930','20231231',
+             '20240331','20240630','20240930','20241231','20250331','20250630',
+             '20250930','20251231','20260331','20260630']
+FUND_LABELS = ['21Q1','21Q2','21Q3','21Q4','22Q1','22Q2','22Q3','22Q4',
+               '23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4',
+               '25Q1','25Q2','25Q3','25Q4','26Q1','26Q2']
+
+INSERT_STOCK_FUND = """
+INSERT INTO ads_stock_fund
+(stock_code, end_date, quarter, report_type, fund_count, active_count,
+ passive_count, total_amount, total_mkv)
+SELECT
+  SUBSTRING_INDEX(d.symbol, '.', 1) AS stock_code,
+  d.end_date,
+  CONCAT(SUBSTRING(d.end_date, 3, 2), 'Q',
+         CEIL(SUBSTRING(d.end_date, 5, 2) / 3)),
+  CASE WHEN RIGHT(d.end_date, 4) IN ('0331','0930') THEN 'Q' ELSE 'F' END,
+  COUNT(*),
+  SUM(CASE WHEN COALESCE(f.passive, 0) = 0 THEN 1 ELSE 0 END),
+  SUM(COALESCE(f.passive, 0)),
+  ROUND(SUM(d.amount), 2),
+  ROUND(SUM(d.mkv), 2)
+FROM (
+  SELECT ts_code, symbol, end_date, amount, mkv,
+         ROW_NUMBER() OVER (PARTITION BY ts_code, symbol, end_date
+                            ORDER BY ann_date DESC) rn
+  FROM fund_portfolio
+  WHERE end_date = %(end_date)s
+) d
+LEFT JOIN (
+  SELECT ts_code,
+         CASE WHEN name LIKE '%%ETF%%' OR name LIKE '%%指数%%' OR name LIKE '%%沪深300%%'
+              OR name LIKE '%%上证50%%' OR name LIKE '%%中证500%%' OR name LIKE '%%MSCI%%'
+              OR name LIKE '%%增强%%' OR name LIKE '%%联接%%' OR name LIKE '%%LOF%%'
+              OR name LIKE '%%300%%' THEN 1 ELSE 0 END AS passive
+  FROM fund_basic
+) f ON f.ts_code = d.ts_code
+WHERE d.rn = 1
+GROUP BY SUBSTRING_INDEX(d.symbol, '.', 1), d.end_date
+"""
+
+
+def _quarter_label(end_date):
+    """20210331 -> 21Q1"""
+    yy = end_date[2:4]
+    m = int(end_date[4:6])
+    q = (m - 1) // 3 + 1
+    return f'{yy}Q{q}'
+
+
+def compute_stock_fund(conn, cur, log):
+    """Step5: 计算 ads_stock_fund（基金持仓聚合+去重+股价回填）。每季度提交一次。"""
+    cur.execute("SELECT stock_code, total_shares FROM stock_shares_dfcf")
+    shares_map = {r['stock_code']: int(r['total_shares']) if r['total_shares'] else 0
+                  for r in cur.fetchall()}
+    total_rows = 0
+    for i, end in enumerate(FUND_ENDS):
+        cur.execute(INSERT_STOCK_FUND, {'end_date': end})
+        cur.execute("SELECT DISTINCT stock_code FROM ads_stock_fund WHERE end_date=%s", (end,))
+        codes = [r['stock_code'] for r in cur.fetchall()]
+        if not codes:
+            continue
+        placeholders = ','.join(['%s'] * len(codes))
+        prev_end = FUND_ENDS[i - 1] if i > 0 else '20201231'
+        cur.execute(f"""
+            SELECT k.stock_code, k.close_price
+            FROM daily_kline k
+            JOIN (
+              SELECT stock_code, MAX(trade_date) md FROM daily_kline
+              WHERE stock_code IN ({placeholders}) AND trade_date <= %s
+              GROUP BY stock_code
+            ) m ON k.stock_code = m.stock_code AND k.trade_date = m.md
+        """, codes + [end])
+        close_map = {r['stock_code']: float(r['close_price']) for r in cur.fetchall()}
+        cur.execute(f"""
+            SELECT stock_code, MAX(high_price) hi FROM daily_kline
+            WHERE stock_code IN ({placeholders})
+              AND trade_date > %s AND trade_date <= %s
+            GROUP BY stock_code
+        """, codes + [prev_end, end])
+        intra_map = {r['stock_code']: float(r['hi']) for r in cur.fetchall()}
+        updates = [
+            (shares_map.get(c), close_map.get(c), intra_map.get(c), c, end)
+            for c in codes
+        ]
+        cur.executemany("""
+            UPDATE ads_stock_fund SET total_shares=%s, close_price=%s, intra_high=%s
+            WHERE stock_code=%s AND end_date=%s
+        """, updates)
+        conn.commit()
+        total_rows += len(codes)
+        log(f'  fund {_quarter_label(end)} ({end}): {len(codes)} stocks')
+    return total_rows
+
 
 def _latest_price_map(cur):
     cur.execute("""
@@ -320,12 +437,13 @@ def compute(progress_cb=None):
             print(msg, flush=True)
 
     log('Dropping old ads tables...')
-    for t in ['ads_stock_annual', 'ads_stock_latest', 'ads_sector_annual', 'ads_sector_latest']:
+    for t in ['ads_stock_annual', 'ads_stock_latest', 'ads_sector_annual',
+              'ads_sector_latest', 'ads_stock_fund']:
         _drop_table(cur, t)
     create_tables(cur)
     conn.commit()
 
-    log('Step 1/4: ads_stock_annual (个股年度财务)...')
+    log('Step 1/5: ads_stock_annual (个股年度财务)...')
     cur.execute(INSERT_STOCK_ANNUAL)
     conn.commit()
     cur.execute("SELECT COUNT(*) c FROM ads_stock_annual")
@@ -336,7 +454,7 @@ def compute(progress_cb=None):
     cur.execute(UPDATE_STOCK_YOY)
     conn.commit()
 
-    log('Step 2/4: ads_sector_annual (行业年度汇总)...')
+    log('Step 2/5: ads_sector_annual (行业年度汇总)...')
     cur.execute(INSERT_SECTOR_ANNUAL)
     conn.commit()
     cur.execute("SELECT COUNT(*) c FROM ads_sector_annual")
@@ -345,7 +463,7 @@ def compute(progress_cb=None):
     cur.execute(UPDATE_SECTOR_YOY)
     conn.commit()
 
-    log('Step 3/4: ads_stock_latest (个股最新快照)...')
+    log('Step 3/5: ads_stock_latest (个股最新快照)...')
     log('  loading latest price (全表扫描 ~30s)...')
     prices = _latest_price_map(cur)
     log(f'  prices: {len(prices)}')
@@ -444,12 +562,16 @@ def compute(progress_cb=None):
     conn.commit()
     log(f'  ads_stock_latest rows: {len(rows_latest)}')
 
-    log('Step 4/4: ads_sector_latest (行业最新快照)...')
+    log('Step 4/5: ads_sector_latest (行业最新快照)...')
     cur.execute(INSERT_SECTOR_LATEST)
     conn.commit()
     cur.execute("SELECT COUNT(*) c FROM ads_sector_latest")
     n_sec_latest = cur.fetchone()['c']
     log(f'  sector latest rows: {n_sec_latest}')
+
+    log('Step 5/5: ads_stock_fund (基金持仓聚合)...')
+    n_stock_fund = compute_stock_fund(conn, cur, log)
+    log(f'  stock fund rows: {n_stock_fund}')
 
     elapsed = int(time.time() - t0)
     log(f'Done in {elapsed}s')
@@ -459,6 +581,7 @@ def compute(progress_cb=None):
         'sector_annual': n_sec_annual,
         'stock_latest': len(rows_latest),
         'sector_latest': n_sec_latest,
+        'stock_fund': n_stock_fund,
         'elapsed_seconds': elapsed,
     }
 

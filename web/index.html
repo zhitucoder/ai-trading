@@ -484,9 +484,9 @@
                             </thead>
                             <tbody>
                                 <tr v-for="(row, i) in sortedRows" :key="i"
-                                    :style="tabType === 'volume_surge' || tabType === 'five_step' ? 'cursor:pointer;' : ''"
+                                    style="cursor:pointer;"
                                     :class="selectedStock && selectedStock.stock_code === row.stock_code ? 'selected-row' : ''"
-                                    @click="tabType === 'volume_surge' ? selectStock(row) : tabType === 'five_step' ? goToProfileFromScreening(row) : null">
+                                    @click="goToProfileFromScreening(row)">
                                     <td>{{ i + 1 }}</td>
                                     <td><strong>{{ row.stock_code }}</strong></td>
                                     <td>{{ row.stock_name }}</td>
@@ -1248,6 +1248,14 @@
                     <div style="position:relative;width:100%;height:280px;">
                         <canvas ref="finChartCanvas" style="width:100%;height:100%;"></canvas>
                         <div v-if="finChartLoading" class="chart-loading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#888;font-size:13px;">加载中...</div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top:12px;">
+                    <div class="card-title">基金持仓与股价联动（matplotlib 三面板 · 股价/家数/持股量）</div>
+                    <div style="position:relative;width:100%;">
+                        <img v-if="fundChartImg" :src="fundChartImg" ref="fundChartImgEl" style="width:88%;height:auto;display:block;margin:0 auto;" />
+                        <div v-if="fundChartLoading" class="chart-loading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#888;font-size:13px;">加载中...</div>
                     </div>
                 </div>
 

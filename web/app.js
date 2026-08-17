@@ -855,6 +855,9 @@ app.component('profile-page', {
         const error = ref('');
         const finChartLoading = ref(false);
         const finChartCanvas = ref(null);
+        const fundChartLoading = ref(false);
+        const fundChartImg = ref('');
+        const fundChartImgEl = ref(null);
         const divChartCanvas = ref(null);
 
         let divChartGeo = null;
@@ -986,6 +989,7 @@ app.component('profile-page', {
                 else {
                     profile.value = data;
                     loadFinChart();
+                    loadFundChart();
                     loadZxmTags();
                     checkWatchlist();
                     nextTick(loadDivChart);
@@ -1267,6 +1271,186 @@ app.component('profile-page', {
                     }
                 }
 
+                tooltip.innerHTML = html;
+                const tx = e.clientX - cr.left + 15;
+                const ty = e.clientY - cr.top - 10;
+                const tw = tooltip.offsetWidth || 180;
+                const th = tooltip.offsetHeight || 100;
+                tooltip.style.left = (tx + tw > cr.width ? tx - tw - 30 : tx) + 'px';
+                tooltip.style.top = (ty + th > cr.height ? cr.height - th - 5 : (ty < 0 ? 5 : ty)) + 'px';
+                tooltip.style.display = 'block';
+            };
+            canvas.onmouseout = function() { tooltip.style.display = 'none'; };
+        }
+
+        async function loadFundChart() {
+            if (!stockCode.value) return;
+            fundChartLoading.value = true;
+            try {
+                const ts = Date.now();
+                fundChartImg.value = `${API_BASE}/profile/${stockCode.value}/fund-chart-img?t=${ts}`;
+            } catch (e) {}
+            finally { fundChartLoading.value = false; }
+        }
+
+        function renderFundChart(series) {
+            const canvas = fundChartCanvas.value;
+            if (!canvas) return;
+            const parent = canvas.parentElement;
+            const rect = parent.getBoundingClientRect();
+
+            let tooltip = parent.querySelector('.chart-tooltip');
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.className = 'chart-tooltip';
+                tooltip.style.cssText = 'position:absolute;display:none;background:rgba(20,20,40,0.92);border:1px solid #333;border-radius:6px;padding:10px 14px;font-size:12px;color:#ccc;pointer-events:none;z-index:100;white-space:nowrap;line-height:1.7;';
+                parent.style.position = 'relative';
+                parent.appendChild(tooltip);
+            }
+
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            const pad = { top: 30*dpr, bottom: 30*dpr, left: 104*dpr, right: 58*dpr };
+            const cw = W - pad.left - pad.right, ch = H - pad.top - pad.bottom;
+            const n = series.length;
+
+            ctx.clearRect(0, 0, W, H);
+
+            const aVals = series.map(s => (s.total_amount || 0) / 1e8);
+            const fVals = series.map(s => s.fund_count || 0);
+            const cVals = series.map(s => s.close_price || 0);
+            const hVals = series.map(s => s.intra_high || 0);
+            const aMax = Math.max(...aVals) * 1.15 || 1;
+            const fMax = Math.max(...fVals) * 1.15 || 1;
+            const pMax = Math.max(...hVals, ...cVals) * 1.15 || 1;
+
+            function yAmt(v) { return pad.top + ch * (1 - v / aMax); }
+            function yFund(v) { return pad.top + ch * (1 - v / fMax); }
+            function yPrice(v) { return pad.top + ch * (1 - v / pMax); }
+
+            const xStep = n > 1 ? cw / (n - 1) : cw;
+            const xs = series.map((_, i) => pad.left + i * xStep);
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1*dpr;
+            for (let i = 0; i <= 4; i++) {
+                const y = pad.top + ch * i / 4;
+                ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+            }
+
+            const barW = Math.max(1, Math.min(9, cw / n * 0.55)) * dpr;
+            for (let i = 0; i < n; i++) {
+                const x = xs[i];
+                const h = ch * aVals[i] / aMax;
+                ctx.fillStyle = series[i].report_type === 'F' ? 'rgba(59,130,246,0.6)' : 'rgba(59,130,246,0.25)';
+                ctx.fillRect(x - barW/2, pad.top + ch - h, barW, h);
+            }
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2*dpr;
+            for (let i = 0; i < n; i++) {
+                const y = yPrice(cVals[i]);
+                i === 0 ? ctx.moveTo(xs[i], y) : ctx.lineTo(xs[i], y);
+            }
+            ctx.stroke();
+            ctx.fillStyle = '#ef4444';
+            for (let i = 0; i < n; i++) {
+                const y = yPrice(cVals[i]);
+                ctx.beginPath(); ctx.arc(xs[i], y, 2.5*dpr, 0, Math.PI*2); ctx.fill();
+            }
+
+            ctx.fillStyle = '#f59e0b';
+            for (let i = 0; i < n; i++) {
+                const x = xs[i], y = yPrice(hVals[i]);
+                ctx.beginPath(); ctx.moveTo(x, y - 6*dpr); ctx.lineTo(x - 5*dpr, y + 5*dpr); ctx.lineTo(x + 5*dpr, y + 5*dpr); ctx.closePath(); ctx.fill();
+            }
+            let peakIdx = 0, peakVal = -Infinity;
+            series.forEach((s, i) => { if ((s.intra_high || 0) > peakVal) { peakVal = s.intra_high; peakIdx = i; } });
+            ctx.fillStyle = '#f59e0b'; ctx.font = `bold ${11*dpr}px sans-serif`; ctx.textAlign = 'center';
+            ctx.fillText('高点 ' + peakVal.toFixed(2), xs[peakIdx], yPrice(peakVal) - 10*dpr);
+
+            let segStart = 0;
+            for (let i = 1; i <= n; i++) {
+                if (i < n && series[i].report_type === series[segStart].report_type) continue;
+                const isQ = series[segStart].report_type === 'Q';
+                ctx.beginPath();
+                ctx.setLineDash(isQ ? [6*dpr, 3*dpr] : []);
+                ctx.strokeStyle = '#ff69b4'; ctx.lineWidth = 2*dpr;
+                for (let j = segStart; j < i; j++) {
+                    const y = yFund(fVals[j]);
+                    j === segStart ? ctx.moveTo(xs[j], y) : ctx.lineTo(xs[j], y);
+                }
+                ctx.stroke();
+                segStart = i;
+            }
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#ff69b4';
+            for (let i = 0; i < n; i++) {
+                const y = yFund(fVals[i]);
+                ctx.beginPath(); ctx.arc(xs[i], y, 2.5*dpr, 0, Math.PI*2); ctx.fill();
+            }
+
+            ctx.fillStyle = '#ff69b4'; ctx.font = `${10*dpr}px sans-serif`; ctx.textAlign = 'right';
+            for (let i = 0; i <= 4; i++) {
+                const v = Math.round(fMax * i / 4);
+                ctx.fillText(v + '家', pad.left - 8*dpr, pad.top + ch*(1 - i/4) + 4*dpr);
+            }
+            ctx.fillStyle = '#3b82f6';
+            for (let i = 0; i <= 4; i++) {
+                const v = (aMax * i / 4).toFixed(1);
+                ctx.fillText(v + '亿股', pad.left - 56*dpr, pad.top + ch*(1 - i/4) + 4*dpr);
+            }
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#ef4444';
+            for (let i = 0; i <= 4; i++) {
+                const v = Math.round(pMax * i / 4);
+                ctx.fillText(v + '元', pad.left + cw + 6*dpr, pad.top + ch*(1 - i/4) + 4*dpr);
+            }
+
+            ctx.fillStyle = '#999'; ctx.font = `${10*dpr}px sans-serif`; ctx.textAlign = 'center';
+            for (let i = 0; i < n; i += Math.max(1, Math.ceil(n / 12))) {
+                ctx.fillText(series[i].quarter, xs[i], H - pad.bottom + 16*dpr);
+            }
+
+            const legend = [
+                {label:'季末收盘价(元)', color:'#ef4444'},
+                {label:'季内盘中最高', color:'#f59e0b'},
+                {label:'持仓基金家数(实线=半年/年报,虚线=季报)', color:'#ff69b4'},
+                {label:'基金持股量(亿股)', color:'#3b82f6'},
+            ];
+            ctx.font = `${11*dpr}px sans-serif`; ctx.textAlign = 'left';
+            let lx = pad.left;
+            for (const item of legend) {
+                ctx.fillStyle = item.color;
+                ctx.fillRect(lx, 8*dpr, 12*dpr, 12*dpr);
+                ctx.fillStyle = '#ccc';
+                ctx.fillText(item.label, lx + 16*dpr, 19*dpr);
+                lx += ctx.measureText(item.label).width + 28*dpr;
+            }
+
+            canvas.chartData = { series, xs, pad, cw, n, yPrice, yFund };
+            canvas.onmousemove = function(e) {
+                const cr = canvas.getBoundingClientRect();
+                const mx = (e.clientX - cr.left) * dpr;
+                const cd = canvas.chartData;
+                if (!cd) return;
+                let idx = -1, minDist = Infinity;
+                for (let i = 0; i < cd.n; i++) {
+                    const dist = Math.abs(mx - cd.xs[i]);
+                    if (dist < minDist) { minDist = dist; idx = i; }
+                }
+                if (idx < 0 || minDist > cd.cw / cd.n * 1.2) { tooltip.style.display = 'none'; return; }
+                const s = cd.series[idx];
+                const aYi = (s.total_amount || 0) / 1e8;
+                const isQ = s.report_type === 'Q';
+                let html = `<div style="color:#ff69b4;font-weight:700;margin-bottom:4px;">${s.quarter} ${isQ ? '（季报·前十大）' : '（半年/年报·全部）'}</div>`;
+                html += `<div><span style="color:#ef4444;">季末收盘</span> ${s.close_price.toFixed(2)}元 · <span style="color:#f59e0b;">盘中最高</span> ${s.intra_high.toFixed(2)}元</div>`;
+                html += `<div><span style="color:#ff69b4;">持仓基金</span> ${s.fund_count}家（主动 ${s.active_count} / 被动 ${s.passive_count}）</div>`;
+                html += `<div><span style="color:#3b82f6;">基金持股量</span> ${aYi.toFixed(2)}亿股 · 市值 ${(s.total_mkv / 1e8).toFixed(0)}亿</div>`;
                 tooltip.innerHTML = html;
                 const tx = e.clientX - cr.left + 15;
                 const ty = e.clientY - cr.top - 10;
@@ -1834,8 +2018,8 @@ const filterPegMax = ref(null);
         });
 
         return {
-            activeTab, stockCode, loading, profile, error, finChartLoading, finChartCanvas, divChartCanvas,
-            loadProfile, loadFinChart, loadDivChart, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile, introStatusName, chainName,
+            activeTab, stockCode, loading, profile, error, finChartLoading, finChartCanvas, fundChartLoading, fundChartImg, fundChartImgEl, divChartCanvas,
+            loadProfile, loadFinChart, loadFundChart, loadDivChart, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile, introStatusName, chainName,
             stageOptions, selectedStages, filterTechScore, filterFundScore,
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
             filterPrevYearProfitMin, filterPrevYearProfitMax, filterCurQuarterProfitMin, filterCurQuarterProfitMax,
