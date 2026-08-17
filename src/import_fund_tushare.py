@@ -13,17 +13,23 @@
 
 import argparse
 import math
+import os
 import time
 
 import pymysql
 import tushare as ts
 from pymysql.cursors import DictCursor
 
+from dotenv import load_dotenv
+load_dotenv()
+
 DB_CONFIG = dict(host='127.0.0.1', port=3306, user='root',
                  password='aitrading123', database='ai_trading',
                  charset='utf8mb4', cursorclass=DictCursor)
 
-API_KEY = 'YOUR_TUSHARE_TOKEN'
+API_KEY = os.environ.get('TUSHARE_TOKEN', '')
+if not API_KEY:
+    raise SystemExit('缺少 TUSHARE_TOKEN 环境变量（.env 中配置 TUSHARE_TOKEN=你的tushare token）')
 
 PAGE_SIZE_BASIC = 15000   # fund_basic 单次最大15000条
 PAGE_SIZE_PF = 8000       # fund_portfolio 实测单次约8000条
