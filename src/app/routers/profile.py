@@ -204,6 +204,10 @@ class SearchRequest(BaseModel):
     fund_score_min: Optional[int] = None
     revenue_growth_min: Optional[float] = None
     net_profit_growth_min: Optional[float] = None
+    prev_year_profit_min: Optional[float] = None
+    prev_year_profit_max: Optional[float] = None
+    cur_quarter_profit_min: Optional[float] = None
+    cur_quarter_profit_max: Optional[float] = None
     debt_ratio_max: Optional[float] = None
     price_change_min: Optional[float] = None
     price_change_max: Optional[float] = None
@@ -293,6 +297,18 @@ def search_profiles(body: SearchRequest):
     if body.net_profit_growth_min is not None:
         conditions.append('p.net_profit_growth >= %(net_profit_growth_min)s')
         params['net_profit_growth_min'] = body.net_profit_growth_min
+    if body.prev_year_profit_min is not None:
+        conditions.append('fy.parent_net_profit IS NOT NULL AND fy.parent_net_profit >= %(prev_year_profit_min)s')
+        params['prev_year_profit_min'] = body.prev_year_profit_min
+    if body.prev_year_profit_max is not None:
+        conditions.append('fy.parent_net_profit IS NOT NULL AND fy.parent_net_profit < %(prev_year_profit_max)s')
+        params['prev_year_profit_max'] = body.prev_year_profit_max
+    if body.cur_quarter_profit_min is not None:
+        conditions.append('fq.parent_net_profit IS NOT NULL AND fq.parent_net_profit >= %(cur_quarter_profit_min)s')
+        params['cur_quarter_profit_min'] = body.cur_quarter_profit_min
+    if body.cur_quarter_profit_max is not None:
+        conditions.append('fq.parent_net_profit IS NOT NULL AND fq.parent_net_profit < %(cur_quarter_profit_max)s')
+        params['cur_quarter_profit_max'] = body.cur_quarter_profit_max
     if body.debt_ratio_max is not None:
         conditions.append('(p.debt_ratio IS NULL OR p.debt_ratio <= %(debt_ratio_max)s)')
         params['debt_ratio_max'] = body.debt_ratio_max
@@ -424,6 +440,10 @@ def search_profiles(body: SearchRequest):
         sort_col = 'p.net_margin'
     elif body.sort_by == 'market_cap':
         sort_col = 'a.market_cap'
+    elif body.sort_by == 'prev_year_profit':
+        sort_col = 'fy.parent_net_profit'
+    elif body.sort_by == 'cur_quarter_profit':
+        sort_col = 'fq.parent_net_profit'
     elif body.sort_by in zxm_field_map:
         sort_col = f'z.{zxm_field_map[body.sort_by]}'
     sort_dir = 'DESC' if body.sort_order == 'desc' else 'ASC'
@@ -432,17 +452,32 @@ def search_profiles(body: SearchRequest):
 
     where = ' AND '.join(conditions)
     latest = query("SELECT MAX(data_date) AS d FROM stock_profiles")[0]['d']
+    cur_q_row = query("""
+        SELECT report_date AS d FROM fin_ratios
+        GROUP BY report_date HAVING COUNT(*) > 1000
+        ORDER BY report_date DESC LIMIT 1
+    """)
+    cur_q = cur_q_row[0]['d'] if cur_q_row else None
+    prev_yr = f'{cur_q.year - 1}-12-31' if cur_q else None
+
+    profit_join = ''
+    if cur_q and prev_yr:
+        profit_join = (f"LEFT JOIN fin_income fy ON fy.stock_code = p.stock_code AND fy.report_date = %(prev_yr)s "
+                       f"LEFT JOIN fin_income fq ON fq.stock_code = p.stock_code AND fq.report_date = %(cur_q)s")
 
     join_clause = zxm_join
     if has_ads:
         join_clause = (zxm_join + ' ' + ads_join).strip()
+    if profit_join:
+        join_clause = (join_clause + ' ' + profit_join).strip()
     count_sql = f"SELECT COUNT(*) AS c FROM stock_profiles p {join_clause} WHERE p.data_date = %(ldate)s AND {where}"
-    count_params = {'ldate': str(latest), **params}
+    count_params = {'ldate': str(latest), 'prev_yr': str(prev_yr), 'cur_q': str(cur_q), **params}
     total = query(count_sql, count_params)[0]['c']
 
     tag_cols_sql = ', '.join(f'p.{c}' for c in TAG_COLUMNS)
     zxm_select = ', '.join(f'z.{db_col} AS {body_field}' for body_field, db_col in zxm_field_map.items()) if has_zxm else ''
     ads_select = ', a.market_cap AS market_cap' if has_ads else ''
+    profit_select = ', fy.parent_net_profit AS prev_year_profit, fq.parent_net_profit AS cur_quarter_profit' if profit_join else ''
     sql = f"""
         SELECT p.stock_code, p.stock_name, p.latest_price, p.price_change_pct,
                p.stage_id, p.stage_confidence, p.tech_score, p.fund_score,
@@ -457,12 +492,13 @@ def search_profiles(body: SearchRequest):
                {tag_cols_sql}
                {',' + zxm_select if zxm_select else ''}
                {ads_select}
+               {profit_select}
         FROM stock_profiles p {join_clause}
         WHERE p.data_date = %(ldate)s AND {where}
         ORDER BY {sort_col} {sort_dir}
         LIMIT %(lo)s OFFSET %(of)s
     """
-    data_params = {'ldate': str(latest), 'lo': limit, 'of': offset, **params}
+    data_params = {'ldate': str(latest), 'lo': limit, 'of': offset, 'prev_yr': str(prev_yr), 'cur_q': str(cur_q), **params}
     rows = query(sql, data_params)
 
     STAGE_NAMES = {
