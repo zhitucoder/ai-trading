@@ -265,6 +265,21 @@ class SearchRequest(BaseModel):
     zxm_growth_quality: Optional[str] = None
     zxm_leverage: Optional[str] = None
     zxm_overall_rating: Optional[str] = None
+    fund_recent8_up_min: Optional[int] = None
+    fund_recent8_net_min: Optional[int] = None
+    fund_recent6_up_min: Optional[int] = None
+    fund_recent4_up_min: Optional[int] = None
+    fund_consec_growth_min: Optional[int] = None
+    fund_consec_decline_min: Optional[int] = None
+    recent2q_fund_count_min: Optional[int] = None
+    recent2q_fund_count_max: Optional[int] = None
+    recent4q_fund_count_min: Optional[int] = None
+    recent4q_fund_count_max: Optional[int] = None
+    recent1q_fund_count_min: Optional[int] = None
+    recent1q_fund_count_max: Optional[int] = None
+    recent8q_amount_min: Optional[float] = None
+    fund_holding_growth_min: Optional[float] = None
+    fund_holding_growth_max: Optional[float] = None
     sectors: List[str] = []
     page: int = 1
     page_size: int = 50
@@ -445,6 +460,31 @@ def search_profiles(body: SearchRequest):
         conditions.append('p.consecutive_dividend_years >= %(cdy)s')
         params['cdy'] = body.consecutive_dividend_years
 
+    fund_trend_fields = [
+        ('fund_recent8_up_min', 'recent8_up', '>='),
+        ('fund_recent8_net_min', 'recent8_net', '>='),
+        ('fund_recent6_up_min', 'recent6_up', '>='),
+        ('fund_recent4_up_min', 'recent4_up', '>='),
+        ('fund_consec_growth_min', 'max_consec_growth', '>='),
+        ('fund_consec_decline_min', 'max_consec_decline', '>='),
+        ('recent2q_fund_count_min', 'recent2q_fund_count', '>='),
+        ('recent2q_fund_count_max', 'recent2q_fund_count', '<='),
+        ('recent4q_fund_count_min', 'recent4q_fund_count', '>='),
+        ('recent4q_fund_count_max', 'recent4q_fund_count', '<='),
+        ('recent1q_fund_count_min', 'recent1q_fund_count', '>='),
+        ('recent1q_fund_count_max', 'recent1q_fund_count', '<='),
+        ('recent8q_amount_min', 'recent8q_amount', '>='),
+        ('fund_holding_growth_min', 'recent1q_fund_growth', '>='),
+        ('fund_holding_growth_max', 'recent1q_fund_growth', '<='),
+    ]
+    has_fund_trend = any(getattr(body, f, None) is not None for f, _, _ in fund_trend_fields)
+    fund_trend_join = ''
+    for field, col, op in fund_trend_fields:
+        val = getattr(body, field, None)
+        if val is not None:
+            conditions.append(f'ft.{col} IS NOT NULL AND ft.{col} {op} %({field})s')
+            params[field] = val
+
     sort_col = 'p.tech_score'
     if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct', 'dividend_yield',
                          'contract_liab_to_assets',
@@ -459,10 +499,15 @@ def search_profiles(body: SearchRequest):
         sort_col = 'p.net_margin'
     elif body.sort_by == 'market_cap':
         sort_col = 'a.market_cap'
-    elif body.sort_by == 'prev_year_profit':
+    elif body.sort_by in ('prev_year_profit',):
         sort_col = 'fy.parent_net_profit'
     elif body.sort_by == 'cur_quarter_profit':
         sort_col = 'fq.parent_net_profit'
+    elif body.sort_by in ('recent8_up', 'recent8_net', 'max_consec_growth',
+                          'recent2q_fund_count', 'recent4q_fund_count',
+                          'recent1q_fund_count', 'fc26Q2',
+                          'recent8q_amount', 'recent1q_fund_growth'):
+        sort_col = f'ft.{body.sort_by}'
     elif body.sort_by in zxm_field_map:
         sort_col = f'z.{zxm_field_map[body.sort_by]}'
     sort_dir = 'DESC' if body.sort_order == 'desc' else 'ASC'
@@ -489,6 +534,8 @@ def search_profiles(body: SearchRequest):
         join_clause = (zxm_join + ' ' + ads_join).strip()
     if profit_join:
         join_clause = (join_clause + ' ' + profit_join).strip()
+    if has_fund_trend:
+        join_clause = (join_clause + ' JOIN ads_stock_fund_trend ft ON ft.stock_code = p.stock_code').strip()
     count_sql = f"SELECT COUNT(*) AS c FROM stock_profiles p {join_clause} WHERE p.data_date = %(ldate)s AND {where}"
     count_params = {'ldate': str(latest), 'prev_yr': str(prev_yr), 'cur_q': str(cur_q), **params}
     total = query(count_sql, count_params)[0]['c']
@@ -497,6 +544,9 @@ def search_profiles(body: SearchRequest):
     zxm_select = ', '.join(f'z.{db_col} AS {body_field}' for body_field, db_col in zxm_field_map.items()) if has_zxm else ''
     ads_select = ', a.market_cap AS market_cap' if has_ads else ''
     profit_select = ', fy.parent_net_profit AS prev_year_profit, fq.parent_net_profit AS cur_quarter_profit' if profit_join else ''
+    fund_trend_select = (', ft.recent8_up, ft.recent8_net, ft.max_consec_growth, ft.max_consec_decline, '
+                         'ft.recent2q_fund_count, ft.recent4q_fund_count, ft.recent1q_fund_count, '
+                         'ft.fc25Q4, ft.fc26Q2, ft.recent8q_amount, ft.recent1q_fund_growth') if has_fund_trend else ''
     sql = f"""
         SELECT p.stock_code, p.stock_name, p.latest_price, p.price_change_pct,
                p.stage_id, p.stage_confidence, p.tech_score, p.fund_score,
@@ -512,6 +562,7 @@ def search_profiles(body: SearchRequest):
                {',' + zxm_select if zxm_select else ''}
                {ads_select}
                {profit_select}
+               {fund_trend_select}
         FROM stock_profiles p {join_clause}
         WHERE p.data_date = %(ldate)s AND {where}
         ORDER BY {sort_col} {sort_dir}

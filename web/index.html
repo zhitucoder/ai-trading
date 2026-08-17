@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Trading System</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20260817b">
 </head>
 <body>
 <div id="app">
@@ -1655,6 +1655,33 @@
                 </div>
 
                 <div class="screening-section">
+                    <div class="screening-section-title">基金持仓趋势</div>
+                    <div class="screening-range-row">
+                        <div><label title="最近8个两季度(完整披露季度)中持仓基金数增加的个数">近8两季增 ≥</label><input type="number" v-model.number="filterFundRecent8UpMin" @input="onFilterChange" style="width:60px;" placeholder="个"></div>
+                        <div><label title="最近8个两季度净增数 = 增个数 - 减个数">近8净增 ≥</label><input type="number" v-model.number="filterFundRecent8NetMin" @input="onFilterChange" style="width:60px;" placeholder="个"></div>
+                        <div><label>近6两季增 ≥</label><input type="number" v-model.number="filterFundRecent6UpMin" @input="onFilterChange" style="width:60px;" placeholder="个"></div>
+                        <div><label>近4两季增 ≥</label><input type="number" v-model.number="filterFundRecent4UpMin" @input="onFilterChange" style="width:60px;" placeholder="个"></div>
+                    </div>
+                    <div class="screening-range-row" style="margin-top:6px;">
+                        <div><label title="完整披露季度中持仓基金数最长连续增加的个数">最长连增 ≥</label><input type="number" v-model.number="filterFundConsecGrowthMin" @input="onFilterChange" style="width:60px;" placeholder="个"></div>
+                        <div><label>最长连减 ≥</label><input type="number" v-model.number="filterFundConsecDeclineMin" @input="onFilterChange" style="width:60px;" placeholder="个"></div>
+                    </div>
+                    <div class="screening-range-row" style="margin-top:6px;">
+                        <div><label>近1季基金家数 ≥</label><input type="number" v-model.number="filterRecent1qFundCountMin" @input="onFilterChange" style="width:70px;"></div>
+                        <div><label>近1季基金家数 ≤</label><input type="number" v-model.number="filterRecent1qFundCountMax" @input="onFilterChange" style="width:70px;"></div>
+                        <div><label>近2季基金家数 ≥</label><input type="number" v-model.number="filterRecent2qFundCountMin" @input="onFilterChange" style="width:70px;"></div>
+                        <div><label>近2季基金家数 ≤</label><input type="number" v-model.number="filterRecent2qFundCountMax" @input="onFilterChange" style="width:70px;"></div>
+                        <div><label>近4季基金家数 ≥</label><input type="number" v-model.number="filterRecent4qFundCountMin" @input="onFilterChange" style="width:70px;"></div>
+                        <div><label>近4季基金家数 ≤</label><input type="number" v-model.number="filterRecent4qFundCountMax" @input="onFilterChange" style="width:70px;"></div>
+                    </div>
+                    <div class="screening-range-row" style="margin-top:6px;">
+                        <div><label title="最近8个完整季度基金持股量均值">近8季持股 ≥</label><input type="number" v-model.number="filterRecent8qAmountMin" @input="onFilterChange" style="width:70px;" placeholder="亿股"></div>
+                        <div><label title="最近1个完整季度基金家数 相比 上一个完整季度(26Q2 vs 25Q4) 的增长率">家数同比 ≥</label><input type="number" v-model.number="filterFundHoldingGrowthMin" @input="onFilterChange" style="width:70px;" placeholder="%"></div>
+                        <div><label title="最近1个完整季度基金家数 相比 上一个完整季度 的增长率">家数同比 ≤</label><input type="number" v-model.number="filterFundHoldingGrowthMax" @input="onFilterChange" style="width:70px;" placeholder="%"></div>
+                    </div>
+                </div>
+
+                <div class="screening-section">
                     <div class="screening-section-title">连续增长标签</div>
                     <div class="screening-stage-group">
                         <button v-for="g in growthTagOptions" :key="g.id"
@@ -1707,6 +1734,17 @@
                                 <th style="width:70px;cursor:pointer;" @click="toggleSort('peg')" title="PEG = PE(TTM) ÷ 净利润增长率(单季同比)，<1 为成长性合理">PEG{{ sortArrow('peg') }}</th>
                                 <th style="width:90px;cursor:pointer;" @click="toggleSort('contract_liab_to_assets')">合同负债{{ sortArrow('contract_liab_to_assets') }}</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('dividend_yield')" title="近12个月每股派息 / 最新价">股息率{{ sortArrow('dividend_yield') }}</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('recent8_up')" title="最近8个两季度基金家数增的个数">近8增{{ sortArrow('recent8_up') }}</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('recent8_net')" title="最近8个两季度净增数">近8净{{ sortArrow('recent8_net') }}</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('max_consec_growth')" title="基金家数最长连续增长个数">最长增{{ sortArrow('max_consec_growth') }}</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('max_consec_decline')">最长减{{ sortArrow('max_consec_decline') }}</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('recent2q_fund_count')" title="最近2个完整季度持仓基金家数均值">近2Q基金{{ sortArrow('recent2q_fund_count') }}</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('recent4q_fund_count')">近4Q基金{{ sortArrow('recent4q_fund_count') }}</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('recent1q_fund_count')" title="最近1个完整季度(最新Q2/Q4)持仓基金家数">近1Q基金{{ sortArrow('recent1q_fund_count') }}</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('fc25Q4')" title="25Q4 持仓基金家数">25Q4家数{{ sortArrow('fc25Q4') }}</th>
+                                <th style="width:60px;cursor:pointer;" @click="toggleSort('fc26Q2')" title="26Q2 持仓基金家数">26Q2家数{{ sortArrow('fc26Q2') }}</th>
+                                <th style="width:70px;cursor:pointer;" @click="toggleSort('recent8q_amount')" title="最近8个完整季度基金持股量均值(亿股)">近8持股{{ sortArrow('recent8q_amount') }}</th>
+                                <th style="width:70px;cursor:pointer;" @click="toggleSort('recent1q_fund_growth')" title="最近1个完整季度基金家数同比上一个完整季度 %">家数同比{{ sortArrow('recent1q_fund_growth') }}</th>
                                 <th>标签</th>
                             </tr>
                         </thead>
@@ -1741,6 +1779,17 @@
                                 <td :class="row.peg != null && row.peg <= 1 ? 'up' : ''">{{ row.peg != null ? Number(row.peg).toFixed(2) : '-' }}</td>
                                 <td :class="valClass(10 - parseFloat(row.contract_liab_to_assets))">{{ row.contract_liab_to_assets != null ? parseFloat(row.contract_liab_to_assets).toFixed(2) + '%' : '-' }}</td>
                                 <td :class="row.dividend_yield != null && row.dividend_yield >= 3 ? 'up' : ''">{{ row.dividend_yield != null ? Number(row.dividend_yield).toFixed(2) + '%' : '-' }}</td>
+                                <td :class="row.recent8_up != null && row.recent8_up >= 5 ? 'up' : ''">{{ row.recent8_up != null ? row.recent8_up : '-' }}</td>
+                                <td :class="row.recent8_net != null && row.recent8_net > 0 ? 'up' : (row.recent8_net != null && row.recent8_net < 0 ? 'down' : '')">{{ row.recent8_net != null ? row.recent8_net : '-' }}</td>
+                                <td :class="row.max_consec_growth != null && row.max_consec_growth >= 3 ? 'up' : ''">{{ row.max_consec_growth != null ? row.max_consec_growth : '-' }}</td>
+                                <td :class="row.max_consec_decline != null && row.max_consec_decline >= 3 ? 'down' : ''">{{ row.max_consec_decline != null ? row.max_consec_decline : '-' }}</td>
+                                <td>{{ row.recent2q_fund_count != null ? row.recent2q_fund_count : '-' }}</td>
+                                <td>{{ row.recent4q_fund_count != null ? row.recent4q_fund_count : '-' }}</td>
+                                <td :class="row.recent1q_fund_count != null && row.recent1q_fund_count >= 500 ? 'up' : ''">{{ row.recent1q_fund_count != null ? row.recent1q_fund_count : '-' }}</td>
+                                <td :class="row.fc25Q4 != null && row.fc25Q4 >= 500 ? 'up' : ''">{{ row.fc25Q4 != null ? row.fc25Q4 : '-' }}</td>
+                                <td :class="row.fc26Q2 != null && row.fc26Q2 >= 500 ? 'up' : ''">{{ row.fc26Q2 != null ? row.fc26Q2 : '-' }}</td>
+                                <td>{{ row.recent8q_amount != null ? Number(row.recent8q_amount / 1e8).toFixed(2) : '-' }}</td>
+                                <td :class="row.recent1q_fund_growth != null && row.recent1q_fund_growth > 0 ? 'up' : (row.recent1q_fund_growth != null && row.recent1q_fund_growth < 0 ? 'down' : '')">{{ row.recent1q_fund_growth != null ? Number(row.recent1q_fund_growth).toFixed(1) + '%' : '-' }}</td>
                                 <td style="text-align:left;">
                                     <span v-for="t in (row.active_tags || []).slice(0, 4)" :key="t.id" class="screening-tag">{{ t.name }}</span>
                                     <span v-if="(row.active_tags || []).length > 4" class="screening-tag-more">+{{ row.active_tags.length - 4 }}</span>
@@ -3293,6 +3342,6 @@
 <script src="https://unpkg.com/vue@3.4/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=20260817b"></script>
 </body>
 </html>

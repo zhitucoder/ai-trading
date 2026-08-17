@@ -160,6 +160,43 @@ def create_tables(cur):
           KEY idx_date (end_date)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='个股×季度 基金持仓聚合(基金家数/持股量/市值)+季度股价(预计算, 画像页联动图用)'
     """)
+    cur.execute("""
+        CREATE TABLE ads_stock_fund_trend (
+          stock_code           VARCHAR(10) NOT NULL PRIMARY KEY COMMENT '股票代码',
+          d21Q4 TINYINT, d22Q2 TINYINT, d22Q4 TINYINT, d23Q2 TINYINT, d23Q4 TINYINT,
+          d24Q2 TINYINT, d24Q4 TINYINT, d25Q2 TINYINT, d25Q4 TINYINT, d26Q2 TINYINT,
+          fc21Q2 INT COMMENT '21Q2 持仓基金家数', fc21Q4 INT COMMENT '21Q4 持仓基金家数',
+          fc22Q2 INT COMMENT '22Q2 持仓基金家数', fc22Q4 INT COMMENT '22Q4 持仓基金家数',
+          fc23Q2 INT COMMENT '23Q2 持仓基金家数', fc23Q4 INT COMMENT '23Q4 持仓基金家数',
+          fc24Q2 INT COMMENT '24Q2 持仓基金家数', fc24Q4 INT COMMENT '24Q4 持仓基金家数',
+          fc25Q2 INT COMMENT '25Q2 持仓基金家数', fc25Q4 INT COMMENT '25Q4 持仓基金家数',
+          fc26Q2 INT COMMENT '26Q2 持仓基金家数',
+          recent8_up          INT COMMENT '最近8个两季度增量中+1个数',
+          recent8_net         INT COMMENT '最近8个两季度净增数(2×recent8_up-8)',
+          recent6_up          INT COMMENT '最近6个两季度增量中+1个数',
+          recent4_up          INT COMMENT '最近4个两季度增量中+1个数',
+          max_consec_growth   INT COMMENT '最长连续增长(增量=1)季度数, 0=无',
+          max_consec_decline  INT COMMENT '最长连续减少(增量=-1)季度数, 0=无',
+          recent2q_fund_count INT COMMENT '最近2个完整季度持仓基金家数均值',
+          recent4q_fund_count INT COMMENT '最近4个完整季度持仓基金家数均值',
+          recent1q_fund_count INT COMMENT '最近1个完整季度(最新Q2/Q4)持仓基金家数',
+          prev1q_fund_count  INT COMMENT '上一个完整季度持仓基金家数',
+          recent1q_fund_growth DECIMAL(10,2) COMMENT '最近1季度家数同比%=(recent1q_fund_count-prev1q_fund_count)/prev1q_fund_count×100, prev1q=0时NULL',
+          recent8q_amount     DECIMAL(20,4) COMMENT '最近8个完整季度持股量均值(股)',
+          prev2q_fund_count   INT COMMENT '上一个两季度(最新2完整点之前的再往前2个完整点)家数均值',
+          recent2q_fund_growth DECIMAL(10,2) COMMENT '最近两季度家数增长率%=(recent2q_fund_count-prev2q_fund_count)/prev2q_fund_count×100, prev2q=0时NULL',
+          update_time         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                              ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+          KEY idx_r8up (recent8_up),
+          KEY idx_r8net (recent8_net),
+          KEY idx_r6up (recent6_up),
+          KEY idx_r4up (recent4_up),
+          KEY idx_mcg (max_consec_growth),
+          KEY idx_mcd (max_consec_decline),
+          KEY idx_r2g (recent2q_fund_growth)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+          COMMENT='个股基金持仓季度增减序列(列式+1/-1)+派生统计(画像筛选预计算, 源=ads_stock_fund)'
+    """)
 
 
 def _clamp(sql_expr):
@@ -356,6 +393,95 @@ def compute_stock_fund(conn, cur, log):
     return total_rows
 
 
+# 完整披露季度(Q2/Q4)增量列：列名 = 区间终点季度
+TREND_D_COLS = ['d21Q4', 'd22Q2', 'd22Q4', 'd23Q2', 'd23Q4',
+                'd24Q2', 'd24Q4', 'd25Q2', 'd25Q4', 'd26Q2']
+# 各完整披露季度持仓基金家数列：列名 = 季度标签
+TREND_FC_COLS = ['fc21Q2', 'fc21Q4', 'fc22Q2', 'fc22Q4', 'fc23Q2',
+                 'fc23Q4', 'fc24Q2', 'fc24Q4', 'fc25Q2', 'fc25Q4', 'fc26Q2']
+# 完整披露季度(全局固定报告期，与 FC_COLS 一一对应，缺失即按 0 家处理)
+TREND_FC_QUARTERS = ['21Q2', '21Q4', '22Q2', '22Q4', '23Q2',
+                     '23Q4', '24Q2', '24Q4', '25Q2', '25Q4', '26Q2']
+
+
+def _max_consec(deltas, target):
+    best = 0
+    cur_run = 0
+    for _, v in deltas:
+        if v == target:
+            cur_run += 1
+            best = max(best, cur_run)
+        else:
+            cur_run = 0
+    return best
+
+
+def compute_stock_fund_trend(conn, cur, log):
+    """Step6: 计算 ads_stock_fund_trend（每股一行，季度增减±1列 + 派生统计）。"""
+    cur.execute("""
+        SELECT stock_code, end_date, quarter, fund_count, total_amount
+        FROM ads_stock_fund WHERE report_type='F'
+        ORDER BY stock_code, end_date
+    """)
+    groups = {}
+    for r in cur.fetchall():
+        groups.setdefault(r['stock_code'], []).append(r)
+
+    rows_out = []
+    for code, pts in groups.items():
+        fc_map = {r['quarter']: (float(r['fund_count'] or 0), float(r['total_amount'] or 0)) for r in pts}
+        aligned = [(q, *(fc_map.get(q, (0.0, 0.0)))) for q in TREND_FC_QUARTERS]
+
+        deltas = []
+        for i in range(1, len(aligned)):
+            prev_fc, prev_amt = aligned[i - 1][1], aligned[i - 1][2]
+            cur_fc, cur_amt = aligned[i][1], aligned[i][2]
+            diff = cur_amt - prev_amt
+            deltas.append(('d' + aligned[i][0], 1 if diff >= 0 else -1))
+        delta_map = dict(deltas)
+        d_vals = [delta_map.get(c) for c in TREND_D_COLS]
+        fc_vals = [round(v[1]) for v in aligned]
+
+        recent8 = deltas[-8:]
+        recent8_up = sum(1 for _, v in recent8 if v == 1)
+        recent8_net = 2 * recent8_up - len(recent8)
+        recent6_up = sum(1 for _, v in deltas[-6:] if v == 1)
+        recent4_up = sum(1 for _, v in deltas[-4:] if v == 1)
+        max_cg = _max_consec(deltas, 1)
+        max_cd = _max_consec(deltas, -1)
+
+        recent_pts = aligned[-8:]
+        recent1q_count = round(aligned[-1][1])
+        prev1q_count = round(aligned[-2][1])
+        r1q_growth = round((recent1q_count - prev1q_count) / prev1q_count * 100, 2) if prev1q_count > 0 else None
+        recent2q_count = round(sum(v[1] for v in recent_pts[-2:]) / 2)
+        recent4q_count = round(sum(v[1] for v in recent_pts[-4:]) / 4)
+        recent8q_amt = sum(v[2] for v in recent_pts) / len(recent_pts) if recent_pts else 0
+        prev2q_count = round(sum(v[1] for v in recent_pts[-4:-2]) / 2) if len(recent_pts) >= 4 else 0
+        growth = round((recent2q_count - prev2q_count) / prev2q_count * 100, 2) if prev2q_count > 0 else None
+
+        rows_out.append((code, *d_vals, *fc_vals, recent8_up, recent8_net, recent6_up, recent4_up,
+                         max_cg, max_cd, recent2q_count, recent4q_count,
+                         recent1q_count, prev1q_count, r1q_growth,
+                         round(recent8q_amt, 2), prev2q_count, growth))
+
+    if rows_out:
+        placeholders = ','.join(['%s'] * (15 + len(TREND_D_COLS) + len(TREND_FC_COLS)))
+        cur.executemany(f"""
+            INSERT INTO ads_stock_fund_trend
+            (stock_code, {','.join(TREND_D_COLS)}, {','.join(TREND_FC_COLS)},
+             recent8_up, recent8_net, recent6_up,
+             recent4_up, max_consec_growth, max_consec_decline,
+             recent2q_fund_count, recent4q_fund_count, recent1q_fund_count,
+             prev1q_fund_count, recent1q_fund_growth,
+             recent8q_amount, prev2q_fund_count, recent2q_fund_growth)
+            VALUES ({placeholders})
+        """, rows_out)
+        conn.commit()
+    log(f'  fund trend rows: {len(rows_out)}')
+    return len(rows_out)
+
+
 def _latest_price_map(cur):
     cur.execute("""
         SELECT k.stock_code, k.close_price
@@ -438,12 +564,12 @@ def compute(progress_cb=None):
 
     log('Dropping old ads tables...')
     for t in ['ads_stock_annual', 'ads_stock_latest', 'ads_sector_annual',
-              'ads_sector_latest', 'ads_stock_fund']:
+              'ads_sector_latest', 'ads_stock_fund', 'ads_stock_fund_trend']:
         _drop_table(cur, t)
     create_tables(cur)
     conn.commit()
 
-    log('Step 1/5: ads_stock_annual (个股年度财务)...')
+    log('Step 1/6: ads_stock_annual (个股年度财务)...')
     cur.execute(INSERT_STOCK_ANNUAL)
     conn.commit()
     cur.execute("SELECT COUNT(*) c FROM ads_stock_annual")
@@ -454,7 +580,7 @@ def compute(progress_cb=None):
     cur.execute(UPDATE_STOCK_YOY)
     conn.commit()
 
-    log('Step 2/5: ads_sector_annual (行业年度汇总)...')
+    log('Step 2/6: ads_sector_annual (行业年度汇总)...')
     cur.execute(INSERT_SECTOR_ANNUAL)
     conn.commit()
     cur.execute("SELECT COUNT(*) c FROM ads_sector_annual")
@@ -463,7 +589,7 @@ def compute(progress_cb=None):
     cur.execute(UPDATE_SECTOR_YOY)
     conn.commit()
 
-    log('Step 3/5: ads_stock_latest (个股最新快照)...')
+    log('Step 3/6: ads_stock_latest (个股最新快照)...')
     log('  loading latest price (全表扫描 ~30s)...')
     prices = _latest_price_map(cur)
     log(f'  prices: {len(prices)}')
@@ -562,16 +688,19 @@ def compute(progress_cb=None):
     conn.commit()
     log(f'  ads_stock_latest rows: {len(rows_latest)}')
 
-    log('Step 4/5: ads_sector_latest (行业最新快照)...')
+    log('Step 4/6: ads_sector_latest (行业最新快照)...')
     cur.execute(INSERT_SECTOR_LATEST)
     conn.commit()
     cur.execute("SELECT COUNT(*) c FROM ads_sector_latest")
     n_sec_latest = cur.fetchone()['c']
     log(f'  sector latest rows: {n_sec_latest}')
 
-    log('Step 5/5: ads_stock_fund (基金持仓聚合)...')
+    log('Step 5/6: ads_stock_fund (基金持仓聚合)...')
     n_stock_fund = compute_stock_fund(conn, cur, log)
     log(f'  stock fund rows: {n_stock_fund}')
+
+    log('Step 6/6: ads_stock_fund_trend (基金持仓增减序列+派生统计)...')
+    n_stock_fund_trend = compute_stock_fund_trend(conn, cur, log)
 
     elapsed = int(time.time() - t0)
     log(f'Done in {elapsed}s')
@@ -582,6 +711,7 @@ def compute(progress_cb=None):
         'stock_latest': len(rows_latest),
         'sector_latest': n_sec_latest,
         'stock_fund': n_stock_fund,
+        'stock_fund_trend': n_stock_fund_trend,
         'elapsed_seconds': elapsed,
     }
 

@@ -1556,6 +1556,21 @@ const filterPegMax = ref(null);
         const filterHasDivThisYear = ref(false);
         const filterHasMidYear = ref(false);
         const filterConsecutiveDivYears = ref(null);
+        const filterFundRecent8UpMin = ref(null);
+        const filterFundRecent8NetMin = ref(null);
+        const filterFundRecent6UpMin = ref(null);
+        const filterFundRecent4UpMin = ref(null);
+        const filterFundConsecGrowthMin = ref(null);
+        const filterFundConsecDeclineMin = ref(null);
+        const filterRecent2qFundCountMin = ref(null);
+        const filterRecent2qFundCountMax = ref(null);
+        const filterRecent4qFundCountMin = ref(null);
+        const filterRecent4qFundCountMax = ref(null);
+        const filterRecent1qFundCountMin = ref(null);
+        const filterRecent1qFundCountMax = ref(null);
+        const filterRecent8qAmountMin = ref(null);
+        const filterFundHoldingGrowthMin = ref(null);
+        const filterFundHoldingGrowthMax = ref(null);
         const filterRevCagr3yMin = ref(null);
         const filterRevCagr3yMax = ref(null);
         const filterRevCagr5yMin = ref(null);
@@ -1824,6 +1839,21 @@ const filterPegMax = ref(null);
                 has_dividend_this_year: filterHasDivThisYear.value || null,
                 has_mid_year_dividend: filterHasMidYear.value || null,
                 consecutive_dividend_years: filterConsecutiveDivYears.value || null,
+                    fund_recent8_up_min: filterFundRecent8UpMin.value || null,
+                    fund_recent8_net_min: filterFundRecent8NetMin.value || null,
+                    fund_recent6_up_min: filterFundRecent6UpMin.value || null,
+                    fund_recent4_up_min: filterFundRecent4UpMin.value || null,
+                    fund_consec_growth_min: filterFundConsecGrowthMin.value || null,
+                    fund_consec_decline_min: filterFundConsecDeclineMin.value || null,
+                    recent2q_fund_count_min: filterRecent2qFundCountMin.value || null,
+                    recent2q_fund_count_max: filterRecent2qFundCountMax.value || null,
+                    recent4q_fund_count_min: filterRecent4qFundCountMin.value || null,
+                    recent4q_fund_count_max: filterRecent4qFundCountMax.value || null,
+                    recent1q_fund_count_min: filterRecent1qFundCountMin.value || null,
+                    recent1q_fund_count_max: filterRecent1qFundCountMax.value || null,
+                    recent8q_amount_min: filterRecent8qAmountMin.value != null ? filterRecent8qAmountMin.value * 1e8 : null,
+                    fund_holding_growth_min: filterFundHoldingGrowthMin.value || null,
+                    fund_holding_growth_max: filterFundHoldingGrowthMax.value || null,
                     rev_cagr_3y_min: filterRevCagr3yMin.value || null,
                     rev_cagr_3y_max: filterRevCagr3yMax.value || null,
                     rev_cagr_5y_min: filterRevCagr5yMin.value || null,
@@ -1900,6 +1930,21 @@ const filterPegMax = ref(null);
             filterHasDivThisYear.value = false;
             filterHasMidYear.value = false;
             filterConsecutiveDivYears.value = null;
+            filterFundRecent8UpMin.value = null;
+            filterFundRecent8NetMin.value = null;
+            filterFundRecent6UpMin.value = null;
+            filterFundRecent4UpMin.value = null;
+            filterFundConsecGrowthMin.value = null;
+            filterFundConsecDeclineMin.value = null;
+            filterRecent2qFundCountMin.value = null;
+            filterRecent2qFundCountMax.value = null;
+            filterRecent4qFundCountMin.value = null;
+            filterRecent4qFundCountMax.value = null;
+            filterRecent1qFundCountMin.value = null;
+            filterRecent1qFundCountMax.value = null;
+            filterRecent8qAmountMin.value = null;
+            filterFundHoldingGrowthMin.value = null;
+            filterFundHoldingGrowthMax.value = null;
             filterRevCagr3yMin.value = null;
             filterRevCagr3yMax.value = null;
             filterRevCagr5yMin.value = null;
@@ -2029,6 +2074,12 @@ const filterPegMax = ref(null);
             filterNetMarginMin, filterNetMarginMax, filterMarketCapRange, marketCapRanges,
             filterDividendYieldMin, filterDividendYieldMax,
             filterHasDivThisYear, filterHasMidYear, filterConsecutiveDivYears,
+            filterFundRecent8UpMin, filterFundRecent8NetMin, filterFundRecent6UpMin, filterFundRecent4UpMin,
+            filterFundConsecGrowthMin, filterFundConsecDeclineMin,
+            filterRecent2qFundCountMin, filterRecent2qFundCountMax,
+            filterRecent4qFundCountMin, filterRecent4qFundCountMax,
+            filterRecent1qFundCountMin, filterRecent1qFundCountMax,
+            filterRecent8qAmountMin, filterFundHoldingGrowthMin, filterFundHoldingGrowthMax,
             filterRevCagr3yMin, filterRevCagr3yMax, filterRevCagr5yMin, filterRevCagr5yMax,
             filterProfitCagr3yMin, filterProfitCagr3yMax, filterProfitCagr5yMin, filterProfitCagr5yMax,
             growthTagOptions, selectedGrowthTags,

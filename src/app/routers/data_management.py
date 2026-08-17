@@ -86,6 +86,7 @@ def data_status():
           (SELECT COUNT(*) FROM ads_sector_annual) AS sector_annual,
           (SELECT COUNT(*) FROM ads_sector_latest) AS sector_latest,
           (SELECT COUNT(*) FROM ads_stock_fund) AS stock_fund,
+          (SELECT COUNT(*) FROM ads_stock_fund_trend) AS stock_fund_trend,
           (SELECT MAX(started_at) FROM ads_refresh_log) AS last_run,
           (SELECT status FROM ads_refresh_log ORDER BY id DESC LIMIT 1) AS last_status
     """)
@@ -127,6 +128,7 @@ def data_status():
             'sector_annual': ads_row.get('sector_annual') or 0,
             'sector_latest': ads_row.get('sector_latest') or 0,
             'stock_fund': ads_row.get('stock_fund') or 0,
+            'stock_fund_trend': ads_row.get('stock_fund_trend') or 0,
             'last_run': str(ads_row.get('last_run') or ''),
             'status': ads_row.get('last_status') or 'idle',
         },
@@ -516,7 +518,7 @@ def update_ads():
             """, (result['stock_latest'], result['stock_latest'],
                   f"个股年度{result['stock_annual']} / 行业年度{result['sector_annual']} / "
                   f"个股快照{result['stock_latest']} / 行业快照{result['sector_latest']} / "
-                  f"基金持仓{result['stock_fund']}，耗时{result['elapsed_seconds']}s", log_id))
+                  f"基金持仓{result['stock_fund']} / 持仓趋势{result['stock_fund_trend']}，耗时{result['elapsed_seconds']}s", log_id))
             conn.commit()
         except Exception as e:
             if conn:
