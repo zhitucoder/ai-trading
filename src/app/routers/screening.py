@@ -6,6 +6,7 @@ from ..strategies.minervini import MINERVINI_STRATEGIES, screen_minervini_eps, s
 from ..strategies.turnaround import TURNAROUND_STRATEGIES, screen_turnaround
 from ..strategies.volume_surge import VOLUME_SURGE_STRATEGIES, screen_volume_surge
 from ..strategies.five_step import FIVE_STEP_STRATEGIES, screen_five_step
+from ..strategies.undervalued_growth import UNDERVALUED_GROWTH_STRATEGIES, screen_undervalued_growth, STRICTNESS
 from ..database import query
 
 router = APIRouter()
@@ -45,6 +46,9 @@ def list_strategies():
         'five_step': [
             {'id': k, **v} for k, v in FIVE_STEP_STRATEGIES.items()
         ],
+        'undervalued': [
+            {'id': k, **v} for k, v in UNDERVALUED_GROWTH_STRATEGIES.items()
+        ],
     }
 
 
@@ -62,6 +66,11 @@ def execute_screening(
     shrink_days: int = Query(3, description='王者倍量柱后缩量天数'),
     min_gap_days: int = Query(3, description='连续王者倍量柱最小间隔天数'),
     max_gap_days: int = Query(10, description='连续王者倍量柱最大间隔天数'),
+    consecutive_years: int = Query(5, description='连续增长年数(3-7)'),
+    profit_min_yi: float = Query(10.0, description='最新年度净利下限(亿元)'),
+    profit_max_yi: float | None = Query(None, description='最新年度净利上限(亿元)'),
+    strictness: str = Query('standard', description='底部严格度: bottom|standard|strict'),
+    require_confirm: bool = Query(False, description='是否强制启动确认信号'),
 ):
     periods = [int(p.strip()) for p in ma_periods.split(',') if p.strip()]
 
@@ -151,6 +160,19 @@ def execute_screening(
         cols = ['total_score', 'score_grade',
                 'roe_score', 'ocf_score', 'margin_score', 'cp_score', 'bs_score',
                 'roe_current', 'margin_current', 'ocf_ratio', 'debt_ratio', 'report_date']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
+
+    if strategy_id == 'undervalued_growth':
+        rows = screen_undervalued_growth(
+            consecutive_years=consecutive_years,
+            profit_min=profit_min_yi * 1e8,
+            profit_max=(profit_max_yi * 1e8) if profit_max_yi else None,
+            strictness=strictness,
+            require_confirm=require_confirm,
+        )
+        cols = ['n_years', 'latest_profit', 'profit_cagr_3y', 'cur_profit_yoy',
+                'price_cagr_3y', 'divergence', 'drawdown_3y', 'amp_3y', 'amp_1y',
+                'position_pct', 'pct_250d', 'pe_ttm', 'peg', 'above_ma250', 'score']
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     return {'error': f'Unknown strategy: {strategy_id}'}

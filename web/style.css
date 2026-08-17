@@ -261,6 +261,10 @@ body {
     border: 1px solid var(--border);
     border-radius: 8px;
 }
+.table-wrap.results-wrap {
+    overflow-y: auto;
+    max-height: calc(100vh - 320px);
+}
 table {
     width: 100%;
     border-collapse: collapse;

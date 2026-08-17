@@ -76,12 +76,19 @@ app.component('screening-page', {
         const shrinkDays = ref(3);
         const minGapDays = ref(3);
         const maxGapDays = ref(10);
+        const consecutiveYears = ref(5);
+        const profitMinYi = ref(10);
+        const profitMaxYi = ref(null);
+        const strictness = ref('standard');
+        const requireConfirm = ref(false);
         const selectedStock = ref(null);
         const stockDetail = ref(null);
         const detailLoading = ref(false);
         const detailChartRef = ref(null);
         let detailChart = null;
         const industryFilter = ref('all');
+        const sortColumn = ref(null);
+        const sortDirection = ref('');
 
         const filteredRows = computed(() => {
             if (!result.value || !result.value.rows) return [];
@@ -91,6 +98,31 @@ app.component('screening-page', {
                 return sectors.some(s => s === industryFilter.value);
             });
         });
+
+        const sortedRows = computed(() => {
+            const base = tabType.value === 'volume_surge' ? filteredRows.value : (result.value?.rows || []);
+            if (!sortColumn.value || !base.length) return base;
+            const dir = sortDirection.value === 'desc' ? -1 : 1;
+            const col = sortColumn.value;
+            return [...base].sort((a, b) => {
+                const av = a[col], bv = b[col];
+                if (av == null && bv == null) return 0;
+                if (av == null) return 1;
+                if (bv == null) return -1;
+                if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+                return String(av).localeCompare(String(bv), 'zh-Hans-CN', { numeric: true }) * dir;
+            });
+        });
+
+        function sortBy(col) {
+            if (sortColumn.value === col) {
+                if (sortDirection.value === 'asc') sortDirection.value = 'desc';
+                else { sortColumn.value = null; sortDirection.value = ''; }
+            } else {
+                sortColumn.value = col;
+                sortDirection.value = 'asc';
+            }
+        }
 
         const industryOptions = computed(() => {
             if (!result.value || !result.value.rows) return [];
@@ -124,7 +156,7 @@ app.component('screening-page', {
         const currentStrategies = computed(() => strategies.value[tabType.value] || []);
         const hasResult = computed(() => result.value && result.value.rows && result.value.rows.length > 0);
 
-        function selectStrategy(id) { selectedStrategy.value = id; result.value = null; error.value = ''; nextTick(() => execute()); }
+        function selectStrategy(id) { selectedStrategy.value = id; result.value = null; error.value = ''; sortColumn.value = null; sortDirection.value = ''; nextTick(() => execute()); }
 
         function switchToTurnaround() {
             tabType.value = 'turnaround';
@@ -140,6 +172,7 @@ app.component('screening-page', {
         async function execute() {
             if (!selectedStrategy.value) return;
             loading.value = true; error.value = ''; result.value = null;
+            sortColumn.value = null; sortDirection.value = '';
             const params = new URLSearchParams();
             params.set('strategy_id', selectedStrategy.value);
             params.set('ma_periods', maPeriods.value);
@@ -153,6 +186,11 @@ app.component('screening-page', {
             params.set('shrink_days', shrinkDays.value);
             params.set('min_gap_days', minGapDays.value);
             params.set('max_gap_days', maxGapDays.value);
+            params.set('consecutive_years', consecutiveYears.value);
+            params.set('profit_min_yi', profitMinYi.value);
+            if (profitMaxYi.value !== null && profitMaxYi.value !== '') params.set('profit_max_yi', profitMaxYi.value);
+            params.set('strictness', strictness.value);
+            params.set('require_confirm', requireConfirm.value ? 'true' : 'false');
             try {
                 const r = await fetch(`${API_BASE}/screening/execute?${params}`, { method: 'POST' });
                 const data = await r.json();
@@ -313,8 +351,10 @@ app.component('screening-page', {
             strategies, tabType, selectedStrategy, loading, result, error,
             maPeriods, consolidationDays, revenueThreshold, profitThreshold, debtThreshold,
             lookbackMonths, volumeRatioMin, volumeRatioMax, shrinkDays, minGapDays, maxGapDays,
+            consecutiveYears, profitMinYi, profitMaxYi, strictness, requireConfirm,
             selectedStock, stockDetail, detailLoading, detailChartRef,
             industryFilter, filteredRows, industryOptions,
+            sortedRows, sortBy, sortColumn, sortDirection,
             currentStrategies, hasResult, currentStockIndex, hasPrev, hasNext,
             selectStrategy, execute, isSelected, switchToTurnaround,
             selectStock, closeDetail, prevStock, nextStock,
@@ -1298,6 +1338,10 @@ app.component('profile-page', {
         const filterFundScore = ref(0);
         const filterRevGrowth = ref(null);
         const filterProfitGrowth = ref(null);
+        const filterPrevYearProfitMin = ref(null);
+        const filterPrevYearProfitMax = ref(null);
+        const filterCurQuarterProfitMin = ref(null);
+        const filterCurQuarterProfitMax = ref(null);
         const filterDebtMax = ref(null);
         const filterGmGrowthQ = ref(null);
         const filterGmGrowth2y = ref(null);
@@ -1572,6 +1616,10 @@ const filterPegMax = ref(null);
                     fund_score_min: filterFundScore.value > 0 ? filterFundScore.value : null,
                     revenue_growth_min: filterRevGrowth.value || null,
                     net_profit_growth_min: filterProfitGrowth.value || null,
+                    prev_year_profit_min: filterPrevYearProfitMin.value != null ? filterPrevYearProfitMin.value * 1e8 : null,
+                    prev_year_profit_max: filterPrevYearProfitMax.value != null ? filterPrevYearProfitMax.value * 1e8 : null,
+                    cur_quarter_profit_min: filterCurQuarterProfitMin.value != null ? filterCurQuarterProfitMin.value * 1e8 : null,
+                    cur_quarter_profit_max: filterCurQuarterProfitMax.value != null ? filterCurQuarterProfitMax.value * 1e8 : null,
                     debt_ratio_max: filterDebtMax.value || null,
                     gm_growth_q_min: filterGmGrowthQ.value || null,
                     gm_growth_2y_min: filterGmGrowth2y.value || null,
@@ -1645,6 +1693,10 @@ const filterPegMax = ref(null);
             filterFundScore.value = 0;
             filterRevGrowth.value = null;
             filterProfitGrowth.value = null;
+            filterPrevYearProfitMin.value = null;
+            filterPrevYearProfitMax.value = null;
+            filterCurQuarterProfitMin.value = null;
+            filterCurQuarterProfitMax.value = null;
             filterDebtMax.value = null;
             filterGmGrowthQ.value = null;
             filterGmGrowth2y.value = null;
@@ -1786,6 +1838,7 @@ const filterPegMax = ref(null);
             loadProfile, loadFinChart, loadDivChart, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile, introStatusName, chainName,
             stageOptions, selectedStages, filterTechScore, filterFundScore,
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
+            filterPrevYearProfitMin, filterPrevYearProfitMax, filterCurQuarterProfitMin, filterCurQuarterProfitMax,
             filterGmGrowthQ, filterGmGrowth2y,
             filterContractLiabMin, filterContractLiabMax,
             filterRoeMin, filterRoeMax, filterRoeTtmMin, filterRoeTtmMax,
@@ -2179,6 +2232,10 @@ app.component('data-mgmt-page', {
         const klineLoading = ref(false);
         const klineResult = ref('');
         const klineError = ref('');
+        const qfqLoading = ref(false);
+        const qfqResult = ref('');
+        const qfqError = ref('');
+        const qfqProgress = ref('');
         const finLoading = ref(false);
         const finResult = ref('');
         const finError = ref('');
@@ -2263,6 +2320,72 @@ app.component('data-mgmt-page', {
                 finError.value = e.message;
             } finally {
                 finLoading.value = false;
+            }
+        }
+
+        const qfqDotClass = computed(() => {
+            return qfqLoading.value ? 'dm-dot-sync' : (status.value.qfq?.row_count ? 'dm-dot-online' : 'dm-dot-pending');
+        });
+        const qfqStatusText = computed(() => {
+            return qfqLoading.value ? '重算中' : (status.value.qfq?.row_count ? '已生成' : '待计算');
+        });
+
+        function fmtQfqRows(n) {
+            if (!n) return '0 条';
+            if (n >= 1e8) return (n / 1e8).toFixed(2) + ' 亿条';
+            if (n >= 1e4) return (n / 1e4).toFixed(1) + ' 万条';
+            return n + ' 条';
+        }
+
+        let qfqPollInterval = null;
+        async function updateQfq() {
+            if (qfqLoading.value) return;
+            qfqLoading.value = true;
+            qfqResult.value = '';
+            qfqError.value = '';
+            qfqProgress.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/data/update-qfq`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    qfqResult.value = '前复权计算已在执行中';
+                    qfqLoading.value = false;
+                    return;
+                }
+                if (data.status === 'error') {
+                    qfqError.value = data.message || '计算失败';
+                    qfqLoading.value = false;
+                    return;
+                }
+                qfqResult.value = data.message || '已启动';
+                qfqPollInterval = setInterval(async () => {
+                    try {
+                        const p = await fetch(`${API_BASE}/data/qfq/status`);
+                        const d = await p.json();
+                        if (d.status === 'running') {
+                            const lastLine = (d.log_tail || '').split('\n').filter(Boolean).pop() || '';
+                            const m = lastLine.match(/进度: (\d+)\/(\d+)/);
+                            qfqProgress.value = m ? Math.round(m[1] / m[2] * 100) + '%' : '运行中';
+                        } else {
+                            clearInterval(qfqPollInterval);
+                            qfqPollInterval = null;
+                            qfqLoading.value = false;
+                            qfqProgress.value = '';
+                            const done = (d.log_tail || '').split('\n').filter(Boolean).pop() || '';
+                            qfqResult.value = done.includes('完成') ? done : '前复权K线已更新';
+                            loadStatus();
+                        }
+                    } catch (e) {
+                        clearInterval(qfqPollInterval);
+                        qfqPollInterval = null;
+                        qfqLoading.value = false;
+                        qfqProgress.value = '';
+                        qfqError.value = '轮询失败: ' + e.message;
+                    }
+                }, 5000);
+            } catch (e) {
+                qfqError.value = e.message;
+                qfqLoading.value = false;
             }
         }
 
@@ -2468,6 +2591,7 @@ app.component('data-mgmt-page', {
 
         return {
             status, klineLoading, klineResult, klineError,
+            qfqLoading, qfqResult, qfqError, qfqProgress, qfqDotClass, qfqStatusText, fmtQfqRows, updateQfq,
             finLoading, finResult, finError,
             divLoading, divResult, divError, divDotClass, divStatusText, updateDividend,
             sectorLoading, sectorResult, sectorError, sectorDotClass, sectorStatusText, updateSector,

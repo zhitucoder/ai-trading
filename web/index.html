@@ -122,6 +122,9 @@
             <button class="strategy-tab" :class="{ active: tabType === 'five_step' }"
                     @click="tabType = 'five_step'; selectedStrategy = null; result = null"
                     style="color:var(--blue);">▣ 五步筛选</button>
+            <button class="strategy-tab" :class="{ active: tabType === 'undervalued' }"
+                    @click="tabType = 'undervalued'; selectedStrategy = null; result = null"
+                    style="color:#e2b714;">⬇ 低估成长</button>
         </div>
 
         <div v-if="tabType === 'minervini'" class="card" style="border-color:var(--amber);font-size:13px;line-height:1.7;">
@@ -163,6 +166,19 @@
                 + <strong>核心利润</strong>(15分) + <strong>资产负债表</strong>(10分)<br>
                 评分 ≥ 85(⭐⭐⭐备选池首选)，70-84(⭐⭐进入候选池)，50-69(⭐有短板)，&lt;50(排除)<br>
                 <span style="color:var(--text-dim);font-size:12px;">数据来源：基于紫金矿业10年财务复盘提炼</span>
+            </p>
+        </div>
+
+        <div v-if="tabType === 'undervalued'" class="card" style="border-color:#e2b714;font-size:13px;line-height:1.7;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="font-size:20px;">⬇</span>
+                <strong style="color:#e2b714;">低估成长股 · 底部蓄势</strong>
+            </div>
+            <p style="color:var(--text-muted);">
+                <strong style="color:var(--text);">业绩连续多年增长，股价却长期盘整于底部</strong>——等待主升浪启动前的低估值布局机会。<br>
+                硬性条件：归母净利连续 N 年增长、股价距 3 年高点回撤 ≥ 15%、位于 3 年区间下沿<br>
+                五大确认信号：<strong>站上MA250</strong> / <strong>MA60上穿MA250</strong> / <strong>放量突破</strong> / <strong>单季净利加速</strong> / <strong>底部抬升</strong><br>
+                <span style="color:var(--text-dim);font-size:12px;">数据来源：ads_stock_annual 年报 + daily_kline_qfq 前复权日线</span>
             </p>
         </div>
 
@@ -317,6 +333,43 @@
                     <span class="hint">默认: 10 天</span>
                 </div>
             </div>
+            <div v-if="tabType === 'undervalued' && s.id === 'undervalued_growth'" class="config-grid">
+                <div class="config-item">
+                    <label>连续增长年数</label>
+                    <select v-model.number="consecutiveYears">
+                        <option :value="3">3 年</option>
+                        <option :value="4">4 年</option>
+                        <option :value="5">5 年</option>
+                        <option :value="6">6 年</option>
+                        <option :value="7">7 年</option>
+                    </select>
+                    <span class="hint">默认: 5 年</span>
+                </div>
+                <div class="config-item">
+                    <label>最新年度净利下限 (亿元)</label>
+                    <input v-model.number="profitMinYi" type="number" step="1">
+                    <span class="hint">默认: 10 亿</span>
+                </div>
+                <div class="config-item">
+                    <label>最新年度净利上限 (亿元)</label>
+                    <input v-model.number="profitMaxYi" type="number" step="1" placeholder="不限">
+                    <span class="hint">留空 = 不限</span>
+                </div>
+                <div class="config-item">
+                    <label>底部严格度</label>
+                    <select v-model="strictness">
+                        <option value="bottom">宽松</option>
+                        <option value="standard">标准</option>
+                        <option value="strict">严格</option>
+                    </select>
+                    <span class="hint">默认: 标准</span>
+                </div>
+                <div class="config-item">
+                    <label>强制启动确认 (≥2信号)</label>
+                    <input v-model="requireConfirm" type="checkbox" style="width:auto;margin-top:4px;">
+                    <span class="hint">默认: 关闭(仅展示)</span>
+                </div>
+            </div>
             <div style="margin-top:12px;">
                 <button class="btn btn-primary" @click="selectStrategy(s.id)" :disabled="isSelected(s.id) && loading">
                     <span v-if="isSelected(s.id) && loading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
@@ -340,14 +393,19 @@
                     <span style="color:var(--text-muted);font-size:12px;">显示 {{ filteredRows.length }} / {{ result.total }} 只</span>
                 </template>
             </div>
-            <div class="table-wrap" v-if="result.rows && result.rows.length">
+            <div class="table-wrap results-wrap" v-if="result.rows && result.rows.length">
                         <table>
                             <thead>
                                 <tr>
                                     <th style="width:40px;">#</th>
-                                    <th style="width:80px;">代码</th>
-                                    <th style="width:90px;">名称</th>
-                                    <th v-for="col in result.columns" :key="col">
+                                    <th style="width:80px;cursor:pointer;user-select:none;" @click="sortBy('stock_code')">
+                                        代码 <span v-if="sortColumn==='stock_code'" :style="{color:'var(--accent)'}">{{ sortDirection==='asc' ? '▲' : '▼' }}</span>
+                                    </th>
+                                    <th style="width:90px;cursor:pointer;user-select:none;" @click="sortBy('stock_name')">
+                                        名称 <span v-if="sortColumn==='stock_name'" :style="{color:'var(--accent)'}">{{ sortDirection==='asc' ? '▲' : '▼' }}</span>
+                                    </th>
+                                    <th v-for="col in result.columns" :key="col"
+                                        style="cursor:pointer;user-select:none;" @click="sortBy(col)">
                                         <template v-if="col === 'close_price'">最新价</template>
                                         <template v-else-if="col === 'report_date'">报告期</template>
                                         <template v-else-if="col === 'latest_date'">最新日</template>
@@ -405,12 +463,27 @@
                                         <template v-else-if="col === 'roe_current'">ROE%</template>
                                         <template v-else-if="col === 'margin_current'">毛利率%</template>
                                         <template v-else-if="col === 'ocf_ratio'">OCF/净利</template>
+                                        <template v-else-if="col === 'n_years'">连续增长年数</template>
+                                        <template v-else-if="col === 'latest_profit'">最新年度净利</template>
+                                        <template v-else-if="col === 'profit_cagr_3y'">净利3年CAGR</template>
+                                        <template v-else-if="col === 'cur_profit_yoy'">最新净利同比</template>
+                                        <template v-else-if="col === 'price_cagr_3y'">股价3年CAGR</template>
+                                        <template v-else-if="col === 'divergence'">业绩股价背离</template>
+                                        <template v-else-if="col === 'drawdown_3y'">距3年高回撤</template>
+                                        <template v-else-if="col === 'amp_3y'">3年振幅</template>
+                                        <template v-else-if="col === 'amp_1y'">1年振幅</template>
+                                        <template v-else-if="col === 'position_pct'">底部位置</template>
+                                        <template v-else-if="col === 'pct_250d'">年涨幅</template>
+                                        <template v-else-if="col === 'pe_ttm'">PE(TTM)</template>
+                                        <template v-else-if="col === 'peg'">PEG</template>
+                                        <template v-else-if="col === 'above_ma250'">站上MA250</template>
                                         <template v-else>{{ col }}</template>
+                                        <span v-if="sortColumn === col" :style="{color:'var(--accent)', marginLeft:'2px'}">{{ sortDirection === 'asc' ? '▲' : '▼' }}</span>
                                     </th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="(row, i) in (tabType === 'volume_surge' ? filteredRows : result.rows)" :key="i"
+                                <tr v-for="(row, i) in sortedRows" :key="i"
                                     :style="tabType === 'volume_surge' || tabType === 'five_step' ? 'cursor:pointer;' : ''"
                                     :class="selectedStock && selectedStock.stock_code === row.stock_code ? 'selected-row' : ''"
                                     @click="tabType === 'volume_surge' ? selectStock(row) : tabType === 'five_step' ? goToProfileFromScreening(row) : null">
@@ -498,6 +571,24 @@
                                         </template>
                                         <template v-else-if="['roe_score','ocf_score','margin_score','cp_score','bs_score'].includes(col)">
                                             {{ row[col] != null ? Number(row[col]).toFixed(0) : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'latest_profit'">
+                                            {{ fmtMoney(row[col]) }}
+                                        </template>
+                                        <template v-else-if="['profit_cagr_3y','cur_profit_yoy','price_cagr_3y','divergence','drawdown_3y','amp_3y','amp_1y','position_pct','pct_250d'].includes(col)">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(1) + '%' : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'pe_ttm'">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(2) : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'peg'">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(2) : '-' }}
+                                        </template>
+                                        <template v-else-if="col === 'above_ma250'">
+                                            <span :style="{ color: row[col] ? 'var(--green)' : 'var(--text-dim)' }">{{ row[col] ? '✓' : '✗' }}</span>
+                                        </template>
+                                        <template v-else-if="col === 'score'">
+                                            <span :style="{ color: row[col] >= 60 ? 'var(--green)' : row[col] >= 45 ? 'var(--blue)' : row[col] >= 30 ? 'var(--amber)' : 'var(--red)', fontWeight: 600, fontSize: '15px' }">{{ row[col] }}</span>
                                         </template>
                                         <template v-else-if="col === 'industry_sectors'">
                                             <span v-if="row[col]" class="sector-tag sector-industry" :title="row[col]">{{ row[col].split(',')[0] }}<span v-if="row[col].split(',').length > 1" style="color:var(--text-dim);">+{{ row[col].split(',').length - 1 }}</span></span>
@@ -1488,6 +1579,18 @@
                 </div>
 
                 <div class="screening-section">
+                    <div class="screening-section-title">净利润金额（亿元，归母净利润）</div>
+                    <div class="screening-range-row">
+                        <div><label title="2025年度（上一年度）归母净利润 ≥">上年净利 ≥</label><input type="number" v-model.number="filterPrevYearProfitMin" @input="onFilterChange" style="width:80px;" placeholder="亿"></div>
+                        <div><label title="2025年度（上一年度）归母净利润 <">上年净利 &lt;</label><input type="number" v-model.number="filterPrevYearProfitMax" @input="onFilterChange" style="width:80px;" placeholder="亿"></div>
+                    </div>
+                    <div class="screening-range-row" style="margin-top:6px;">
+                        <div><label title="2026Q1（本季度）归母净利润 ≥">本季净利 ≥</label><input type="number" v-model.number="filterCurQuarterProfitMin" @input="onFilterChange" style="width:80px;" placeholder="亿"></div>
+                        <div><label title="2026Q1（本季度）归母净利润 <">本季净利 &lt;</label><input type="number" v-model.number="filterCurQuarterProfitMax" @input="onFilterChange" style="width:80px;" placeholder="亿"></div>
+                    </div>
+                </div>
+
+                <div class="screening-section">
                     <div class="screening-section-title">毛利率同比</div>
                     <div class="screening-range-row">
                         <div><label>本季毛利率同比 ≥</label><input type="number" v-model.number="filterGmGrowthQ" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
@@ -1590,6 +1693,8 @@
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('market_cap')" title="总市值（亿元）">市值(亿){{ sortArrow('market_cap') }}</th>
                                 <th style="width:65px;cursor:pointer;" @click="toggleSort('gross_margin')">毛利率{{ sortArrow('gross_margin') }}</th>
                                 <th style="width:70px;">上年营收</th>
+                                <th style="width:80px;cursor:pointer;" @click="toggleSort('prev_year_profit')" title="2025年度归母净利润">上年净利{{ sortArrow('prev_year_profit') }}</th>
+                                <th style="width:80px;cursor:pointer;" @click="toggleSort('cur_quarter_profit')" title="2026Q1归母净利润">本季净利{{ sortArrow('cur_quarter_profit') }}</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('pe_ttm')" title="PE(TTM) = 总市值 ÷ TTM归母净利润，总股本以 stock_shares_dfcf 为准">PE(TTM){{ sortArrow('pe_ttm') }}</th>
                                 <th style="width:70px;cursor:pointer;" @click="toggleSort('peg')" title="PEG = PE(TTM) ÷ 净利润增长率(单季同比)，<1 为成长性合理">PEG{{ sortArrow('peg') }}</th>
                                 <th style="width:90px;cursor:pointer;" @click="toggleSort('contract_liab_to_assets')">合同负债{{ sortArrow('contract_liab_to_assets') }}</th>
@@ -1622,6 +1727,8 @@
                                 <td :class="row.market_cap != null && row.market_cap < 50 ? 'down' : ''">{{ row.market_cap != null ? Number(row.market_cap).toFixed(1) : '-' }}</td>
                                 <td :class="valClass(row.gross_margin)">{{ row.gross_margin != null ? row.gross_margin.toFixed(2) + '%' : '-' }}</td>
                                 <td style="font-size:11px;">{{ row.prev_year_revenue != null ? fmtMoney(row.prev_year_revenue) : '-' }}</td>
+                                <td style="font-size:11px;">{{ row.prev_year_profit != null ? fmtMoney(row.prev_year_profit) : '-' }}</td>
+                                <td style="font-size:11px;">{{ row.cur_quarter_profit != null ? fmtMoney(row.cur_quarter_profit) : '-' }}</td>
                                 <td>{{ row.pe_ttm != null ? Number(row.pe_ttm).toFixed(1) : '-' }}</td>
                                 <td :class="row.peg != null && row.peg <= 1 ? 'up' : ''">{{ row.peg != null ? Number(row.peg).toFixed(2) : '-' }}</td>
                                 <td :class="valClass(10 - parseFloat(row.contract_liab_to_assets))">{{ row.contract_liab_to_assets != null ? parseFloat(row.contract_liab_to_assets).toFixed(2) + '%' : '-' }}</td>
@@ -2154,6 +2261,53 @@
                     </button>
                     <span v-if="klineResult" class="dm-toast dm-toast-ok">✓ {{ klineResult }}</span>
                     <span v-if="klineError" class="dm-toast dm-toast-err">✗ {{ klineError }}</span>
+                </div>
+            </div>
+
+            <!-- QFQ Kline Card -->
+            <div class="dm-card dm-card-qfq">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(139,92,246,0.12);">
+                        <span style="font-size:22px;">🔄</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">前复权K线</div>
+                        <div class="dm-card-subtitle">复权因子 · 长周期涨幅/回测取数</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot" :class="qfqDotClass"></span>
+                        <span class="dm-status-text">{{ qfqStatusText }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row">
+                        <span>数据来源</span>
+                        <span class="dm-val">daily_kline + stock_dividend 除权因子</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>最新交易日期</span>
+                        <span class="dm-val accent">{{ status.qfq?.latest_date || '-' }}</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>记录数</span>
+                        <span class="dm-val">{{ fmtQfqRows(status.qfq?.row_count) }}</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>覆盖股票</span>
+                        <span class="dm-val">{{ status.qfq?.stock_count || 0 }} 只</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>更新方式</span>
+                        <span class="dm-val">全量重算（先更新日K线）</span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <button class="btn btn-primary" style="background:#8b5cf6;border-color:#8b5cf6;" @click="updateQfq" :disabled="qfqLoading">
+                        <span v-if="qfqLoading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ qfqLoading ? (qfqProgress ? '重算中 ' + qfqProgress : '重算中...') : '⟳ 更新前复权K线' }}
+                    </button>
+                    <span v-if="qfqResult" class="dm-toast dm-toast-ok">✓ {{ qfqResult }}</span>
+                    <span v-if="qfqError" class="dm-toast dm-toast-err">✗ {{ qfqError }}</span>
                 </div>
             </div>
 

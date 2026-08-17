@@ -19,6 +19,7 @@ RECORD_SIZE = 32
 _update_lock = threading.Lock()
 _ads_lock = threading.Lock()
 _dmdl_lock = threading.Lock()
+_qfq_lock = threading.Lock()
 
 
 def _parse_day_file_after(filepath, since):
@@ -60,6 +61,9 @@ def data_status():
     kline = query("SELECT MAX(trade_date) AS max_date, COUNT(DISTINCT stock_code) AS stock_count FROM daily_kline")
     kline_row = kline[0] if kline else {}
 
+    qfq = query("SELECT MAX(trade_date) AS max_date, COUNT(DISTINCT stock_code) AS stock_count, COUNT(*) AS row_count FROM daily_kline_qfq")
+    qfq_row = qfq[0] if qfq else {}
+
     sector = query("SELECT MAX(trade_date) AS max_date, COUNT(DISTINCT sector_code) AS sector_count FROM sector_kline")
     sector_kline_row = sector[0] if sector else {}
 
@@ -90,6 +94,11 @@ def data_status():
         'kline': {
             'latest_date': str(kline_row.get('max_date') or ''),
             'stock_count': kline_row.get('stock_count') or 0,
+        },
+        'qfq': {
+            'latest_date': str(qfq_row.get('max_date') or ''),
+            'stock_count': qfq_row.get('stock_count') or 0,
+            'row_count': qfq_row.get('row_count') or 0,
         },
         'sector_kline': {
             'latest_date': str(sector_kline_row.get('max_date') or ''),
@@ -522,6 +531,48 @@ def update_ads():
     t = threading.Thread(target=_run, daemon=True)
     t.start()
     return {'status': 'started', 'message': '分析预计算已启动（后台运行）'}
+
+
+# ── 前复权K线（daily_kline_qfq） ──
+@router.get('/data/qfq/status')
+def qfq_status():
+    status = 'running' if _qfq_lock.locked() else 'idle'
+    log_tail = ''
+    try:
+        from pathlib import Path
+        lines = Path('/tmp/qfq_update.log').read_text(encoding='utf-8').strip().split('\n')
+        log_tail = '\n'.join(lines[-6:])
+    except Exception:
+        pass
+    return {'status': status, 'log_tail': log_tail}
+
+
+@router.post('/data/update-qfq')
+def update_qfq():
+    if not _qfq_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '前复权计算已在执行中'}
+    from ...compute_kline_qfq import compute_qfq
+
+    def _run():
+        try:
+            from pathlib import Path
+            with open('/tmp/qfq_update.log', 'w', encoding='utf-8') as f:
+                f.write('')
+            def wlog(msg):
+                with open('/tmp/qfq_update.log', 'a', encoding='utf-8') as f:
+                    f.write(msg + '\n')
+            result = compute_qfq(progress_cb=wlog)
+            wlog(f"完成: {result['rows']} 条 / {result['stocks']} 只，"
+                 f"分红股票 {result['event_stocks']} 只，耗时 {result['elapsed_seconds']}s")
+        except Exception as e:
+            with open('/tmp/qfq_update.log', 'a', encoding='utf-8') as f:
+                f.write(f'ERROR: {e}\n')
+        finally:
+            _qfq_lock.release()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'message': '前复权K线计算已启动（后台运行，约需5-8分钟）'}
 
 
 # ── 定期报告下载（年报/季报） ──
