@@ -77,6 +77,8 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 | 6 more `fin_*` | 290k each | Balance sheet, cash flow, etc. |
 | `sectors` | 605 | Sector definitions (行业/地区/概念/风格) |
 | `stock_sectors` | 82k | Stock → sector mapping |
+| `fund_basic` | 17k | 公募基金列表 |
+| `fund_portfolio` | 15M | 公募基金持仓（季报，Tushare） |
 
 ### 分析预计算表（ads_*，必用）
 
@@ -88,6 +90,14 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 | `ads_stock_latest` | 5.5k | 每股票最新快照（市值/PE_TTM/股息率/最新营收净利同比/最新年报指标） |
 | `ads_sector_annual` | 14k | 每板块×每年度汇总（总营收/总净利/平均毛利/平均ROE/负债率/同比） |
 | `ads_sector_latest` | 559 | 每板块最新快照（总市值/最新汇总/同比） |
+
+**基金持仓分析预计算表**（`src/compute_fund_ads.py` 生成，仅用 Q2/Q4 完整数据）：
+
+| 表 | Rows | 内容 |
+|---|---|---|
+| `ads_fund_stock_change` | 49k | 每股票×每双季度环比（基金数/持仓股数/市值变化/主动被动比） |
+| `ads_fund_sector_flow` | 4k | 每板块×每双季度资金流向（净流入/变化率/A-D信号） |
+| `ads_fund_stock_trend` | 6k | 每股票趋势评分（-4~+4，增持季度数，连续增持） |
 
 **ads_* 关键口径**：
 - `core_profit`（核心利润）= 营收 − 成本 − 销售费用 − 管理费用；`core_margin` = 核心利润/营收
@@ -208,6 +218,48 @@ GET /api/report/zxm/{stock_code}
 2. **revenue_growth_rate is fraction** → divide user-facing threshold by 100
 3. **Screening API returns `stock_code`/`stock_name` in rows but NOT in columns** → frontend renders them as static columns; dynamic columns from API are everything else
 4. **No tests, no linting, no typechecking configured** — run nothing beyond `uvicorn` for dev
+
+---
+
+## 公募基金持仓数据更新
+
+fund_portfolio 数据按季度更新，Q1/Q3 仅前10大重仓，**Q2/Q4 为完整持仓**。
+
+### 数据完整性检查
+
+```sql
+SELECT end_date, COUNT(*) as rows, COUNT(DISTINCT ts_code) as funds,
+       ROUND(COUNT(*) * 1.0 / COUNT(DISTINCT ts_code), 1) as avg_holdings
+FROM fund_portfolio
+WHERE end_date LIKE '%0630' OR end_date LIKE '%1231'
+GROUP BY end_date ORDER BY end_date;
+-- Q2/Q4 完整数据：avg_holdings ≈ 95-100
+-- Q1/Q3 仅前10：avg_holdings ≈ 10-12
+```
+
+### 更新流程（当新季度数据不完整时）
+
+```bash
+# 1. 删除不完整季度数据
+python -c "
+import pymysql
+conn = pymysql.connect(host='127.0.0.1', port=3306, user='root', password='aitrading123', database='ai_trading')
+cur = conn.cursor()
+cur.execute(\"DELETE FROM fund_portfolio WHERE end_date = '20260630'\")  # 改成目标季度
+print(f'deleted: {cur.rowcount} rows')
+conn.commit()
+conn.close()
+"
+
+# 2. 从 Tushare 重新拉取
+python src/import_fund_tushare.py --start 20260630  # 改成目标季度
+
+# 3. 重建 ads_stock_fund（基金持仓聚合表）
+python src/compute_ads.py
+
+# 4. 重建基金分析预计算表
+python src/compute_fund_ads.py
+```
 
 ---
 
