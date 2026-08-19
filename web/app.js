@@ -48,6 +48,7 @@ const app = createApp({
             { id: 'data_mgmt', label: '数据管理', icon: '⚙' },
             { id: 'data_catalog', label: '数据资产', icon: '🗂' },
             { id: 'data_lineage', label: '数据血缘', icon: '⛓' },
+            { id: 'fund', label: '基金持仓', icon: '◈' },
         ];
         const navPages = computed(() => pages);
         provide('currentPage', currentPage);
@@ -4095,6 +4096,100 @@ app.component('placeholder-page', {
     template: '<div class="placeholder"><div class="big-icon">{{ icon }}</div><p>{{ page.label }}</p><p>功能开发中...</p></div>',
     computed: {
         icon() { return this.page.icon || '⊡'; },
+    },
+});
+
+app.component('fund-page', {
+    template: '#fund-tpl',
+    setup() {
+        const tab = ref('macro');
+        const loading = ref(false);
+        const error = ref('');
+        const macroData = ref(null);
+        const sectorType = ref('industry');
+        const sectorList = ref([]);
+        const selectedSector = ref('');
+        const sectorStocks = ref([]);
+        const stockInput = ref('');
+        const stockDetail = ref(null);
+        const screenType = ref('thousand');
+        const screenResult = ref([]);
+        const latestQuarter = ref('');
+
+        async function loadMacro() {
+            loading.value = true;
+            error.value = '';
+            try {
+                const res = await fetch(`${API_BASE}/fund/macro/overview`);
+                macroData.value = await res.json();
+                latestQuarter.value = macroData.value.latest_date || '';
+            } catch (e) { error.value = e.message; }
+            loading.value = false;
+        }
+
+        async function loadSectorFlow() {
+            loading.value = true;
+            try {
+                const res = await fetch(`${API_BASE}/fund/sector/flow?sector_type=${sectorType.value}`);
+                sectorList.value = await res.json();
+            } catch (e) { error.value = e.message; }
+            loading.value = false;
+        }
+
+        async function loadSectorStocks(name) {
+            selectedSector.value = name;
+            loading.value = true;
+            try {
+                const res = await fetch(`${API_BASE}/fund/sector/${encodeURIComponent(name)}/stocks`);
+                sectorStocks.value = await res.json();
+            } catch (e) { error.value = e.message; }
+            loading.value = false;
+        }
+
+        async function loadStockDetail(code) {
+            if (!code) return;
+            loading.value = true;
+            error.value = '';
+            try {
+                const res = await fetch(`${API_BASE}/fund/stock/${code}`);
+                stockDetail.value = await res.json();
+            } catch (e) { error.value = e.message; }
+            loading.value = false;
+        }
+
+        async function loadScreen() {
+            loading.value = true;
+            try {
+                const res = await fetch(`${API_BASE}/fund/screen?type=${screenType.value}`);
+                screenResult.value = await res.json();
+            } catch (e) { error.value = e.message; }
+            loading.value = false;
+        }
+
+        function onTabChange(t) {
+            tab.value = t;
+            if (t === 'macro') loadMacro();
+            else if (t === 'sector') loadSectorFlow();
+            else if (t === 'screen') loadScreen();
+        }
+
+        function signalColor(s) {
+            return s === 'A' ? '#ef4444' : s === 'B' ? '#f59e0b' : s === 'C' ? '#3b82f6' : '#22c55e';
+        }
+        function signalText(s) {
+            return s === 'A' ? '加速流入' : s === 'B' ? '减速流入' : s === 'C' ? '减速流出' : '加速流出';
+        }
+
+        onMounted(() => loadMacro());
+
+        return {
+            tab, loading, error, macroData, sectorType, sectorList,
+            selectedSector, sectorStocks, stockInput, stockDetail,
+            screenType, screenResult, latestQuarter,
+            onTabChange, loadMacro, loadSectorFlow, loadSectorStocks,
+            loadStockDetail, loadScreen, signalColor, signalText,
+            fmtMoney, fmtGrowth, valClass,
+        };
     },
 });
 

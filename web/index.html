@@ -41,6 +41,7 @@
         <strong-stocks-page v-else-if="currentPage === 'strong_stocks'"></strong-stocks-page>
         <data-catalog-page v-else-if="currentPage === 'data_catalog'"></data-catalog-page>
         <data-lineage-page v-else-if="currentPage === 'data_lineage'"></data-lineage-page>
+        <fund-page v-else-if="currentPage === 'fund'"></fund-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
@@ -3336,6 +3337,189 @@
             输入表名查看数据血缘关系图
         </div>
         <div v-if="loading" class="loading"><div class="spinner"></div> 加载血缘数据...</div>
+    </div>
+</template>
+
+<template id="fund-tpl">
+    <div class="topbar">
+        <h2>基金持仓分析</h2>
+        <span class="badge">双季度数据（Q2/Q4）</span>
+    </div>
+    <div class="content">
+        <div class="tabs" style="margin-bottom:16px;">
+            <button :class="{active: tab==='macro'}" @click="onTabChange('macro')">宏观总览</button>
+            <button :class="{active: tab==='sector'}" @click="onTabChange('sector')">板块轮动</button>
+            <button :class="{active: tab==='stock'}" @click="tab='stock'">个股画像</button>
+            <button :class="{active: tab==='screen'}" @click="onTabChange('screen')">条件筛选</button>
+        </div>
+
+        <div v-if="error" class="error">{{ error }}</div>
+        <div v-if="loading" class="loading"><div class="spinner"></div></div>
+
+        <!-- 宏观总览 -->
+        <template v-if="tab==='macro' && macroData">
+            <div class="card">
+                <div class="card-title">全市场基金持仓趋势（双季度）</div>
+                <div style="overflow-x:auto;">
+                    <table class="table" style="width:100%;">
+                        <thead><tr><th>季度</th><th>持仓市值</th><th>基金数</th><th>覆盖股票数</th></tr></thead>
+                        <tbody>
+                            <tr v-for="q in macroData.trend" :key="q.end_date">
+                                <td>{{ q.quarter }}</td>
+                                <td :class="valClass(1)">{{ fmtMoney(q.total_mkv) }}</td>
+                                <td>{{ q.total_fund_count?.toLocaleString() }}</td>
+                                <td>{{ q.stock_count?.toLocaleString() }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">本季度板块资金流向TOP20（{{ latestQuarter }}）</div>
+                <div style="overflow-x:auto;">
+                    <table class="table" style="width:100%;">
+                        <thead><tr><th>板块</th><th>市值变化</th><th>变化率</th><th>信号</th><th>基金数</th></tr></thead>
+                        <tbody>
+                            <tr v-for="s in macroData.sector_flow" :key="s.sector_name">
+                                <td>{{ s.sector_name }}</td>
+                                <td :class="valClass(s.mkv_change)">{{ fmtMoney(s.mkv_change) }}</td>
+                                <td :class="valClass(s.mkv_change_pct)">{{ fmtGrowth(s.mkv_change_pct) }}</td>
+                                <td><span :style="{color: signalColor(s.signal), fontWeight:'bold'}">{{ signalText(s.signal) }}</span></td>
+                                <td>{{ s.total_fund_count?.toLocaleString() }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </template>
+
+        <!-- 板块轮动 -->
+        <template v-if="tab==='sector'">
+            <div class="card">
+                <div class="card-title">
+                    板块资金流向
+                    <select v-model="sectorType" @change="loadSectorFlow" style="margin-left:12px;padding:4px 8px;border-radius:4px;background:var(--bg-secondary);color:var(--text);">
+                        <option value="industry">行业板块</option>
+                        <option value="concept">概念板块</option>
+                    </select>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="table" style="width:100%;">
+                        <thead><tr><th>板块</th><th>市值变化</th><th>变化率</th><th>信号</th><th>股票数</th><th>基金数</th></tr></thead>
+                        <tbody>
+                            <tr v-for="s in sectorList" :key="s.sector_name"
+                                :style="{cursor:'pointer', background: selectedSector===s.sector_name ? 'rgba(59,130,246,0.1)' : ''}"
+                                @click="loadSectorStocks(s.sector_name)">
+                                <td>{{ s.sector_name }}</td>
+                                <td :class="valClass(s.mkv_change)">{{ fmtMoney(s.mkv_change) }}</td>
+                                <td :class="valClass(s.mkv_change_pct)">{{ fmtGrowth(s.mkv_change_pct) }}</td>
+                                <td><span :style="{color: signalColor(s.signal), fontWeight:'bold'}">{{ signalText(s.signal) }}</span></td>
+                                <td>{{ s.stock_count }}</td>
+                                <td>{{ s.total_fund_count?.toLocaleString() }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div v-if="selectedSector" class="card">
+                <div class="card-title">{{ selectedSector }} — 持仓个股明细</div>
+                <div style="overflow-x:auto;">
+                    <table class="table" style="width:100%;">
+                        <thead><tr><th>代码</th><th>名称</th><th>基金数</th><th>变化</th><th>持仓变化率</th><th>持仓市值</th><th>主动/被动</th></tr></thead>
+                        <tbody>
+                            <tr v-for="s in sectorStocks" :key="s.stock_code"
+                                style="cursor:pointer;" @click="stockInput=s.stock_code; tab='stock'; loadStockDetail(s.stock_code)">
+                                <td>{{ s.stock_code }}</td>
+                                <td>{{ s.stock_name }}</td>
+                                <td>{{ s.fund_count }}</td>
+                                <td :class="valClass(s.fund_count_change)">{{ s.fund_count_change > 0 ? '+' : '' }}{{ s.fund_count_change }}</td>
+                                <td :class="valClass(s.amount_change_pct)">{{ fmtGrowth(s.amount_change_pct) }}</td>
+                                <td>{{ fmtMoney(s.total_mkv) }}</td>
+                                <td>{{ s.active_count }}/{{ s.passive_count }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </template>
+
+        <!-- 个股画像 -->
+        <template v-if="tab==='stock'">
+            <div class="card">
+                <div class="card-title">
+                    个股基金持仓
+                    <input v-model="stockInput" placeholder="输入股票代码 如 600519" @keyup.enter="loadStockDetail(stockInput)"
+                           style="margin-left:12px;padding:6px 12px;border-radius:4px;background:var(--bg-secondary);color:var(--text);border:1px solid var(--border);width:200px;" />
+                    <button @click="loadStockDetail(stockInput)" style="margin-left:8px;" class="btn btn-sm">查询</button>
+                </div>
+            </div>
+            <template v-if="stockDetail">
+                <div class="card">
+                    <div class="card-title">
+                        {{ stockInput }} {{ stockDetail.stock_name }}
+                        <span v-if="stockDetail.trend" :style="{color: stockDetail.trend.trend_score > 0 ? '#ef4444' : '#22c55e', marginLeft:'12px', fontSize:'14px'}">
+                            趋势：{{ stockDetail.trend.trend_label }}（{{ stockDetail.trend.trend_score > 0 ? '+' : '' }}{{ stockDetail.trend.trend_score }}分）
+                        </span>
+                    </div>
+                    <div v-if="stockDetail.trend" style="display:flex;gap:24px;font-size:13px;color:var(--text-muted);margin-top:8px;">
+                        <span>基金数：{{ stockDetail.trend.fund_count }}</span>
+                        <span>增持季度：{{ stockDetail.trend.increase_quarters }}/4</span>
+                        <span>连续增持：{{ stockDetail.trend.consecutive_increase }}季度</span>
+                        <span>最新变化：{{ fmtGrowth(stockDetail.trend.latest_change_pct) }}</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">季度持仓趋势</div>
+                    <div style="overflow-x:auto;">
+                        <table class="table" style="width:100%;">
+                            <thead><tr><th>季度</th><th>基金数</th><th>变化</th><th>持仓变化率</th><th>持仓市值</th><th>市值变化</th><th>主动占比</th></tr></thead>
+                            <tbody>
+                                <tr v-for="h in stockDetail.history" :key="h.end_date">
+                                    <td>{{ h.quarter }}</td>
+                                    <td>{{ h.fund_count }}</td>
+                                    <td :class="valClass(h.fund_count_change)">{{ h.fund_count_change > 0 ? '+' : '' }}{{ h.fund_count_change }}</td>
+                                    <td :class="valClass(h.amount_change_pct)">{{ fmtGrowth(h.amount_change_pct) }}</td>
+                                    <td>{{ fmtMoney(h.total_mkv) }}</td>
+                                    <td :class="valClass(h.mkv_change)">{{ fmtMoney(h.mkv_change) }}</td>
+                                    <td>{{ h.active_ratio }}%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </template>
+        </template>
+
+        <!-- 条件筛选 -->
+        <template v-if="tab==='screen'">
+            <div class="card">
+                <div class="card-title">
+                    基金持仓筛选
+                    <select v-model="screenType" @change="loadScreen" style="margin-left:12px;padding:4px 8px;border-radius:4px;background:var(--bg-secondary);color:var(--text);">
+                        <option value="thousand">千家基金重仓</option>
+                        <option value="sustain">持续看好（≥3季度增持）</option>
+                        <option value="surge">持仓暴增（>50%）</option>
+                        <option value="crash">持仓暴跌（>80%减仓）</option>
+                    </select>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="table" style="width:100%;">
+                        <thead><tr><th>代码</th><th>名称</th><th>基金数</th><th>趋势</th><th>持仓市值</th><th>变化</th></tr></thead>
+                        <tbody>
+                            <tr v-for="s in screenResult" :key="s.stock_code"
+                                style="cursor:pointer;" @click="stockInput=s.stock_code; tab='stock'; loadStockDetail(s.stock_code)">
+                                <td>{{ s.stock_code }}</td>
+                                <td>{{ s.stock_name }}</td>
+                                <td>{{ s.fund_count }}</td>
+                                <td><span :style="{color: (s.trend_score||0) > 0 ? '#ef4444' : '#22c55e'}">{{ s.trend_label || '-' }}</span></td>
+                                <td>{{ fmtMoney(s.total_mkv) }}</td>
+                                <td :class="valClass(s.amount_change_pct || s.latest_change_pct)">{{ fmtGrowth(s.amount_change_pct || s.latest_change_pct) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </template>
     </div>
 </template>
 
