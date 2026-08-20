@@ -1692,7 +1692,7 @@ const filterPegMax = ref(null);
             if (selectedZxmFilters.value[field][val]) {
                 delete selectedZxmFilters.value[field][val];
             } else {
-                selectedZxmFilters.value[field][val] = true;
+                selectedZxmFilters.value[field] = { [val]: true };
             }
             selectedZxmFilters.value = {...selectedZxmFilters.value};
             onFilterChange();
@@ -1816,7 +1816,7 @@ const filterPegMax = ref(null);
                     const sf = selectedZxmFilters.value[f.field];
                     if (sf) {
                         const keys = Object.keys(sf).filter(k => sf[k]);
-                        if (keys.length === 1) zxmBody[f.field] = keys[0];
+                        if (keys.length) zxmBody[f.field] = keys[0];
                     }
                 }
                 const body = {
