@@ -85,6 +85,118 @@ def stock_detail(stock_code: str):
     }
 
 
+HOLDINGS_SORT = {
+    'fund_name': 'fb.name',
+    'fund_code': 'fp.ts_code',
+    'amount': 'fp.amount',
+    'mkv': 'fp.mkv',
+    'stk_mkv_ratio': 'fp.stk_mkv_ratio',
+    'stk_float_ratio': 'fp.stk_float_ratio',
+}
+
+
+@router.get('/stock/{stock_code}/holdings')
+def stock_holdings(stock_code: str, end_date: str = None, sort_key: str = 'mkv',
+                   sort_dir: str = 'desc', offset: int = 0, limit: int = 20):
+    """某股票最近一个完整披露季度的基金持仓明细（分页 + 服务端排序）。"""
+    sym = f'{stock_code}.%'
+    if not end_date:
+        row = query("""
+            SELECT MAX(end_date) AS d FROM fund_portfolio
+            WHERE symbol LIKE %s AND (end_date LIKE '%%0630' OR end_date LIKE '%%1231')
+        """, (sym,))
+        end_date = row[0]['d'] if row else None
+    if not end_date:
+        return {'end_date': None, 'quarter': '', 'total': 0, 'offset': 0, 'rows': []}
+
+    col = HOLDINGS_SORT.get(sort_key, 'fp.mkv')
+    direction = 'ASC' if sort_dir == 'asc' else 'DESC'
+
+    total_row = query("""
+        SELECT COUNT(*) AS c FROM fund_portfolio WHERE symbol LIKE %s AND end_date = %s
+    """, (sym, end_date))
+    total = total_row[0]['c'] if total_row else 0
+
+    rows = query(f"""
+        SELECT fp.ts_code AS fund_code, fb.name AS fund_name,
+               fp.amount, fp.mkv, fp.stk_mkv_ratio, fp.stk_float_ratio
+        FROM fund_portfolio fp
+        LEFT JOIN fund_basic fb ON fb.ts_code = fp.ts_code
+        WHERE fp.symbol LIKE %s AND fp.end_date = %s
+        ORDER BY {col} {direction}
+        LIMIT %s OFFSET %s
+    """, (sym, end_date, limit, offset))
+
+    return {
+        'end_date': end_date,
+        'quarter': _quarter_label(end_date),
+        'total': total,
+        'offset': offset,
+        'rows': [{
+            'fund_code': r['fund_code'],
+            'fund_name': r['fund_name'] or r['fund_code'],
+            'amount': float(r['amount']) if r['amount'] is not None else None,
+            'mkv': float(r['mkv']) if r['mkv'] is not None else None,
+            'stk_mkv_ratio': float(r['stk_mkv_ratio']) if r['stk_mkv_ratio'] is not None else None,
+            'stk_float_ratio': float(r['stk_float_ratio']) if r['stk_float_ratio'] is not None else None,
+        } for r in rows],
+    }
+
+
+@router.get('/stock/{stock_code}/fund/{fund_code}')
+def stock_fund_history(stock_code: str, fund_code: str):
+    """某基金对某股票最近2年（Q2/Q4 完整披露季度）的持仓增减历史。"""
+    sym = f'{stock_code}.%'
+    rows = query("""
+        SELECT end_date, amount, mkv, stk_mkv_ratio, stk_float_ratio
+        FROM fund_portfolio
+        WHERE ts_code = %s AND symbol LIKE %s
+          AND (end_date LIKE '%%0630' OR end_date LIKE '%%1231')
+        ORDER BY end_date
+    """, (fund_code, sym))
+    rows = rows[-8:]
+
+    fund_row = query("SELECT name FROM fund_basic WHERE ts_code = %s", (fund_code,))
+    fund_name = fund_row[0]['name'] if fund_row else fund_code
+
+    out = []
+    prev = None
+    for r in rows:
+        item = {
+            'end_date': r['end_date'],
+            'quarter': _quarter_label(r['end_date']),
+            'amount': float(r['amount']) if r['amount'] is not None else None,
+            'mkv': float(r['mkv']) if r['mkv'] is not None else None,
+            'stk_mkv_ratio': float(r['stk_mkv_ratio']) if r['stk_mkv_ratio'] is not None else None,
+            'stk_float_ratio': float(r['stk_float_ratio']) if r['stk_float_ratio'] is not None else None,
+        }
+        if prev and prev['amount'] and item['amount'] is not None:
+            item['amount_change'] = item['amount'] - prev['amount']
+            item['amount_change_pct'] = item['amount_change'] / prev['amount'] * 100
+            item['ratio_change'] = (item['stk_mkv_ratio'] - prev['stk_mkv_ratio']
+                                    if item['stk_mkv_ratio'] is not None and prev['stk_mkv_ratio'] is not None else None)
+        else:
+            item['amount_change'] = None
+            item['amount_change_pct'] = None
+            item['ratio_change'] = None
+        out.append(item)
+        prev = item
+
+    return {
+        'fund_code': fund_code,
+        'fund_name': fund_name,
+        'stock_code': stock_code,
+        'rows': out,
+    }
+
+
+def _quarter_label(end_date):
+    if not end_date or len(end_date) != 8:
+        return end_date or ''
+    q = {'03': 'Q1', '06': 'Q2', '09': 'Q3', '12': 'Q4'}.get(end_date[4:6], '')
+    return f'{end_date[2:4]}{q}' if q else end_date
+
+
 @router.get('/screen')
 def screen(type: str = 'sustain', end_date: str = None):
     if not end_date:
