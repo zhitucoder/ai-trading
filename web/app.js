@@ -41,6 +41,7 @@ const app = createApp({
             { id: 'bt_strategies', label: '回测策略', icon: '⇄' },
             { id: 'profile', label: '股票画像', icon: '◈' },
             { id: 'dividend', label: '分红列表', icon: '❖' },
+            { id: 'buyback', label: '股份回购', icon: '↺' },
             { id: 'debate', label: 'AI多空辩论', icon: '⚖' },
             { id: 'expert', label: '蒸馏专家', icon: '⚗' },
             { id: 'dmdl', label: '估值榜', icon: '⚖' },
@@ -848,6 +849,8 @@ app.component('profile-page', {
     template: '#profile-tpl',
     setup() {
         const activeTab = ref('single');
+        const currentPage = inject('currentPage');
+        const returnPage = ref('');
 
         // ── Tab1: 单股画像 ──
         const stockCode = ref('600519');
@@ -1475,6 +1478,14 @@ app.component('profile-page', {
             loadProfile();
         }
 
+        function goBack() {
+            if (returnPage.value) {
+                const p = returnPage.value;
+                returnPage.value = '';
+                currentPage.value = p;
+            }
+        }
+
         const navList = ref(null);
         const navTotal = computed(() => navList.value ? navList.value.length : 0);
 
@@ -2049,6 +2060,10 @@ const filterPegMax = ref(null);
                 stockCode.value = window._profileStockCode;
                 window._profileStockCode = null;
             }
+            if (window._profileReturnPage) {
+                returnPage.value = window._profileReturnPage;
+                window._profileReturnPage = null;
+            }
             if (window._screeningList) {
                 navList.value = window._screeningList;
                 window._screeningList = null;
@@ -2065,7 +2080,7 @@ const filterPegMax = ref(null);
 
         return {
             activeTab, stockCode, loading, profile, error, finChartLoading, finChartCanvas, fundChartLoading, fundChartImg, fundChartImgEl, divChartCanvas,
-            loadProfile, loadFinChart, loadFundChart, loadDivChart, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile, introStatusName, chainName,
+            loadProfile, loadFinChart, loadFundChart, loadDivChart, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile, goBack, currentPage, returnPage, introStatusName, chainName,
             stageOptions, selectedStages, filterTechScore, filterFundScore,
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
             filterPrevYearProfitMin, filterPrevYearProfitMax, filterCurQuarterProfitMin, filterCurQuarterProfitMax,
@@ -2202,6 +2217,122 @@ function renderMarkdown(text) {
     });
     return html;
 }
+
+// ── 股份回购 ──
+app.component('buyback-page', {
+    template: '#buyback-tpl',
+    setup() {
+        const currentPage = inject('currentPage');
+        const keyword = ref('');
+        const purpose = ref('');
+        const progressStatus = ref('');
+        const sort = ref('notice_date');
+        const order = ref('desc');
+        const page = ref(1);
+        const pageSize = ref(50);
+        const total = ref(0);
+        const rows = ref([]);
+        const loading = ref(false);
+        const error = ref('');
+        const tip = reactive({ show: false, text: '', x: 0, y: 0 });
+        let kwTimer = null;
+
+        async function loadList() {
+            loading.value = true;
+            error.value = '';
+            try {
+                const params = new URLSearchParams({
+                    keyword: keyword.value || '', purpose: purpose.value || '',
+                    progress_status: progressStatus.value || '',
+                    sort: sort.value, order: order.value,
+                    page: page.value, page_size: pageSize.value,
+                });
+                const r = await fetch(`${API_BASE}/buyback/list?${params}`);
+                const d = await r.json();
+                if (d.error) error.value = d.error;
+                else {
+                    rows.value = d.rows;
+                    total.value = d.total;
+                }
+            } catch (e) { error.value = e.message; } finally { loading.value = false; }
+        }
+
+        function toggleSort(col) {
+            if (sort.value === col) { order.value = order.value === 'desc' ? 'asc' : 'desc'; }
+            else { sort.value = col; order.value = 'desc'; }
+            page.value = 1;
+            loadList();
+        }
+
+        function sortArrow(col) {
+            if (sort.value !== col) return '';
+            return order.value === 'desc' ? '↓' : '↑';
+        }
+
+        function goStock(code) {
+            window._profileReturnPage = 'buyback';
+            window._profileStockCode = code;
+            currentPage.value = 'profile';
+        }
+
+        function onFilter() { page.value = 1; loadList(); }
+
+        function onKeywordInput() {
+            clearTimeout(kwTimer);
+            kwTimer = setTimeout(() => { page.value = 1; loadList(); }, 350);
+        }
+
+        function showTip(e, text) {
+            if (!text) return;
+            tip.text = text;
+            tip.x = e.clientX + 14;
+            tip.y = e.clientY + 14;
+            tip.show = true;
+        }
+        function moveTip(e) {
+            if (!tip.show) return;
+            tip.x = e.clientX + 14;
+            tip.y = e.clientY + 14;
+        }
+        function hideTip() { tip.show = false; }
+
+        function fmtInt(v) {
+            if (v == null) return '-';
+            return Number(v).toLocaleString('zh-CN');
+        }
+        function fmtAmt(v) {
+            if (v == null) return '-';
+            return (Number(v) / 1e8).toFixed(2) + '亿';
+        }
+        function qtyText(r) {
+            if (r.repur_num_lower != null || r.repur_num_cap != null)
+                return fmtInt(r.repur_num_lower) + ' ~ ' + fmtInt(r.repur_num_cap);
+            return fmtInt(r.repur_num);
+        }
+        function amtText(r) {
+            if (r.repur_amount_lower != null || r.repur_amount_limit != null)
+                return fmtAmt(r.repur_amount_lower) + ' ~ ' + fmtAmt(r.repur_amount_limit);
+            return fmtAmt(r.repur_amount);
+        }
+        function periodText(r) {
+            return (r.repur_start_date || '-') + ' ~ ' + (r.repur_end_date || '-');
+        }
+        function progClass(p) {
+            if (p === '004' || p === '006' || p === '008') return 'bb-done';
+            if (p === '003' || p === '007') return 'bb-doing';
+            if (p === '005') return 'bb-stop';
+            return 'bb-plan';
+        }
+
+        onMounted(loadList);
+
+        return {
+            keyword, purpose, progressStatus, sort, order, page, pageSize, total, rows, loading, error, tip,
+            loadList, toggleSort, sortArrow, goStock, onFilter, onKeywordInput,
+            showTip, moveTip, hideTip, fmtInt, fmtAmt, progClass,
+        };
+    },
+});
 
 // ── AI Debate ──
 app.component('debate-page', {
@@ -4112,6 +4243,13 @@ app.component('fund-page', {
         const sectorStocks = ref([]);
         const stockInput = ref('');
         const stockDetail = ref(null);
+        const stockSuggestions = ref([]);
+        const stockSuggestionIdx = ref(-1);
+        let searchTimer = null;
+        const stockHoldings = ref({ rows: [], total: 0, offset: 0 });
+        const holdingsSort = ref({ key: 'mkv', dir: 'desc' });
+        const holdingsLoading = ref(false);
+        const fundModal = ref(null);
         const screenType = ref('thousand');
         const screenResult = ref([]);
         const latestQuarter = ref('');
@@ -4153,8 +4291,154 @@ app.component('fund-page', {
             try {
                 const res = await fetch(`${API_BASE}/fund/stock/${code}`);
                 stockDetail.value = await res.json();
+                await loadHoldings(code, 0, true);
             } catch (e) { error.value = e.message; }
             loading.value = false;
+        }
+
+        async function loadHoldings(code, offset, reset = false) {
+            const c = code || stockInput.value;
+            if (!c) return;
+            holdingsLoading.value = true;
+            try {
+                const { key, dir } = holdingsSort.value;
+                const url = `${API_BASE}/fund/stock/${c}/holdings?offset=${offset}&limit=20&sort_key=${key}&sort_dir=${dir}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (reset) {
+                    stockHoldings.value = { ...data, rows: data.rows };
+                } else {
+                    stockHoldings.value = { ...data, rows: [...(stockHoldings.value.rows || []), ...data.rows] };
+                }
+            } catch (e) { error.value = e.message; }
+            holdingsLoading.value = false;
+        }
+
+        function loadMoreHoldings() {
+            if (!stockHoldings.value.total || stockHoldings.value.rows.length >= stockHoldings.value.total) return;
+            loadHoldings(stockInput.value, stockHoldings.value.rows.length, false);
+        }
+
+        async function onStockInput() {
+            const q = stockInput.value.trim();
+            if (q.length < 1) { stockSuggestions.value = []; return; }
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(q)}`);
+                    const d = await r.json();
+                    stockSuggestions.value = d.rows || [];
+                    stockSuggestionIdx.value = -1;
+                } catch (e) {}
+            }, 150);
+        }
+
+        function onStockKeydown(e) {
+            const len = stockSuggestions.value.length;
+            if (len === 0) return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); stockSuggestionIdx.value = Math.min(stockSuggestionIdx.value + 1, len - 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); stockSuggestionIdx.value = Math.max(stockSuggestionIdx.value - 1, 0); }
+            else if (e.key === 'Enter' && stockSuggestionIdx.value >= 0) {
+                e.preventDefault();
+                selectStock(stockSuggestions.value[stockSuggestionIdx.value].stock_code);
+            }
+        }
+
+        function selectStock(code) {
+            if (!code) return;
+            stockInput.value = code;
+            stockSuggestions.value = [];
+            stockSuggestionIdx.value = -1;
+            loadStockDetail(code);
+        }
+
+        function sortHoldings(key) {
+            if (holdingsSort.value.key === key) {
+                holdingsSort.value = { key, dir: holdingsSort.value.dir === 'asc' ? 'desc' : 'asc' };
+            } else {
+                holdingsSort.value = { key, dir: 'desc' };
+            }
+            loadHoldings(stockInput.value, 0, true);
+        }
+
+        function sortArrowH(key) {
+            if (holdingsSort.value.key !== key) return '';
+            return holdingsSort.value.dir === 'asc' ? ' ▲' : ' ▼';
+        }
+
+        async function openFundHistory(h) {
+            if (!h || !h.fund_code) return;
+            fundModal.value = { fund_code: h.fund_code, fund_name: h.fund_name, rows: [], loading: true };
+            try {
+                const res = await fetch(`${API_BASE}/fund/stock/${stockInput.value}/fund/${h.fund_code}`);
+                const data = await res.json();
+                fundModal.value = { fund_code: data.fund_code, fund_name: data.fund_name, rows: data.rows || [], loading: false };
+                await nextTick();
+                renderFundHistoryChart(data.rows || []);
+            } catch (e) {
+                fundModal.value.rows = [];
+                fundModal.value.loading = false;
+            }
+        }
+
+        function renderFundHistoryChart(rows) {
+            const el = document.getElementById('fund-hist-chart');
+            if (!el) return;
+            if (el._chart) { el._chart.remove(); el._chart = null; }
+            if (!rows.length) return;
+
+            const chart = LightweightCharts.createChart(el, {
+                width: el.clientWidth,
+                height: el.clientHeight || 300,
+                layout: { background: { color: 'transparent' }, textColor: '#8e8ea0' },
+                grid: { vertLines: { color: '#1e1e35' }, horzLines: { color: '#1e1e35' } },
+                timeScale: { borderColor: '#2a2a40', timeVisible: false },
+                rightPriceScale: { borderColor: '#2a2a40' },
+                leftPriceScale: { borderColor: '#2a2a40', visible: true },
+            });
+
+            const ts = d => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+            const toWan = v => (v / 10000);
+
+            const amount = chart.addLineSeries({
+                color: '#3b82f6', lineWidth: 2, title: '持仓股数(万股)',
+                priceLineVisible: false, priceScaleId: 'amount',
+            });
+            amount.priceScale().applyOptions({ scaleMargins: { top: 0.05, bottom: 0.55 } });
+            amount.setData(rows.filter(r => r.amount != null).map(r => ({ time: ts(r.end_date), value: toWan(r.amount) })));
+
+            const mkv = chart.addLineSeries({
+                color: '#f0b90b', lineWidth: 2, title: '持仓市值(亿元)',
+                priceLineVisible: false, priceScaleId: 'mkv',
+            });
+            mkv.priceScale().applyOptions({ scaleMargins: { top: 0.05, bottom: 0.55 }, visible: true });
+            mkv.setData(rows.filter(r => r.mkv != null).map(r => ({ time: ts(r.end_date), value: r.mkv / 1e8 })));
+
+            const ratio = chart.addLineSeries({
+                color: '#22c55e', lineWidth: 2, title: '占基金净值比%',
+                priceLineVisible: false, priceScaleId: 'ratio',
+            });
+            ratio.priceScale().applyOptions({ scaleMargins: { top: 0.58, bottom: 0.05 }, visible: true });
+            ratio.setData(rows.filter(r => r.stk_mkv_ratio != null).map(r => ({ time: ts(r.end_date), value: r.stk_mkv_ratio })));
+
+            chart.timeScale().fitContent();
+            el._chart = chart;
+        }
+
+        function closeFundModal() {
+            const el = document.getElementById('fund-hist-chart');
+            if (el && el._chart) { el._chart.remove(); el._chart = null; }
+            fundModal.value = null;
+        }
+
+        function fmtShares(amount) {
+            if (amount == null) return '-';
+            return (amount / 10000).toFixed(2);
+        }
+
+        function fmtPct(val) {
+            if (val == null || val === '') return '-';
+            return Number(val).toFixed(2) + '%';
         }
 
         async function loadScreen() {
@@ -4185,9 +4469,14 @@ app.component('fund-page', {
         return {
             tab, loading, error, macroData, sectorType, sectorList,
             selectedSector, sectorStocks, stockInput, stockDetail,
+            stockSuggestions, stockSuggestionIdx, stockHoldings,
+            holdingsSort, holdingsLoading, fundModal,
             screenType, screenResult, latestQuarter,
             onTabChange, loadMacro, loadSectorFlow, loadSectorStocks,
             loadStockDetail, loadScreen, signalColor, signalText,
+            onStockInput, onStockKeydown, selectStock,
+            sortHoldings, sortArrowH, fmtShares, fmtPct,
+            loadMoreHoldings, openFundHistory, closeFundModal,
             fmtMoney, fmtGrowth, valClass,
         };
     },

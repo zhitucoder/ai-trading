@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Trading System</title>
-<link rel="stylesheet" href="style.css?v=20260817b">
+<link rel="stylesheet" href="style.css?v=20260820b">
 </head>
 <body>
 <div id="app">
@@ -32,6 +32,7 @@
         <volume-surge-bt-page v-else-if="currentPage === 'volume_surge_bt'"></volume-surge-bt-page>
         <profile-page v-else-if="currentPage === 'profile'"></profile-page>
         <dividend-page v-else-if="currentPage === 'dividend'"></dividend-page>
+        <buyback-page v-else-if="currentPage === 'buyback'"></buyback-page>
         <debate-page v-else-if="currentPage === 'debate'"></debate-page>
         <expert-page v-else-if="currentPage === 'expert'"></expert-page>
         <dmdl-page v-else-if="currentPage === 'dmdl'"></dmdl-page>
@@ -1216,6 +1217,7 @@
 
             <template v-if="profile">
                 <div class="profile-header">
+                    <button v-if="returnPage" class="btn-nav back-btn" @click="goBack" title="返回上一页">‹ 返回</button>
                     <div class="profile-header-left">
                         <div class="profile-code">{{ profile.code }}</div>
                         <div class="profile-name">{{ profile.name }}</div>
@@ -1945,6 +1947,100 @@
                 <p style="font-size:13px;color:var(--text-muted);">暂无分红记录</p>
             </div>
         </div>
+    </div>
+</template>
+
+<template id="buyback-tpl">
+    <div class="topbar">
+        <h2>股份回购</h2>
+        <span class="badge">东方财富</span>
+    </div>
+    <div class="content">
+        <div class="card">
+            <div class="form-row" style="gap:12px;align-items:flex-end;flex-wrap:wrap;">
+                <div class="config-item">
+                    <label>搜索代码/名称</label>
+                    <input type="text" v-model="keyword" @input="onKeywordInput" @keyup.enter="onFilter" placeholder="如 600519 或 贵州茅台" style="width:200px;">
+                </div>
+                <div class="config-item">
+                    <label>回购进度</label>
+                    <select v-model="progressStatus" @change="onFilter" style="width:130px;">
+                        <option value="">全部</option>
+                        <option value="ongoing">进行中</option>
+                        <option value="done">已完成</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>回购目的</label>
+                    <select v-model="purpose" @change="onFilter" style="width:130px;">
+                        <option value="">全部</option>
+                        <option value="cancel">注销</option>
+                        <option value="other">其它</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <span class="screening-count">共 <strong>{{ total }}</strong> 条</span>
+                </div>
+                <div class="config-item">
+                    <button class="page-btn" @click="onFilter">查询</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="error" class="card" style="border-color:var(--red);color:var(--red);font-size:13px;">{{ error }}</div>
+
+        <div class="card" v-if="rows.length">
+            <div style="overflow-x:auto;">
+                <table class="screening-table div-table">
+                    <thead>
+                        <tr>
+                            <th style="width:70px;">代码</th>
+                            <th style="width:90px;">名称</th>
+                            <th style="width:100px;cursor:pointer;" @click="toggleSort('notice_date')">公告日{{ sortArrow('notice_date') }}</th>
+                            <th style="width:220px;max-width:220px;">回购目的</th>
+                            <th style="width:120px;cursor:pointer;" @click="toggleSort('repur_num_lower')">计划数量下限(股){{ sortArrow('repur_num_lower') }}</th>
+                            <th style="width:120px;cursor:pointer;" @click="toggleSort('repur_num_cap')">计划数量上限(股){{ sortArrow('repur_num_cap') }}</th>
+                            <th style="width:120px;cursor:pointer;" @click="toggleSort('repur_num')">实际数量(股){{ sortArrow('repur_num') }}</th>
+                            <th style="width:110px;cursor:pointer;" @click="toggleSort('repur_amount_lower')">计划金额下限(元){{ sortArrow('repur_amount_lower') }}</th>
+                            <th style="width:110px;cursor:pointer;" @click="toggleSort('repur_amount_limit')">计划金额上限(元){{ sortArrow('repur_amount_limit') }}</th>
+                            <th style="width:120px;cursor:pointer;" @click="toggleSort('repur_amount')">实际金额(元){{ sortArrow('repur_amount') }}</th>
+                            <th style="width:100px;cursor:pointer;" @click="toggleSort('repur_start_date')">起始日{{ sortArrow('repur_start_date') }}</th>
+                            <th style="width:100px;cursor:pointer;" @click="toggleSort('repur_end_date')">截止日{{ sortArrow('repur_end_date') }}</th>
+                            <th style="width:110px;">进度</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="row in rows" :key="row.repur_code" class="screening-row" @click="goStock(row.stock_code)" style="cursor:pointer;">
+                            <td><strong>{{ row.stock_code }}</strong></td>
+                            <td>{{ row.stock_name }}</td>
+                            <td>{{ row.notice_date || '-' }}</td>
+                            <td class="bb-purpose" @mouseenter="showTip($event, row.repur_objective)" @mousemove="moveTip($event)" @mouseleave="hideTip">{{ row.repur_objective || '-' }}</td>
+                            <td style="color:var(--text-dim);">{{ fmtInt(row.repur_num_lower) }}</td>
+                            <td style="color:var(--text-dim);">{{ fmtInt(row.repur_num_cap) }}</td>
+                            <td style="color:var(--amber);font-weight:600;">{{ fmtInt(row.repur_num) }}</td>
+                            <td style="color:var(--text-dim);">{{ fmtAmt(row.repur_amount_lower) }}</td>
+                            <td style="color:var(--text-dim);">{{ fmtAmt(row.repur_amount_limit) }}</td>
+                            <td style="color:var(--amber);font-weight:600;">{{ fmtAmt(row.repur_amount) }}</td>
+                            <td style="color:var(--text-dim);">{{ row.repur_start_date || '-' }}</td>
+                            <td style="color:var(--text-dim);">{{ row.repur_end_date || '-' }}</td>
+                            <td><span class="bb-badge" :class="progClass(row.repur_progress)">{{ row.repur_progress_label }}</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination" v-if="total > pageSize">
+                <button class="page-btn" :disabled="page <= 1" @click="page--; loadList()">‹</button>
+                <span class="page-info">{{ page }} / {{ Math.ceil(total / pageSize) }}</span>
+                <button class="page-btn" :disabled="page * pageSize >= total" @click="page++; loadList()">›</button>
+            </div>
+        </div>
+
+        <div v-else-if="!loading" class="card">
+            <div class="placeholder" style="height:100px;">
+                <p style="font-size:13px;color:var(--text-muted);">暂无回购记录</p>
+            </div>
+        </div>
+        <div class="bb-tooltip" v-if="tip.show" :style="{ left: tip.x + 'px', top: tip.y + 'px' }">{{ tip.text }}</div>
     </div>
 </template>
 
@@ -3360,7 +3456,7 @@
         <template v-if="tab==='macro' && macroData">
             <div class="card">
                 <div class="card-title">全市场基金持仓趋势（双季度）</div>
-                <div style="overflow-x:auto;">
+                <div class="table-wrap scroll-table">
                     <table class="table" style="width:100%;">
                         <thead><tr><th>季度</th><th>持仓市值</th><th>基金数</th><th>覆盖股票数</th></tr></thead>
                         <tbody>
@@ -3376,7 +3472,7 @@
             </div>
             <div class="card">
                 <div class="card-title">本季度板块资金流向TOP20（{{ latestQuarter }}）</div>
-                <div style="overflow-x:auto;">
+                <div class="table-wrap scroll-table">
                     <table class="table" style="width:100%;">
                         <thead><tr><th>板块</th><th>市值变化</th><th>变化率</th><th>信号</th><th>基金数</th></tr></thead>
                         <tbody>
@@ -3403,7 +3499,7 @@
                         <option value="concept">概念板块</option>
                     </select>
                 </div>
-                <div style="overflow-x:auto;">
+                <div class="table-wrap scroll-table">
                     <table class="table" style="width:100%;">
                         <thead><tr><th>板块</th><th>市值变化</th><th>变化率</th><th>信号</th><th>股票数</th><th>基金数</th></tr></thead>
                         <tbody>
@@ -3423,7 +3519,7 @@
             </div>
             <div v-if="selectedSector" class="card">
                 <div class="card-title">{{ selectedSector }} — 持仓个股明细</div>
-                <div style="overflow-x:auto;">
+                <div class="table-wrap scroll-table">
                     <table class="table" style="width:100%;">
                         <thead><tr><th>代码</th><th>名称</th><th>基金数</th><th>变化</th><th>持仓变化率</th><th>持仓市值</th><th>主动/被动</th></tr></thead>
                         <tbody>
@@ -3448,9 +3544,20 @@
             <div class="card">
                 <div class="card-title">
                     个股基金持仓
-                    <input v-model="stockInput" placeholder="输入股票代码 如 600519" @keyup.enter="loadStockDetail(stockInput)"
-                           style="margin-left:12px;padding:6px 12px;border-radius:4px;background:var(--bg-secondary);color:var(--text);border:1px solid var(--border);width:200px;" />
-                    <button @click="loadStockDetail(stockInput)" style="margin-left:8px;" class="btn btn-sm">查询</button>
+                    <div style="position:relative;display:inline-block;margin-left:12px;vertical-align:middle;">
+                        <input v-model="stockInput" placeholder="代码 / 名称 / 拼音，如 600519 / 贵州茅台 / gzmt"
+                               @input="onStockInput" @keydown="onStockKeydown"
+                               @keyup.enter="selectStock(stockInput)"
+                               style="padding:6px 12px;border-radius:4px;background:var(--bg-secondary);color:var(--text);border:1px solid var(--border);width:230px;" />
+                        <div v-if="stockSuggestions.length" class="stock-suggestions">
+                            <div v-for="(s, i) in stockSuggestions" :key="s.stock_code"
+                                 class="stock-suggestion-item" :class="{active: stockSuggestionIdx === i}"
+                                 @click="selectStock(s.stock_code)" @mouseenter="stockSuggestionIdx = i">
+                                <strong>{{ s.stock_code }}</strong> {{ s.stock_name }}
+                            </div>
+                        </div>
+                    </div>
+                    <button @click="selectStock(stockInput)" style="margin-left:8px;" class="btn btn-sm">查询</button>
                 </div>
             </div>
             <template v-if="stockDetail">
@@ -3470,7 +3577,7 @@
                 </div>
                 <div class="card">
                     <div class="card-title">季度持仓趋势</div>
-                    <div style="overflow-x:auto;">
+                    <div class="table-wrap scroll-table">
                         <table class="table" style="width:100%;">
                             <thead><tr><th>季度</th><th>基金数</th><th>变化</th><th>持仓变化率</th><th>持仓市值</th><th>市值变化</th><th>主动占比</th></tr></thead>
                             <tbody>
@@ -3485,6 +3592,43 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">
+                        最新季度持仓基金明细
+                        <span v-if="stockHoldings.quarter" class="badge">{{ stockHoldings.quarter }}</span>
+                        <span v-if="stockHoldings.total" style="margin-left:8px;font-size:12px;color:var(--text-muted);">共 {{ stockHoldings.total }} 只基金 · 已显示 {{ stockHoldings.rows.length }}</span>
+                        <span style="margin-left:8px;font-size:12px;color:var(--text-muted);">点击基金名称/代码查看近2年增减持</span>
+                    </div>
+                    <div class="table-wrap scroll-table scroll-table-20">
+                        <table class="table" style="width:100%;">
+                            <thead><tr>
+                                <th style="cursor:pointer;" @click="sortHoldings('fund_name')">基金名称{{ sortArrowH('fund_name') }}</th>
+                                <th style="cursor:pointer;" @click="sortHoldings('fund_code')">基金代码{{ sortArrowH('fund_code') }}</th>
+                                <th style="cursor:pointer;" @click="sortHoldings('amount')">持仓股数(万股){{ sortArrowH('amount') }}</th>
+                                <th style="cursor:pointer;" @click="sortHoldings('mkv')">持仓市值{{ sortArrowH('mkv') }}</th>
+                                <th style="cursor:pointer;" @click="sortHoldings('stk_float_ratio')" title="该基金持仓占该股票流通股本比例">持仓比例%{{ sortArrowH('stk_float_ratio') }}</th>
+                                <th style="cursor:pointer;" @click="sortHoldings('stk_mkv_ratio')" title="该股票市值占该基金资产净值比例">占基金净值比%{{ sortArrowH('stk_mkv_ratio') }}</th>
+                            </tr></thead>
+                            <tbody>
+                                <tr v-for="h in stockHoldings.rows" :key="h.fund_code"
+                                    style="cursor:pointer;" @click="openFundHistory(h)">
+                                    <td style="color:var(--accent);">{{ h.fund_name }}</td>
+                                    <td style="font-family:'SF Mono','Consolas',monospace;color:var(--accent);">{{ h.fund_code }}</td>
+                                    <td>{{ fmtShares(h.amount) }}</td>
+                                    <td>{{ fmtMoney(h.mkv) }}</td>
+                                    <td>{{ fmtPct(h.stk_float_ratio) }}</td>
+                                    <td>{{ fmtPct(h.stk_mkv_ratio) }}</td>
+                                </tr>
+                                <tr v-if="stockHoldings.rows.length === 0"><td colspan="6" style="text-align:center;color:var(--text-muted);">暂无持仓数据</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px;">
+                        <button v-if="stockHoldings.rows.length < (stockHoldings.total || 0)"
+                                @click="loadMoreHoldings" class="btn btn-sm" :disabled="holdingsLoading">查更多数据（{{ Math.min(20, (stockHoldings.total || 0) - stockHoldings.rows.length) }} 条）</button>
+                        <span v-else-if="stockHoldings.total" style="font-size:12px;color:var(--text-muted);">已全部加载</span>
                     </div>
                 </div>
             </template>
@@ -3502,7 +3646,7 @@
                         <option value="crash">持仓暴跌（>80%减仓）</option>
                     </select>
                 </div>
-                <div style="overflow-x:auto;">
+                <div class="table-wrap scroll-table">
                     <table class="table" style="width:100%;">
                         <thead><tr><th>代码</th><th>名称</th><th>基金数</th><th>趋势</th><th>持仓市值</th><th>变化</th></tr></thead>
                         <tbody>
@@ -3520,12 +3664,42 @@
                 </div>
             </div>
         </template>
+
+        <!-- 基金持仓历史弹窗 -->
+        <div v-if="fundModal" class="modal-mask" @click.self="closeFundModal">
+            <div class="modal">
+                <button class="btn btn-sm btn-close" @click="closeFundModal">关闭</button>
+                <div class="modal-title">{{ fundModal.fund_name }} <span style="font-family:'SF Mono','Consolas',monospace;color:var(--accent);font-size:13px;">{{ fundModal.fund_code }}</span></div>
+                <div class="modal-sub">对 <strong>{{ stockDetail?.stock_name || stockInput }}</strong> 近2年持仓增减（完整披露季度 Q2/Q4）</div>
+                <div id="fund-hist-chart" style="width:100%;height:300px;margin-bottom:12px;"></div>
+                <div class="table-wrap scroll-table">
+                    <table class="table" style="width:100%;">
+                        <thead><tr>
+                            <th>季度</th><th>持仓股数(万股)</th><th>增减股数(万股)</th><th>增减幅%</th>
+                            <th>持仓市值</th><th>占基金净值比%</th><th>净值比变动</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr v-for="row in fundModal.rows" :key="row.end_date">
+                                <td>{{ row.quarter }}</td>
+                                <td>{{ fmtShares(row.amount) }}</td>
+                                <td :class="valClass(row.amount_change)">{{ row.amount_change != null ? fmtShares(row.amount_change) : '-' }}</td>
+                                <td :class="valClass(row.amount_change_pct)">{{ fmtGrowth(row.amount_change_pct) }}</td>
+                                <td>{{ fmtMoney(row.mkv) }}</td>
+                                <td>{{ fmtPct(row.stk_mkv_ratio) }}</td>
+                                <td :class="valClass(row.ratio_change)">{{ row.ratio_change != null ? fmtPct(row.ratio_change) : '-' }}</td>
+                            </tr>
+                            <tr v-if="fundModal.rows.length === 0"><td colspan="7" style="text-align:center;color:var(--text-muted);">该基金近2年无该股票持仓记录</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script src="https://unpkg.com/vue@3.4/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
-<script src="app.js?v=20260817b"></script>
+<script src="app.js?v=20260823b"></script>
 </body>
 </html>

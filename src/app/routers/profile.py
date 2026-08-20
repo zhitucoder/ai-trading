@@ -893,6 +893,217 @@ h1{{font-size:20px;color:#00d4ff;margin-bottom:4px}}.sub{{font-size:15px;color:#
 <div class=footer>六维分析方法论财务诊断 v1.0 · 数据基于最新年报</div></html>"""
 
 
+# ── 上市公司股份回购方案列表 API ──
+PROGRESS_MAP = {
+    '001': '董事会预案', '002': '股东大会通过', '003': '回购实施中',
+    '004': '回购完成', '005': '已终止', '006': '回购完成(注销)',
+    '007': '回购实施中', '008': '回购完成',
+}
+
+
+@router.get('/buyback/list')
+def buyback_list(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    keyword: str = Query(''),
+    progress: str = Query(''),
+    purpose: str = Query(''),
+    progress_status: str = Query(''),
+    sort: str = Query('notice_date'),
+    order: str = Query('desc'),
+):
+    """返回 stock_buyback_dfcf 表中的回购方案列表（不含逐日回购明细）。
+
+    purpose: ''=全部, 'cancel'=注销目的, 'other'=其它目的
+    progress_status: ''=全部, 'ongoing'=进行中, 'done'=已完成
+    """
+    sort_cols = {
+        'notice_date': 'notice_date', 'repur_start_date': 'repur_start_date',
+        'repur_end_date': 'repur_end_date', 'repur_num_cap': 'repur_num_cap',
+        'repur_num_lower': 'repur_num_lower', 'repur_amount_lower': 'repur_amount_lower',
+        'repur_amount_limit': 'repur_amount_limit',
+        'repur_num': 'repur_num', 'repur_amount': 'repur_amount',
+    }
+    sort_sql = sort_cols.get(sort, 'notice_date')
+    order_sql = 'ASC' if order.lower() == 'asc' else 'DESC'
+
+    ONGOING = ("'001'", "'002'", "'003'", "'007'")
+    DONE = ("'004'", "'006'", "'008'")
+
+    where, params = [], []
+    if keyword:
+        where.append('(stock_code LIKE %s OR stock_name LIKE %s)')
+        params += [f'%{keyword}%', f'%{keyword}%']
+    if progress:
+        where.append('repur_progress = %s')
+        params.append(progress)
+    if purpose == 'cancel':
+        where.append('repur_objective LIKE %s')
+        params.append('%注销%')
+    elif purpose == 'other':
+        where.append('(repur_objective IS NULL OR repur_objective NOT LIKE %s)')
+        params.append('%注销%')
+    if progress_status == 'ongoing':
+        where.append(f'repur_progress IN ({",".join(ONGOING)})')
+    elif progress_status == 'done':
+        where.append(f'repur_progress IN ({",".join(DONE)})')
+    where_sql = ('WHERE ' + ' AND '.join(where)) if where else ''
+
+    total = query(f"SELECT COUNT(*) n FROM stock_buyback_dfcf {where_sql}", params)[0]['n']
+    offset = (page - 1) * page_size
+    rows = query(
+        f"""SELECT repur_code, stock_code, stock_name, repur_objective, share_type,
+                   repur_progress, repur_num, repur_num_lower, repur_num_cap,
+                   repur_amount, repur_amount_lower, repur_amount_limit,
+                   repur_price_lower, repur_price_cap,
+                   repur_start_date, repur_end_date, notice_date, finish_date
+            FROM stock_buyback_dfcf {where_sql}
+            ORDER BY {sort_sql} {order_sql}
+            LIMIT %s OFFSET %s""",
+        params + [page_size, offset])
+
+    prog_rows = query(
+        "SELECT repur_progress, COUNT(*) n FROM stock_buyback_dfcf GROUP BY repur_progress ORDER BY n DESC")
+    progress_options = [{'code': r['repur_progress'],
+                         'label': PROGRESS_MAP.get(r['repur_progress'], r['repur_progress']),
+                         'count': r['n']} for r in prog_rows]
+
+    def fmt(v):
+        return str(v) if v is not None else None
+
+    out = []
+    for r in rows:
+        out.append({
+            'repur_code': r['repur_code'],
+            'stock_code': r['stock_code'],
+            'stock_name': r['stock_name'],
+            'repur_objective': r['repur_objective'],
+            'share_type': r['share_type'],
+            'repur_progress': r['repur_progress'],
+            'repur_progress_label': PROGRESS_MAP.get(r['repur_progress'], r['repur_progress']),
+            'repur_num': r['repur_num'],
+            'repur_num_lower': r['repur_num_lower'],
+            'repur_num_cap': r['repur_num_cap'],
+            'repur_amount': r['repur_amount'],
+            'repur_amount_lower': r['repur_amount_lower'],
+            'repur_amount_limit': r['repur_amount_limit'],
+            'repur_price_lower': r['repur_price_lower'],
+            'repur_price_cap': r['repur_price_cap'],
+            'repur_start_date': fmt(r['repur_start_date']),
+            'repur_end_date': fmt(r['repur_end_date']),
+            'notice_date': fmt(r['notice_date']),
+            'finish_date': fmt(r['finish_date']),
+        })
+    return {'total': total, 'page': page, 'page_size': page_size,
+            'progress_options': progress_options, 'rows': out}
+
+
+# ── 股份回购方案 独立展示页面（点击个股跳转至六维分析画像） ──
+@router.get('/report/buyback', response_class=HTMLResponse)
+def report_buyback():
+    return _BUYBACK_HTML
+
+
+_BUYBACK_HTML = """<!DOCTYPE html><html lang=zh><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1"><title>上市公司股份回购</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0d0d1a;color:#ccc;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;padding:14px}
+h1{font-size:18px;color:#00d4ff;margin-bottom:2px}.sub{font-size:12px;color:#888;margin-bottom:12px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+.bar input,.bar select{background:#131322;border:1px solid #2a2a45;color:#ccc;border-radius:8px;padding:7px 10px;font-size:13px;outline:none}
+.bar input{min-width:140px}
+.btn{background:#1e2a4a;border:1px solid #2a3a6a;color:#9cc4ff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer}
+.btn:hover{background:#243456}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.tab{padding:5px 12px;border-radius:12px;font-size:12px;background:#131322;border:1px solid #2a2a45;color:#aaa;cursor:pointer}
+.tab.on{background:#1e2a4a;color:#00d4ff;border-color:#2a4a7a}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:8px 6px;text-align:left;border-bottom:1px solid #1a1a30;vertical-align:top}
+th{color:#8aa;font-weight:600;position:sticky;top:0;background:#0d0d1a;cursor:pointer;white-space:nowrap}
+th .ar{color:#00d4ff;font-size:10px}
+a.lk{color:#7db4ff;text-decoration:none}
+a.lk:hover{text-decoration:underline}
+.purpose{color:#bbb;line-height:1.4;max-width:340px}
+.qty{color:#ffd700;white-space:nowrap}
+.muted{color:#777}
+.pg{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:14px}
+.pg button{background:#131322;border:1px solid #2a2a45;color:#9cc4ff;border-radius:8px;padding:6px 14px;cursor:pointer}
+.pg button:disabled{opacity:.4;cursor:default}
+.pginfo{font-size:12px;color:#888}
+.badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px}
+.b-done{background:rgba(34,197,94,0.15);color:#22c55e}
+.b-doing{background:rgba(59,130,246,0.15);color:#3b82f6}
+.b-plan{background:rgba(234,179,8,0.15);color:#eab308}
+.b-stop{background:rgba(239,68,68,0.15);color:#ef4444}
+.foot{margin-top:14px;font-size:10px;color:#444;text-align:center}
+</style>
+<div><h1>上市公司股份回购</h1><div class=sub>数据来源：东方财富数据中心 · 点击个股名称跳转六维画像</div></div>
+<div class=bar>
+  <input id=kw placeholder="搜索代码/名称" onkeydown="if(event.key==='Enter')load(1)">
+  <select id=prog><option value="">全部进度</option></select>
+  <button class=btn onclick="load(1)">查询</button>
+</div>
+<div class=tabs id=tabs></div>
+<div style="overflow-x:auto"><table id=tb><thead><tr>
+  <th onclick="sortBy('notice_date')">公告日 <span class=ar id=ar_notice_date></span></th>
+  <th>股票</th>
+  <th>回购目的</th>
+  <th onclick="sortBy('repur_num_cap')">回购数量(股) <span class=ar id=ar_repur_num_cap></span></th>
+  <th>回购金额(元)</th>
+  <th>回购期限</th>
+  <th>进度</th>
+</tr></thead><tbody id=bd></tbody></table></div>
+<div class=pg><button id=prev onclick="go(-1)">上一页</button><span class=pginfo id=pgi></span><button id=next onclick="go(1)">下一页</button></div>
+<div class=foot>东方财富股份回购方案数据 · 系统 gitee.com/zhitucoder/ai-trading 生成</div>
+<script>
+var page=1, total=0, sort='notice_date', order='desc';
+var fmtN=function(v){return v==null?'—':Number(v).toLocaleString('zh-CN')};
+var fmtY=function(v){return v==null?'—':(Number(v)/1e8).toFixed(2)+'亿'};
+function cls(p){if(p==='004'||p==='006'||p==='008')return 'b-done';if(p==='003'||p==='007')return 'b-doing';if(p==='005')return 'b-stop';return 'b-plan'}
+function load(p){
+  page=p||page;
+  var kw=document.getElementById('kw').value.trim();
+  var pr=document.getElementById('prog').value;
+  var u='/api/buyback/list?page='+page+'&page_size=50&sort='+sort+'&order='+order+'&keyword='+encodeURIComponent(kw)+'&progress='+encodeURIComponent(pr);
+  fetch(u).then(r=>r.json()).then(d=>{
+    total=d.total;
+    var html='';
+    d.rows.forEach(function(r){
+      var qty=(r.repur_num_lower!=null||r.repur_num_cap!=null)?(fmtN(r.repur_num_lower)+' ~ '+fmtN(r.repur_num_cap)):fmtN(r.repur_num);
+      var amt=(r.repur_amount_lower!=null||r.repur_amount_limit!=null)?(fmtY(r.repur_amount_lower)+' ~ '+fmtY(r.repur_amount_limit)):fmtY(r.repur_amount);
+      var per=(r.repur_start_date||'—')+' ~ '+(r.repur_end_date||'—');
+      var obj=(r.repur_objective||'').replace(/[\\r\\n]+/g,' ');
+      if(obj.length>60)obj=obj.slice(0,60)+'…';
+      html+='<tr><td class=muted>'+(r.notice_date||'—')+'</td>'+
+        '<td><a class=lk href="/api/report/zxm/'+r.stock_code+'" target="_blank">'+r.stock_code+'<br>'+r.stock_name+'</a></td>'+
+        '<td class=purpose>'+obj+'</td>'+
+        '<td class=qty>'+qty+'</td>'+
+        '<td class=muted>'+amt+'</td>'+
+        '<td class=muted>'+per+'</td>'+
+        '<td><span class="badge '+cls(r.repur_progress)+'">'+r.repur_progress_label+'</span></td></tr>';
+    });
+    document.getElementById('bd').innerHTML=html;
+    var tp=Math.ceil(total/50)||1;
+    document.getElementById('pgi').textContent='第 '+page+' / '+tp+' 页 · 共 '+total+' 条';
+    document.getElementById('prev').disabled=page<=1;
+    document.getElementById('next').disabled=page>=tp;
+    ['notice_date','repur_num_cap'].forEach(function(k){document.getElementById('ar_'+k).textContent='';});
+    document.getElementById('ar_'+sort).textContent=order==='desc'?'▼':'▲';
+  });
+}
+function go(d){var tp=Math.ceil(total/50)||1;var p=Math.min(tp,Math.max(1,page+d));if(p!==page)load(p);}
+function sortBy(k){if(sort===k){order=order==='desc'?'asc':'desc'}else{sort=k;order='desc'}load(page);}
+function loadTabs(){
+  fetch('/api/buyback/list?page_size=1').then(r=>r.json()).then(d=>{
+    var t=document.getElementById('tabs');var h='';
+    h+='<span class="tab on" data-p="" onclick="pickTab(this,\'\')">全部 ('+d.total+')</span>';
+    d.progress_options.forEach(function(o){h+='<span class="tab" data-p="'+o.code+'" onclick="pickTab(this,\''+o.code+'\')">'+o.label+' ('+o.count+')</span>';});
+    t.innerHTML=h;
+  });
+}
+function pickTab(el,p){document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on')});el.classList.add('on');document.getElementById('prog').value=p;load(1);}
+loadTabs();load(1);
+</script></html>"""
+
+
 # ── 基金持仓与股价联动 matplotlib 图（复用 fund-holding-analysis skill 画法） ──
 _matplotlib_loaded = False
 _plt = None
