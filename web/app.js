@@ -4441,6 +4441,11 @@ app.component('fund-page', {
             return Number(val).toFixed(2) + '%';
         }
 
+        function fundHoldRatio(h) {
+            if (h == null || h.total_amount == null || !h.total_shares) return null;
+            return h.total_amount / h.total_shares * 100;
+        }
+
         async function loadScreen() {
             loading.value = true;
             try {
@@ -4475,7 +4480,7 @@ app.component('fund-page', {
             onTabChange, loadMacro, loadSectorFlow, loadSectorStocks,
             loadStockDetail, loadScreen, signalColor, signalText,
             onStockInput, onStockKeydown, selectStock,
-            sortHoldings, sortArrowH, fmtShares, fmtPct,
+            sortHoldings, sortArrowH, fmtShares, fmtPct, fundHoldRatio,
             loadMoreHoldings, openFundHistory, closeFundModal,
             fmtMoney, fmtGrowth, valClass,
         };

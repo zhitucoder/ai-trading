@@ -71,11 +71,13 @@ def sector_stocks(sector_name: str, end_date: str = None):
 def stock_detail(stock_code: str):
     trend = query("SELECT * FROM ads_fund_stock_trend WHERE stock_code = %s", (stock_code,))
     history = query("""
-        SELECT quarter, end_date, fund_count, prev_fund_count, fund_count_change,
-               amount_change_pct, total_mkv, mkv_change, active_count, passive_count, active_ratio
-        FROM ads_fund_stock_change
-        WHERE stock_code = %s
-        ORDER BY end_date
+        SELECT c.quarter, c.end_date, c.fund_count, c.prev_fund_count, c.fund_count_change,
+               c.amount_change_pct, c.total_mkv, c.mkv_change, c.active_count, c.passive_count, c.active_ratio,
+               f.total_amount, f.total_shares
+        FROM ads_fund_stock_change c
+        LEFT JOIN ads_stock_fund f ON f.stock_code = c.stock_code AND f.end_date = c.end_date
+        WHERE c.stock_code = %s
+        ORDER BY c.end_date
     """, (stock_code,))
     stock_info = query("SELECT stock_name FROM stocks WHERE stock_code = %s", (stock_code,))
     return {

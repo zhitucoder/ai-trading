@@ -3579,7 +3579,7 @@
                     <div class="card-title">季度持仓趋势</div>
                     <div class="table-wrap scroll-table">
                         <table class="table" style="width:100%;">
-                            <thead><tr><th>季度</th><th>基金数</th><th>变化</th><th>持仓变化率</th><th>持仓市值</th><th>市值变化</th><th>主动占比</th></tr></thead>
+                            <thead><tr><th>季度</th><th>基金数</th><th>变化</th><th>持仓变化率</th><th>持仓市值</th><th>市值变化</th><th>持仓股数(万股)</th><th>占总股本比例</th><th>主动占比</th></tr></thead>
                             <tbody>
                                 <tr v-for="h in stockDetail.history" :key="h.end_date">
                                     <td>{{ h.quarter }}</td>
@@ -3588,6 +3588,8 @@
                                     <td :class="valClass(h.amount_change_pct)">{{ fmtGrowth(h.amount_change_pct) }}</td>
                                     <td>{{ fmtMoney(h.total_mkv) }}</td>
                                     <td :class="valClass(h.mkv_change)">{{ fmtMoney(h.mkv_change) }}</td>
+                                    <td>{{ fmtShares(h.total_amount) }}</td>
+                                    <td>{{ fmtPct(fundHoldRatio(h)) }}</td>
                                     <td>{{ h.active_ratio }}%</td>
                                 </tr>
                             </tbody>
@@ -3700,6 +3702,6 @@
 <script src="https://unpkg.com/vue@3.4/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
-<script src="app.js?v=20260824b"></script>
+<script src="app.js?v=20260825b"></script>
 </body>
 </html>
