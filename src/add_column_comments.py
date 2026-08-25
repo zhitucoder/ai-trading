@@ -247,6 +247,8 @@ COLUMN_COMMENTS = {
     'stock_profiles.profit_cagr_3y': '3年净利CAGR(%)',
     'stock_profiles.profit_cagr_5y': '5年净利CAGR(%)',
     'stock_profiles.profit_cagr_10y': '10年净利CAGR(%)',
+    'stock_profiles.price_cagr_3y': '3年股价CAGR(%，前复权)',
+    'stock_profiles.divergence': '业绩股价背离=3年净利CAGR-3年股价CAGR(百分点)',
     'stock_profiles.profile_json': '画像完整JSON',
     'stock_profiles.updated_at': '更新时间',
     'stock_profiles.data_date': '画像数据日期',

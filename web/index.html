@@ -419,6 +419,8 @@
                                         <template v-else-if="col === 'q_parent_net_profit'">单季归母净利润</template>
                                         <template v-else-if="col === 'latest_price'">最新价</template>
                                         <template v-else-if="col === 'pct_52w_high'">距52周高</template>
+                                        <template v-else-if="col === 'pe_static'">静态PE</template>
+                                        <template v-else-if="col === 'pe_dynamic'">动态PE</template>
                                         <template v-else-if="col === 'ma50'">MA50</template>
                                         <template v-else-if="col === 'ma150'">MA150</template>
                                         <template v-else-if="col === 'tightness'">波幅</template>
@@ -528,6 +530,9 @@
                                         </template>
                                         <template v-else-if="col === 'ma200'">
                                             {{ fmt(row[col]) }}
+                                        </template>
+                                        <template v-else-if="col === 'pe_static' || col === 'pe_dynamic'">
+                                            {{ row[col] != null ? Number(row[col]).toFixed(2) + 'x' : '-' }}
                                         </template>
                                         <template v-else-if="col === 'ma200_deviation_pct'">
                                             {{ row[col] != null ? Number(row[col]).toFixed(1) + '%' : '-' }}
@@ -1400,6 +1405,7 @@
 <div class="profile-ind-item" v-if="profile.fin_data.peg != null"><div class="profile-ind-label" title="PE(TTM) ÷ 净利润增长率(单季同比)，<1 为成长性合理的低估标的">PEG</div><div class="profile-ind-val" :class="profile.fin_data.peg <= 1 ? 'up' : ''">{{ profile.fin_data.peg.toFixed(2) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.debt_ratio != null"><div class="profile-ind-label">资产负债率</div><div class="profile-ind-val" :class="debtClass(profile.fin_data.debt_ratio)">{{ profile.fin_data.debt_ratio.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.net_margin != null"><div class="profile-ind-label" title="销售净利率 = 净利润 ÷ 营业收入">销售净利率</div><div class="profile-ind-val" :class="valClass(profile.fin_data.net_margin)">{{ profile.fin_data.net_margin.toFixed(2) }}%</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.net_margin_2025 != null"><div class="profile-ind-label" title="净利润率(2025年报) = 2025年归母净利润 ÷ 2025年营业收入">净利润率（2025年报）</div><div class="profile-ind-val" :class="valClass(profile.fin_data.net_margin_2025)">{{ profile.fin_data.net_margin_2025.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.market_cap != null"><div class="profile-ind-label" title="总市值（亿元）">总市值</div><div class="profile-ind-val accent">{{ profile.fin_data.market_cap.toFixed(1) }}亿</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.contract_liab_to_assets != null"><div class="profile-ind-label">合同负债占资产</div><div class="profile-ind-val" :class="valClass(10 - profile.fin_data.contract_liab_to_assets)">{{ profile.fin_data.contract_liab_to_assets.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_3y != null"><div class="profile-ind-label">营收3年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_3y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_3y) }}</div></div>
@@ -1590,6 +1596,18 @@
                 </div>
 
                 <div class="screening-section">
+                    <div class="screening-section-title">2025年报指标</div>
+                    <div class="screening-range-row">
+                        <div><label title="2025年度毛利率 = (营业收入 - 营业成本) ÷ 营业收入 × 100%">2025毛利率 ≥</label><input type="number" v-model.number="filterGm2025Min" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label title="2025年度毛利率">2025毛利率 ≤</label><input type="number" v-model.number="filterGm2025Max" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                    </div>
+                    <div class="screening-range-row" style="margin-top:6px;">
+                        <div><label title="2025年度净利润率 = 2025年归母净利润 ÷ 2025年营业收入 × 100%">2025净利率 ≥</label><input type="number" v-model.number="filterNetMargin2025Min" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                        <div><label title="2025年度净利润率">2025净利率 ≤</label><input type="number" v-model.number="filterNetMargin2025Max" @input="onFilterChange" style="width:80px;" placeholder="%"></div>
+                    </div>
+                </div>
+
+                <div class="screening-section">
                     <div class="screening-section-title">净利润金额（亿元，归母净利润）</div>
                     <div class="screening-range-row">
                         <div><label title="2025年度（上一年度）归母净利润 ≥">上年净利 ≥</label><input type="number" v-model.number="filterPrevYearProfitMin" @input="onFilterChange" style="width:80px;" placeholder="亿"></div>
@@ -1725,11 +1743,15 @@
                                     <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_3y')">3Y净利CAGR{{ sortArrow('profit_cagr_3y') }}</th>
                                     <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_5y')">5Y净利CAGR{{ sortArrow('profit_cagr_5y') }}</th>
                                     <th style="width:90px;cursor:pointer;" @click="toggleSort('profit_cagr_10y')">10Y净利CAGR{{ sortArrow('profit_cagr_10y') }}</th>
+                                    <th style="width:90px;cursor:pointer;" @click="toggleSort('price_cagr_3y')" title="股价3年CAGR = (最新价/3年前价)^(1/3)-1，前复权">3Y股价CAGR{{ sortArrow('price_cagr_3y') }}</th>
+                                    <th style="width:90px;cursor:pointer;" @click="toggleSort('divergence')" title="业绩股价背离 = 3年净利CAGR - 3年股价CAGR，>0 表示业绩增长快于股价（低估）">业绩股价背离{{ sortArrow('divergence') }}</th>
                                 <th style="width:70px;cursor:pointer;" @click="toggleSort('roe')">ROE{{ sortArrow('roe') }}</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('roe_ttm')">ROE(TTM){{ sortArrow('roe_ttm') }}</th>
                                 <th style="width:70px;cursor:pointer;" @click="toggleSort('net_margin')" title="销售净利率 = 净利润 ÷ 营业收入">净利率{{ sortArrow('net_margin') }}</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('market_cap')" title="总市值（亿元）">市值(亿){{ sortArrow('market_cap') }}</th>
                                 <th style="width:65px;cursor:pointer;" @click="toggleSort('gross_margin')">毛利率{{ sortArrow('gross_margin') }}</th>
+                                <th style="width:85px;cursor:pointer;" @click="toggleSort('gm_2025')" title="2025年度毛利率 = (营业收入-营业成本) ÷ 营业收入">25毛利率{{ sortArrow('gm_2025') }}</th>
+                                <th style="width:85px;cursor:pointer;" @click="toggleSort('net_margin_2025')" title="2025年度净利润率 = 2025年归母净利润 ÷ 2025年营业收入">25净利率{{ sortArrow('net_margin_2025') }}</th>
                                 <th style="width:70px;">上年营收</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('prev_year_profit')" title="2025年度归母净利润">上年净利{{ sortArrow('prev_year_profit') }}</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('cur_quarter_profit')" title="2026Q1归母净利润">本季净利{{ sortArrow('cur_quarter_profit') }}</th>
@@ -1770,11 +1792,15 @@
                                 <td :class="valClass(row.profit_cagr_3y)">{{ row.profit_cagr_3y != null ? fmtGrowth(row.profit_cagr_3y) : '-' }}</td>
                                 <td :class="valClass(row.profit_cagr_5y)">{{ row.profit_cagr_5y != null ? fmtGrowth(row.profit_cagr_5y) : '-' }}</td>
                                 <td :class="valClass(row.profit_cagr_10y)">{{ row.profit_cagr_10y != null ? fmtGrowth(row.profit_cagr_10y) : '-' }}</td>
+                                <td :class="valClass(row.price_cagr_3y)">{{ row.price_cagr_3y != null ? fmtGrowth(row.price_cagr_3y) : '-' }}</td>
+                                <td :class="row.divergence != null && row.divergence > 0 ? 'up' : (row.divergence != null && row.divergence < 0 ? 'down' : '')" title="业绩股价背离 >0 表示业绩增长快于股价（低估）">{{ row.divergence != null ? Number(row.divergence).toFixed(1) : '-' }}</td>
                                 <td :class="valClass(row.roe)">{{ row.roe != null ? row.roe.toFixed(2) + '%' : '-' }}</td>
                                 <td :class="valClass(row.roe_ttm)">{{ row.roe_ttm != null ? row.roe_ttm.toFixed(2) + '%' : '-' }}</td>
                                 <td :class="valClass(row.net_margin)">{{ row.net_margin != null ? Number(row.net_margin).toFixed(2) + '%' : '-' }}</td>
                                 <td :class="row.market_cap != null && row.market_cap < 50 ? 'down' : ''">{{ row.market_cap != null ? Number(row.market_cap).toFixed(1) : '-' }}</td>
                                 <td :class="valClass(row.gross_margin)">{{ row.gross_margin != null ? row.gross_margin.toFixed(2) + '%' : '-' }}</td>
+                                <td :class="valClass(row.gm_2025)">{{ row.gm_2025 != null ? Number(row.gm_2025).toFixed(2) + '%' : '-' }}</td>
+                                <td :class="valClass(row.net_margin_2025)">{{ row.net_margin_2025 != null ? Number(row.net_margin_2025).toFixed(2) + '%' : '-' }}</td>
                                 <td style="font-size:11px;">{{ row.prev_year_revenue != null ? fmtMoney(row.prev_year_revenue) : '-' }}</td>
                                 <td style="font-size:11px;">{{ row.prev_year_profit != null ? fmtMoney(row.prev_year_profit) : '-' }}</td>
                                 <td style="font-size:11px;">{{ row.cur_quarter_profit != null ? fmtMoney(row.cur_quarter_profit) : '-' }}</td>

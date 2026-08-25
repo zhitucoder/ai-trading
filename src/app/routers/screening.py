@@ -9,6 +9,65 @@ from ..strategies.five_step import FIVE_STEP_STRATEGIES, screen_five_step
 from ..strategies.undervalued_growth import UNDERVALUED_GROWTH_STRATEGIES, screen_undervalued_growth, STRICTNESS
 from ..database import query
 
+
+def enrich_with_pe(rows):
+    if not rows:
+        return rows
+    codes = [r['stock_code'] for r in rows if r.get('stock_code')]
+    if not codes:
+        return rows
+
+    placeholders = ','.join(['%s'] * len(codes))
+    latest_rows = query(f"""
+        SELECT k.stock_code, k.close_price AS latest_price,
+               r.basic_eps, r.report_date AS eps_report_date
+        FROM daily_kline_latest k
+        LEFT JOIN fin_ratios r ON r.stock_code = k.stock_code
+            AND r.report_date = (
+                SELECT MAX(report_date) FROM fin_ratios WHERE stock_code = k.stock_code
+            )
+        WHERE k.stock_code IN ({placeholders})
+    """, codes)
+    latest_map = {r['stock_code']: r for r in latest_rows}
+
+    prev_year_rows = query(f"""
+        SELECT stock_code, basic_eps AS prev_year_eps
+        FROM fin_ratios
+        WHERE report_date = (
+            SELECT MAX(report_date) FROM fin_ratios
+            WHERE report_date LIKE '%%-12-31'
+              AND basic_eps IS NOT NULL
+        )
+        AND stock_code IN ({placeholders})
+    """, codes)
+    prev_map = {r['stock_code']: r for r in prev_year_rows}
+
+    for row in rows:
+        sc = row.get('stock_code')
+        if not sc or sc not in latest_map:
+            row['pe_static'] = None
+            row['pe_dynamic'] = None
+            continue
+        lk = latest_map[sc]
+        price = lk.get('latest_price')
+        eps = lk.get('basic_eps')
+        prev_eps = prev_map.get(sc, {}).get('prev_year_eps')
+
+        if price and eps and float(eps) > 0:
+            row['pe_dynamic'] = round(float(price) / float(eps), 2)
+        else:
+            row['pe_dynamic'] = None
+
+        if price and prev_eps and float(prev_eps) > 0:
+            row['pe_static'] = round(float(price) / float(prev_eps), 2)
+        else:
+            row['pe_static'] = None
+
+        if not row.get('latest_price'):
+            row['latest_price'] = price
+
+    return rows
+
 router = APIRouter()
 
 
@@ -77,32 +136,45 @@ def execute_screening(
     if strategy_id == 'quantitative_breakout':
         rows = screen_quantitative_breakout(consolidation_days)
         cols = ['breakout_price', 'breakout_pct', 'range_pct', 'breakout_date']
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic'] + cols
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'ma_bullish':
         rows = screen_ma_bullish(periods)
-        cols = ['close_price'] + [f'ma{p}' for p in periods]
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'close_price'] + [f'ma{p}' for p in periods]
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'revenue_growth':
         rows = screen_revenue_growth(revenue_threshold)
-        return {'columns': ['revenue_growth_rate', 'report_date'], 'rows': rows, 'total': len(rows)}
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'revenue_growth_rate', 'report_date']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'profit_growth':
         rows = screen_profit_growth(profit_threshold)
-        return {'columns': ['net_profit_growth_rate', 'report_date'], 'rows': rows, 'total': len(rows)}
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'net_profit_growth_rate', 'report_date']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'debt_ratio':
         rows = screen_debt_ratio(debt_threshold)
-        return {'columns': ['debt_ratio', 'report_date'], 'rows': rows, 'total': len(rows)}
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'debt_ratio', 'report_date']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'fundamental_all':
         rows = screen_fundamental_all(revenue_threshold, profit_threshold, debt_threshold)
-        cols = ['revenue_growth_rate', 'net_profit_growth_rate', 'debt_ratio', 'operating_revenue', 'net_profit', 'report_date']
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'revenue_growth_rate', 'net_profit_growth_rate', 'debt_ratio', 'operating_revenue', 'net_profit', 'report_date']
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'ma_bullish_and_revenue_growth':
-        return screen_ma_bullish_and_revenue_growth(periods, revenue_threshold)
+        result = screen_ma_bullish_and_revenue_growth(periods, revenue_threshold)
+        result['rows'] = enrich_with_pe(result.get('rows', []))
+        result['columns'] = ['latest_price', 'pe_static', 'pe_dynamic'] + result.get('columns', [])
+        return result
 
     if strategy_id == 'sepa_master':
         rows = screen_sepa_master(
@@ -110,22 +182,28 @@ def execute_screening(
             rev_threshold=revenue_threshold,
             roe_threshold=debt_threshold,
         )
-        cols = ['revenue_growth_rate', 'net_profit_growth_rate', 'roe', 'debt_ratio',
-                'latest_price', 'pct_52w_high', 'ma50', 'ma150',
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'revenue_growth_rate', 'net_profit_growth_rate', 'roe', 'debt_ratio',
+                'pct_52w_high', 'ma50', 'ma150',
                 'tightness', 'volume_ratio', 'report_date', 'latest_date']
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'minervini_eps':
         rows = screen_minervini_eps(revenue_threshold)
-        return {'columns': ['net_profit_growth_rate', 'report_date'], 'rows': rows, 'total': len(rows)}
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'net_profit_growth_rate', 'report_date']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'minervini_roe':
         rows = screen_minervini_roe(debt_threshold)
-        return {'columns': ['roe', 'report_date'], 'rows': rows, 'total': len(rows)}
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'roe', 'report_date']
+        return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'minervini_trend_template':
         rows = screen_minervini_trend_template(revenue_threshold, int(profit_threshold))
-        cols = ['latest_price', 'ma50', 'ma150', 'pct_52w_high', 'tightness', 'volume_ratio', 'latest_date']
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'ma50', 'ma150', 'pct_52w_high', 'tightness', 'volume_ratio', 'latest_date']
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'turnaround':
@@ -135,14 +213,16 @@ def execute_screening(
             min_prev_decline=-abs(profit_threshold),
             min_profit=max(1_000_000, int(abs(profit_threshold) * 1_000_000)),
         )
-        cols = ['cur_rev_growth', 'prev_rev_growth', 'cur_profit_growth',
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'cur_rev_growth', 'prev_rev_growth', 'cur_profit_growth',
                 'cur_profit', 'prev_profit', 'operating_revenue',
                 'close_price', 'ma200', 'ma200_deviation_pct', 'report_date']
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'volume_surge_three_stage':
         rows = screen_volume_surge('volume_surge_three_stage', lookback_months, volume_ratio_min, volume_ratio_max, shrink_days)
-        cols = ['industry_sectors', 'concept_sectors',
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'industry_sectors', 'concept_sectors',
                 'surge1_date', 'surge1_close', 'surge1_ratio',
                 'surge2_date', 'surge2_close', 'surge2_ratio',
                 'surge3_date', 'surge3_close', 'surge3_ratio', 'king_confirmed']
@@ -150,14 +230,16 @@ def execute_screening(
 
     if strategy_id == 'volume_surge_consecutive_king':
         rows = screen_volume_surge('volume_surge_consecutive_king', lookback_months, volume_ratio_min, volume_ratio_max, shrink_days, min_gap_days, max_gap_days)
-        cols = ['industry_sectors', 'concept_sectors',
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'industry_sectors', 'concept_sectors',
                 'king1_date', 'king1_close', 'king1_ratio',
                 'king2_date', 'king2_close', 'king2_ratio', 'gap_days', 'consecutive_king_confirmed']
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
 
     if strategy_id == 'five_step_screen':
         rows = screen_five_step()
-        cols = ['total_score', 'score_grade',
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'total_score', 'score_grade',
                 'roe_score', 'ocf_score', 'margin_score', 'cp_score', 'bs_score',
                 'roe_current', 'margin_current', 'ocf_ratio', 'debt_ratio', 'report_date']
         return {'columns': cols, 'rows': rows, 'total': len(rows)}
@@ -170,7 +252,8 @@ def execute_screening(
             strictness=strictness,
             require_confirm=require_confirm,
         )
-        cols = ['n_years', 'latest_profit', 'profit_cagr_3y', 'cur_profit_yoy',
+        rows = enrich_with_pe(rows)
+        cols = ['latest_price', 'pe_static', 'pe_dynamic', 'n_years', 'latest_profit', 'profit_cagr_3y', 'cur_profit_yoy',
                 'price_cagr_3y', 'divergence', 'drawdown_3y', 'amp_3y', 'amp_1y',
                 'position_pct', 'pct_250d', 'pe_ttm', 'peg', 'above_ma250', 'score']
         return {'columns': cols, 'rows': rows, 'total': len(rows)}

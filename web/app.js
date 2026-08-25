@@ -1547,6 +1547,10 @@ app.component('profile-page', {
         const filterRoeMax = ref(null);
         const filterNetMarginMin = ref(null);
         const filterNetMarginMax = ref(null);
+        const filterGm2025Min = ref(null);
+        const filterGm2025Max = ref(null);
+        const filterNetMargin2025Min = ref(null);
+        const filterNetMargin2025Max = ref(null);
         const filterMarketCapRange = ref('');
         const marketCapRanges = [
             { label: '50亿以下', min: 0, max: 50 },
@@ -1840,6 +1844,10 @@ const filterPegMax = ref(null);
                     roe_max: filterRoeMax.value || null,
                     net_margin_min: filterNetMarginMin.value || null,
                     net_margin_max: filterNetMarginMax.value || null,
+                    gm_2025_min: filterGm2025Min.value || null,
+                    gm_2025_max: filterGm2025Max.value || null,
+                    net_margin_2025_min: filterNetMargin2025Min.value || null,
+                    net_margin_2025_max: filterNetMargin2025Max.value || null,
                     market_cap_min: filterMarketCapRange.value ? (marketCapRanges.find(r => r.label === filterMarketCapRange.value) || {}).min ?? null : null,
                     market_cap_max: filterMarketCapRange.value ? (marketCapRanges.find(r => r.label === filterMarketCapRange.value) || {}).max ?? null : null,
                 roe_ttm_min: filterRoeTtmMin.value || null,
@@ -1932,6 +1940,10 @@ const filterPegMax = ref(null);
             filterRoeMax.value = null;
             filterNetMarginMin.value = null;
             filterNetMarginMax.value = null;
+            filterGm2025Min.value = null;
+            filterGm2025Max.value = null;
+            filterNetMargin2025Min.value = null;
+            filterNetMargin2025Max.value = null;
             filterMarketCapRange.value = '';
             filterRoeTtmMin.value = null;
             filterRoeTtmMax.value = null;
@@ -2087,7 +2099,9 @@ const filterPegMax = ref(null);
             filterGmGrowthQ, filterGmGrowth2y,
             filterContractLiabMin, filterContractLiabMax,
             filterRoeMin, filterRoeMax, filterRoeTtmMin, filterRoeTtmMax,
+            filterPeMax, filterPegMax,
             filterNetMarginMin, filterNetMarginMax, filterMarketCapRange, marketCapRanges,
+            filterGm2025Min, filterGm2025Max, filterNetMargin2025Min, filterNetMargin2025Max,
             filterDividendYieldMin, filterDividendYieldMax,
             filterHasDivThisYear, filterHasMidYear, filterConsecutiveDivYears,
             filterFundRecent8UpMin, filterFundRecent8NetMin, filterFundRecent6UpMin, filterFundRecent4UpMin,

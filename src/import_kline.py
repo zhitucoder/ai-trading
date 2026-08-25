@@ -144,6 +144,27 @@ def main():
                 conn.commit()
                 print(f'  sector_kline: {min(i + 5000, len(sector_batch))}/{len(sector_batch)}')
 
+    print('更新 daily_kline_latest ...')
+    cursor.execute("""
+        INSERT INTO daily_kline_latest
+            (stock_code, trade_date, open_price, high_price, low_price, close_price, volume, amount)
+        SELECT stock_code, trade_date, open_price, high_price, low_price, close_price, volume, amount
+        FROM daily_kline
+        WHERE (stock_code, trade_date) IN (
+            SELECT stock_code, MAX(trade_date) FROM daily_kline GROUP BY stock_code
+        )
+        ON DUPLICATE KEY UPDATE
+            trade_date = VALUES(trade_date),
+            open_price = VALUES(open_price),
+            high_price = VALUES(high_price),
+            low_price = VALUES(low_price),
+            close_price = VALUES(close_price),
+            volume = VALUES(volume),
+            amount = VALUES(amount)
+    """)
+    conn.commit()
+    print(f'daily_kline_latest 已更新 {cursor.rowcount} 条')
+
     cursor.close()
     conn.close()
     print('Done!')

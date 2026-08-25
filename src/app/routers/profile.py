@@ -43,6 +43,20 @@ def get_profile(stock_code: str, refresh: bool = False):
         if data.get('fin_data') is None:
             data['fin_data'] = {}
         data['fin_data']['net_margin'] = data['net_margin']
+    annual_margin = query("""
+        SELECT operating_revenue, operating_cost, parent_net_profit
+        FROM fin_income WHERE stock_code = %s AND MONTH(report_date)=12 AND DAY(report_date)=31
+        ORDER BY report_date DESC LIMIT 1
+    """, [stock_code])
+    if annual_margin and annual_margin[0].get('operating_revenue'):
+        _rev25 = float(annual_margin[0]['operating_revenue'])
+        if _rev25 > 0:
+            _cost25 = float(annual_margin[0]['operating_cost']) if annual_margin[0].get('operating_cost') is not None else 0
+            _pnp25 = float(annual_margin[0]['parent_net_profit']) if annual_margin[0].get('parent_net_profit') is not None else 0
+            if data.get('fin_data') is None:
+                data['fin_data'] = {}
+            data['fin_data']['gross_margin_2025'] = round((_rev25 - _cost25) / _rev25 * 100, 2)
+            data['fin_data']['net_margin_2025'] = round(_pnp25 / _rev25 * 100, 2)
     return data
 
 
@@ -248,6 +262,10 @@ class SearchRequest(BaseModel):
     roe_ttm_max: Optional[float] = None
     net_margin_min: Optional[float] = None
     net_margin_max: Optional[float] = None
+    gm_2025_min: Optional[float] = None
+    gm_2025_max: Optional[float] = None
+    net_margin_2025_min: Optional[float] = None
+    net_margin_2025_max: Optional[float] = None
     market_cap_min: Optional[float] = None
     market_cap_max: Optional[float] = None
     pe_max: Optional[float] = None
@@ -428,6 +446,21 @@ def search_profiles(body: SearchRequest):
     if body.net_margin_max is not None:
         conditions.append('p.net_margin <= %(net_margin_max)s')
         params['net_margin_max'] = body.net_margin_max
+    if body.gm_2025_min is not None or body.gm_2025_max is not None or \
+       body.net_margin_2025_min is not None or body.net_margin_2025_max is not None:
+        conditions.append('fy.operating_revenue IS NOT NULL')
+    if body.gm_2025_min is not None:
+        conditions.append('(fy.operating_revenue - fy.operating_cost) / NULLIF(fy.operating_revenue, 0) * 100 >= %(gm_2025_min)s')
+        params['gm_2025_min'] = body.gm_2025_min
+    if body.gm_2025_max is not None:
+        conditions.append('(fy.operating_revenue - fy.operating_cost) / NULLIF(fy.operating_revenue, 0) * 100 <= %(gm_2025_max)s')
+        params['gm_2025_max'] = body.gm_2025_max
+    if body.net_margin_2025_min is not None:
+        conditions.append('fy.parent_net_profit / NULLIF(fy.operating_revenue, 0) * 100 >= %(net_margin_2025_min)s')
+        params['net_margin_2025_min'] = body.net_margin_2025_min
+    if body.net_margin_2025_max is not None:
+        conditions.append('fy.parent_net_profit / NULLIF(fy.operating_revenue, 0) * 100 <= %(net_margin_2025_max)s')
+        params['net_margin_2025_max'] = body.net_margin_2025_max
     if body.market_cap_min is not None:
         conditions.append('a.market_cap IS NOT NULL AND a.market_cap >= %(market_cap_min)s')
         params['market_cap_min'] = body.market_cap_min
@@ -490,13 +523,17 @@ def search_profiles(body: SearchRequest):
                          'contract_liab_to_assets',
                          'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
                          'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y', 'roe', 'roe_ttm', 'gross_margin',
-                         'pe_ttm', 'peg'):
+                         'pe_ttm', 'peg', 'price_cagr_3y', 'divergence'):
         if body.sort_by == 'contract_liab_to_assets':
             sort_col = "CAST(JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS DECIMAL(10,2))"
         else:
             sort_col = f'p.{body.sort_by}'
     elif body.sort_by in ('net_margin',):
         sort_col = 'p.net_margin'
+    elif body.sort_by == 'net_margin_2025':
+        sort_col = 'fy.parent_net_profit / NULLIF(fy.operating_revenue, 0) * 100'
+    elif body.sort_by == 'gm_2025':
+        sort_col = '(fy.operating_revenue - fy.operating_cost) / NULLIF(fy.operating_revenue, 0) * 100'
     elif body.sort_by == 'market_cap':
         sort_col = 'a.market_cap'
     elif body.sort_by in ('prev_year_profit',):
@@ -534,8 +571,7 @@ def search_profiles(body: SearchRequest):
         join_clause = (zxm_join + ' ' + ads_join).strip()
     if profit_join:
         join_clause = (join_clause + ' ' + profit_join).strip()
-    if has_fund_trend:
-        join_clause = (join_clause + ' JOIN ads_stock_fund_trend ft ON ft.stock_code = p.stock_code').strip()
+    join_clause = (join_clause + ' LEFT JOIN ads_stock_fund_trend ft ON ft.stock_code = p.stock_code').strip()
     count_sql = f"SELECT COUNT(*) AS c FROM stock_profiles p {join_clause} WHERE p.data_date = %(ldate)s AND {where}"
     count_params = {'ldate': str(latest), 'prev_yr': str(prev_yr), 'cur_q': str(cur_q), **params}
     total = query(count_sql, count_params)[0]['c']
@@ -543,10 +579,12 @@ def search_profiles(body: SearchRequest):
     tag_cols_sql = ', '.join(f'p.{c}' for c in TAG_COLUMNS)
     zxm_select = ', '.join(f'z.{db_col} AS {body_field}' for body_field, db_col in zxm_field_map.items()) if has_zxm else ''
     ads_select = ', a.market_cap AS market_cap' if has_ads else ''
-    profit_select = ', fy.parent_net_profit AS prev_year_profit, fq.parent_net_profit AS cur_quarter_profit' if profit_join else ''
+    profit_select = (', fy.parent_net_profit AS prev_year_profit, fq.parent_net_profit AS cur_quarter_profit, '
+                     '(fy.operating_revenue - fy.operating_cost) / NULLIF(fy.operating_revenue, 0) * 100 AS gm_2025, '
+                     'fy.parent_net_profit / NULLIF(fy.operating_revenue, 0) * 100 AS net_margin_2025') if profit_join else ''
     fund_trend_select = (', ft.recent8_up, ft.recent8_net, ft.max_consec_growth, ft.max_consec_decline, '
                          'ft.recent2q_fund_count, ft.recent4q_fund_count, ft.recent1q_fund_count, '
-                         'ft.fc25Q4, ft.fc26Q2, ft.recent8q_amount, ft.recent1q_fund_growth') if has_fund_trend else ''
+                         'ft.fc25Q4, ft.fc26Q2, ft.recent8q_amount, ft.recent1q_fund_growth')
     sql = f"""
         SELECT p.stock_code, p.stock_name, p.latest_price, p.price_change_pct,
                p.stage_id, p.stage_confidence, p.tech_score, p.fund_score,
@@ -557,6 +595,7 @@ def search_profiles(body: SearchRequest):
                p.dividend_yield,
                p.rev_cagr_3y, p.rev_cagr_5y, p.rev_cagr_10y,
                p.profit_cagr_3y, p.profit_cagr_5y, p.profit_cagr_10y,
+               p.price_cagr_3y, p.divergence,
                JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS contract_liab_to_assets,
                {tag_cols_sql}
                {',' + zxm_select if zxm_select else ''}
