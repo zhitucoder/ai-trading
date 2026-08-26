@@ -177,6 +177,7 @@ def get_latest_financials(code):
                fq2.q_revenue AS prev_revenue,
                fq2.q_parent_net_profit AS prev_profit,
                b.total_assets, b.total_liabilities,
+               b.accounts_receivable,
                c.contract_liab
         FROM fin_quarterly fq
         LEFT JOIN fin_quarterly fq2
@@ -1107,6 +1108,10 @@ def generate_profile(stock_code):
         debt_ratio = round(float(tl) / float(ta) * 100, 2) if ta is not None and tl is not None and float(ta) > 0 else None
         cl = fin.get('contract_liab')
         contract_liab_to_assets = round(float(cl) / float(ta) * 100, 2) if cl is not None and ta is not None and float(ta) > 0 else None
+        ar = fin.get('accounts_receivable')
+        rev = fin.get('q_revenue')
+        receivable_to_revenue = round(float(ar) / float(rev) * 100, 2) if ar is not None and rev is not None and float(rev) > 0 else None
+        receivable_to_assets = round(float(ar) / float(ta) * 100, 2) if ar is not None and ta is not None and float(ta) > 0 else None
         def rev_reliable(idx):
             if idx < len(annual_rows):
                 r = annual_rows[idx]
@@ -1207,6 +1212,8 @@ def generate_profile(stock_code):
             'prev_year_revenue': prev_rev_val,
             'contract_liab_to_assets': contract_liab_to_assets,
             'contract_liab_raw': float(cl) if cl is not None else None,
+            'receivable_to_revenue': receivable_to_revenue,
+            'receivable_to_assets': receivable_to_assets,
             'q_revenue': float(fin['q_revenue']) if fin.get('q_revenue') is not None else None,
             'q_parent_net_profit': float(fin['q_parent_net_profit']) if fin.get('q_parent_net_profit') is not None else None,
             'report_date': str(fin['report_date']) if fin.get('report_date') else None,

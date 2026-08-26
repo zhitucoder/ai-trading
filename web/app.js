@@ -30,9 +30,14 @@ function valClass(val) {
     return val > 0 ? 'up' : (val < 0 ? 'down' : '');
 }
 
+function receivableClass(val, threshold) {
+    if (val == null) return '';
+    return val < threshold ? 'up-highlight' : '';
+}
+
 const app = createApp({
     setup() {
-        const currentPage = ref('screening');
+        const currentPage = ref('profile');
         const pages = [
             { id: 'strong', label: '强势板块', icon: '▲' },
             { id: 'strong_stocks', label: '强势个股', icon: '★' },
@@ -848,7 +853,7 @@ app.component('quant-breakout-bt-page', {
 app.component('profile-page', {
     template: '#profile-tpl',
     setup() {
-        const activeTab = ref('single');
+        const activeTab = ref('screening');
         const currentPage = inject('currentPage');
         const returnPage = ref('');
 
@@ -1543,6 +1548,10 @@ app.component('profile-page', {
         const filterGmGrowth2y = ref(null);
         const filterContractLiabMin = ref(null);
         const filterContractLiabMax = ref(null);
+        const filterReceivableToRevMin = ref(null);
+        const filterReceivableToRevMax = ref(null);
+        const filterReceivableToAssetsMin = ref(null);
+        const filterReceivableToAssetsMax = ref(null);
         const filterRoeMin = ref(null);
         const filterRoeMax = ref(null);
         const filterNetMarginMin = ref(null);
@@ -1840,6 +1849,10 @@ const filterPegMax = ref(null);
                     gm_growth_2y_min: filterGmGrowth2y.value || null,
                     contract_liab_min: filterContractLiabMin.value || null,
                     contract_liab_max: filterContractLiabMax.value || null,
+                    receivable_to_revenue_min: filterReceivableToRevMin.value || null,
+                    receivable_to_revenue_max: filterReceivableToRevMax.value || null,
+                    receivable_to_assets_min: filterReceivableToAssetsMin.value || null,
+                    receivable_to_assets_max: filterReceivableToAssetsMax.value || null,
                     roe_min: filterRoeMin.value || null,
                     roe_max: filterRoeMax.value || null,
                     net_margin_min: filterNetMarginMin.value || null,
@@ -1936,6 +1949,10 @@ const filterPegMax = ref(null);
             filterGmGrowth2y.value = null;
             filterContractLiabMin.value = null;
             filterContractLiabMax.value = null;
+            filterReceivableToRevMin.value = null;
+            filterReceivableToRevMax.value = null;
+            filterReceivableToAssetsMin.value = null;
+            filterReceivableToAssetsMax.value = null;
             filterRoeMin.value = null;
             filterRoeMax.value = null;
             filterNetMarginMin.value = null;
@@ -2098,6 +2115,7 @@ const filterPegMax = ref(null);
             filterPrevYearProfitMin, filterPrevYearProfitMax, filterCurQuarterProfitMin, filterCurQuarterProfitMax,
             filterGmGrowthQ, filterGmGrowth2y,
             filterContractLiabMin, filterContractLiabMax,
+            filterReceivableToRevMin, filterReceivableToRevMax, filterReceivableToAssetsMin, filterReceivableToAssetsMax,
             filterRoeMin, filterRoeMax, filterRoeTtmMin, filterRoeTtmMax,
             filterPeMax, filterPegMax,
             filterNetMarginMin, filterNetMarginMax, filterMarketCapRange, marketCapRanges,
@@ -2119,7 +2137,7 @@ const filterPegMax = ref(null);
             sectorListIndustries, sectorListConcepts, selectedSectors, toggleSector,
             toggleStage, toggleGrowthTag, onFilterChange, doSearch, resetFilters, triggerRefresh,
             toggleSort, sortArrow,
-            fmt, fmtGrowth, fmtMoney, valClass,
+            fmt, fmtGrowth, fmtMoney, valClass, receivableClass,
             zxmTags, zxmLoading, zxmClass, goToSimilar,
             currentIdx, hasPrev, hasNext, goPrev, goNext, navTotal, navList,
             stockSuggestions, stockSuggestionIdx, onStockInput, onStockKeydown, selectStock,

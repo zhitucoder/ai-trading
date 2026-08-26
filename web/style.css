@@ -257,10 +257,27 @@ body {
 
 /* ── Table ── */
 .table-wrap {
-    overflow-x: auto;
+    overflow: auto;
     border: 1px solid var(--border);
     border-radius: 8px;
+    max-height: calc(100vh - 220px);
 }
+.freeze-cols thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-secondary);
+}
+.freeze-cols th:nth-child(1) { position: sticky; left: 0; z-index: 11; background: var(--bg-secondary); }
+.freeze-cols th:nth-child(2) { position: sticky; left: 36px; z-index: 11; background: var(--bg-secondary); }
+.freeze-cols th:nth-child(3) { position: sticky; left: 116px; z-index: 11; background: var(--bg-secondary); }
+.freeze-cols td:nth-child(1) { position: sticky; left: 0; z-index: 5; background: var(--bg-primary); }
+.freeze-cols td:nth-child(2) { position: sticky; left: 36px; z-index: 5; background: var(--bg-primary); }
+.freeze-cols td:nth-child(3) { position: sticky; left: 116px; z-index: 5; background: var(--bg-primary); }
+.freeze-cols td:nth-child(3) { box-shadow: -1px 0 0 var(--border); }
+.freeze-cols tr:hover td:nth-child(1),
+.freeze-cols tr:hover td:nth-child(2),
+.freeze-cols tr:hover td:nth-child(3) { background: var(--bg-hover); }
 .table-wrap.results-wrap {
     overflow-y: auto;
     max-height: calc(100vh - 320px);
@@ -294,6 +311,7 @@ tbody tr.selected-row { background: rgba(99,102,241,0.15) !important; }
 tbody tr:last-child td { border-bottom: none; }
 .up { color: var(--red); }
 .down { color: var(--green); }
+.up-highlight { color: #fff; background: linear-gradient(90deg, #f59e0b, #fbbf24); font-weight: 700; border-radius: 4px; padding: 1px 5px; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
 
 /* ── Modal ── */
 .modal-mask {

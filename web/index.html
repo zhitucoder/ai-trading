@@ -396,7 +396,7 @@
                 </template>
             </div>
             <div class="table-wrap results-wrap" v-if="result.rows && result.rows.length">
-                        <table>
+                        <table class="freeze-cols">
                             <thead>
                                 <tr>
                                     <th style="width:40px;">#</th>
@@ -1408,6 +1408,8 @@
                         <div class="profile-ind-item" v-if="profile.fin_data.net_margin_2025 != null"><div class="profile-ind-label" title="净利润率(2025年报) = 2025年归母净利润 ÷ 2025年营业收入">净利润率（2025年报）</div><div class="profile-ind-val" :class="valClass(profile.fin_data.net_margin_2025)">{{ profile.fin_data.net_margin_2025.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.market_cap != null"><div class="profile-ind-label" title="总市值（亿元）">总市值</div><div class="profile-ind-val accent">{{ profile.fin_data.market_cap.toFixed(1) }}亿</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.contract_liab_to_assets != null"><div class="profile-ind-label">合同负债占资产</div><div class="profile-ind-val" :class="valClass(10 - profile.fin_data.contract_liab_to_assets)">{{ profile.fin_data.contract_liab_to_assets.toFixed(2) }}%</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.receivable_to_revenue != null"><div class="profile-ind-label" title="应收账款 ÷ 营业收入 × 100%，<5% 质量优秀">应收占营收</div><div class="profile-ind-val" :class="receivableClass(profile.fin_data.receivable_to_revenue, 5)">{{ profile.fin_data.receivable_to_revenue.toFixed(2) }}%</div></div>
+                        <div class="profile-ind-item" v-if="profile.fin_data.receivable_to_assets != null"><div class="profile-ind-label" title="应收账款 ÷ 总资产 × 100%，<10% 质量优秀">应收占总资产</div><div class="profile-ind-val" :class="receivableClass(profile.fin_data.receivable_to_assets, 10)">{{ profile.fin_data.receivable_to_assets.toFixed(2) }}%</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_3y != null"><div class="profile-ind-label">营收3年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_3y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_3y) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_5y != null"><div class="profile-ind-label">营收5年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_5y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_5y) }}</div></div>
                         <div class="profile-ind-item" v-if="profile.fin_data.revenue_cagr_10y != null"><div class="profile-ind-label">营收10年CAGR</div><div class="profile-ind-val" :class="valClass(profile.fin_data.revenue_cagr_10y)">{{ fmtGrowth(profile.fin_data.revenue_cagr_10y) }}</div></div>
@@ -1574,6 +1576,16 @@
                 </div>
 
                 <div class="screening-section">
+                    <div class="screening-section-title">应收占比</div>
+                    <div class="screening-range-row">
+                        <div><label title="应收账款 ÷ 营业收入 × 100%，越低越好">应收占营收 ≥</label><input type="number" v-model.number="filterReceivableToRevMin" @input="onFilterChange" style="width:70px;" placeholder="%"></div>
+                        <div><label>应收占营收 ≤</label><input type="number" v-model.number="filterReceivableToRevMax" @input="onFilterChange" style="width:70px;" placeholder="%"></div>
+                        <div><label title="应收账款 ÷ 总资产 × 100%，越低越好">应收占总资产 ≥</label><input type="number" v-model.number="filterReceivableToAssetsMin" @input="onFilterChange" style="width:70px;" placeholder="%"></div>
+                        <div><label>应收占总资产 ≤</label><input type="number" v-model.number="filterReceivableToAssetsMax" @input="onFilterChange" style="width:70px;" placeholder="%"></div>
+                    </div>
+                </div>
+
+                <div class="screening-section">
                     <div class="screening-section-title">估值</div>
                     <div class="screening-range-row">
                         <div><label title="PE(TTM) = 总市值 ÷ 最近4季度归母净利润(TTM)，总股本以 stock_shares_dfcf 为准">PE(TTM) ≤</label><input type="number" v-model.number="filterPeMax" @input="onFilterChange" style="width:80px;" placeholder="倍"></div>
@@ -1724,7 +1736,7 @@
 
             <div v-if="searchResult && searchResult.rows.length" class="card">
                 <div class="table-wrap">
-                    <table>
+                    <table class="freeze-cols">
                         <thead>
                             <tr>
                                 <th style="width:36px;">#</th>
@@ -1758,6 +1770,8 @@
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('pe_ttm')" title="PE(TTM) = 总市值 ÷ TTM归母净利润，总股本以 stock_shares_dfcf 为准">PE(TTM){{ sortArrow('pe_ttm') }}</th>
                                 <th style="width:70px;cursor:pointer;" @click="toggleSort('peg')" title="PEG = PE(TTM) ÷ 净利润增长率(单季同比)，<1 为成长性合理">PEG{{ sortArrow('peg') }}</th>
                                 <th style="width:90px;cursor:pointer;" @click="toggleSort('contract_liab_to_assets')">合同负债{{ sortArrow('contract_liab_to_assets') }}</th>
+                                <th style="width:80px;cursor:pointer;" @click="toggleSort('receivable_to_revenue')" title="应收账款 ÷ 营业收入 × 100%，越低越好">应收/营收{{ sortArrow('receivable_to_revenue') }}</th>
+                                <th style="width:90px;cursor:pointer;" @click="toggleSort('receivable_to_assets')" title="应收账款 ÷ 总资产 × 100%，越低越好">应收/总资产{{ sortArrow('receivable_to_assets') }}</th>
                                 <th style="width:80px;cursor:pointer;" @click="toggleSort('dividend_yield')" title="近12个月每股派息 / 最新价">股息率{{ sortArrow('dividend_yield') }}</th>
                                 <th style="width:60px;cursor:pointer;" @click="toggleSort('recent8_up')" title="最近8个两季度基金家数增的个数">近8增{{ sortArrow('recent8_up') }}</th>
                                 <th style="width:60px;cursor:pointer;" @click="toggleSort('recent8_net')" title="最近8个两季度净增数">近8净{{ sortArrow('recent8_net') }}</th>
@@ -1807,6 +1821,8 @@
                                 <td>{{ row.pe_ttm != null ? Number(row.pe_ttm).toFixed(1) : '-' }}</td>
                                 <td :class="row.peg != null && row.peg <= 1 ? 'up' : ''">{{ row.peg != null ? Number(row.peg).toFixed(2) : '-' }}</td>
                                 <td :class="valClass(10 - parseFloat(row.contract_liab_to_assets))">{{ row.contract_liab_to_assets != null ? parseFloat(row.contract_liab_to_assets).toFixed(2) + '%' : '-' }}</td>
+                                <td :class="receivableClass(row.receivable_to_revenue, 5)">{{ row.receivable_to_revenue != null ? Number(row.receivable_to_revenue).toFixed(2) + '%' : '-' }}</td>
+                                <td :class="receivableClass(row.receivable_to_assets, 10)">{{ row.receivable_to_assets != null ? Number(row.receivable_to_assets).toFixed(2) + '%' : '-' }}</td>
                                 <td :class="row.dividend_yield != null && row.dividend_yield >= 3 ? 'up' : ''">{{ row.dividend_yield != null ? Number(row.dividend_yield).toFixed(2) + '%' : '-' }}</td>
                                 <td :class="row.recent8_up != null && row.recent8_up >= 5 ? 'up' : ''">{{ row.recent8_up != null ? row.recent8_up : '-' }}</td>
                                 <td :class="row.recent8_net != null && row.recent8_net > 0 ? 'up' : (row.recent8_net != null && row.recent8_net < 0 ? 'down' : '')">{{ row.recent8_net != null ? row.recent8_net : '-' }}</td>
@@ -3725,9 +3741,9 @@
     </div>
 </template>
 
-<script src="https://unpkg.com/vue@3.4/dist/vue.global.prod.js"></script>
-<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
-<script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="vue.global.prod.js"></script>
+<script src="lightweight-charts.standalone.production.js"></script>
+<script src="cytoscape.min.js"></script>
 <script src="app.js?v=20260825b"></script>
 </body>
 </html>

@@ -248,6 +248,10 @@ class SearchRequest(BaseModel):
     gm_growth_2y_min: Optional[float] = None
     contract_liab_min: Optional[float] = None
     contract_liab_max: Optional[float] = None
+    receivable_to_revenue_min: Optional[float] = None
+    receivable_to_revenue_max: Optional[float] = None
+    receivable_to_assets_min: Optional[float] = None
+    receivable_to_assets_max: Optional[float] = None
     rev_cagr_3y_min: Optional[float] = None
     rev_cagr_3y_max: Optional[float] = None
     rev_cagr_5y_min: Optional[float] = None
@@ -385,6 +389,18 @@ def search_profiles(body: SearchRequest):
         conditions.append("(JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') IS NULL OR JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') <= %(contract_liab_max)s)")
         params['contract_liab_max'] = body.contract_liab_max
 
+    for field, key in (('receivable_to_revenue_min', 'receivable_to_revenue'),
+                       ('receivable_to_revenue_max', 'receivable_to_revenue'),
+                       ('receivable_to_assets_min', 'receivable_to_assets'),
+                       ('receivable_to_assets_max', 'receivable_to_assets')):
+        val = getattr(body, field, None)
+        if val is not None:
+            if field.endswith('_min'):
+                conditions.append(f"JSON_EXTRACT(p.profile_json, '$.fin_data.{key}') >= %({field})s")
+            else:
+                conditions.append(f"(JSON_EXTRACT(p.profile_json, '$.fin_data.{key}') IS NULL OR JSON_EXTRACT(p.profile_json, '$.fin_data.{key}') <= %({field})s)")
+            params[field] = val
+
     cagr_filters = [
         ('rev_cagr_3y_min', 'rev_cagr_3y', '>='),
         ('rev_cagr_3y_max', 'rev_cagr_3y', '<='),
@@ -521,11 +537,16 @@ def search_profiles(body: SearchRequest):
     sort_col = 'p.tech_score'
     if body.sort_by in ('fund_score', 'revenue_growth', 'net_profit_growth', 'price_change_pct', 'dividend_yield',
                          'contract_liab_to_assets',
+                         'receivable_to_revenue', 'receivable_to_assets',
                          'rev_cagr_3y', 'rev_cagr_5y', 'rev_cagr_10y',
                          'profit_cagr_3y', 'profit_cagr_5y', 'profit_cagr_10y', 'roe', 'roe_ttm', 'gross_margin',
                          'pe_ttm', 'peg', 'price_cagr_3y', 'divergence'):
         if body.sort_by == 'contract_liab_to_assets':
             sort_col = "CAST(JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS DECIMAL(10,2))"
+        elif body.sort_by == 'receivable_to_revenue':
+            sort_col = "CAST(JSON_EXTRACT(p.profile_json, '$.fin_data.receivable_to_revenue') AS DECIMAL(10,2))"
+        elif body.sort_by == 'receivable_to_assets':
+            sort_col = "CAST(JSON_EXTRACT(p.profile_json, '$.fin_data.receivable_to_assets') AS DECIMAL(10,2))"
         else:
             sort_col = f'p.{body.sort_by}'
     elif body.sort_by in ('net_margin',):
@@ -597,6 +618,8 @@ def search_profiles(body: SearchRequest):
                p.profit_cagr_3y, p.profit_cagr_5y, p.profit_cagr_10y,
                p.price_cagr_3y, p.divergence,
                JSON_EXTRACT(p.profile_json, '$.fin_data.contract_liab_to_assets') AS contract_liab_to_assets,
+               JSON_EXTRACT(p.profile_json, '$.fin_data.receivable_to_revenue') AS receivable_to_revenue,
+               JSON_EXTRACT(p.profile_json, '$.fin_data.receivable_to_assets') AS receivable_to_assets,
                {tag_cols_sql}
                {',' + zxm_select if zxm_select else ''}
                {ads_select}
