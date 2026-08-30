@@ -176,6 +176,65 @@ def profile_fin_chart(stock_code: str):
                             for r in fund_rows]}
 
 
+# ── 融资融券与股价关系图数据 ──
+@router.get('/profile/{stock_code}/margin-chart')
+def profile_margin_chart(stock_code: str):
+    three_years_ago = (datetime.now().replace(year=datetime.now().year - 3)).strftime('%Y%m%d')
+
+    ex_row = query("SELECT exchange FROM stocks WHERE stock_code = %s", [stock_code])
+    ts_code = None
+    if ex_row and ex_row[0]['exchange']:
+        suffix = '.SH' if ex_row[0]['exchange'].upper() == 'SH' else '.SZ'
+        ts_code = stock_code + suffix
+
+    margin_rows = []
+    if ts_code:
+        margin_rows = query("""
+            SELECT trade_date, rzye, rqye
+            FROM margin_detail
+            WHERE ts_code = %s AND trade_date >= %s
+            ORDER BY trade_date
+        """, [ts_code, three_years_ago])
+
+    kline_rows = query("""
+        SELECT trade_date, close_price
+        FROM daily_kline
+        WHERE stock_code = %s AND trade_date >= %s
+        ORDER BY trade_date
+    """, [stock_code, three_years_ago.replace('-', '')])
+
+    sampled_margin = []
+    for i, r in enumerate(margin_rows):
+        if i % 5 == 0:
+            td = r['trade_date']
+            if hasattr(td, 'strftime'):
+                td_str = td.strftime('%Y%m%d')
+            else:
+                td_str = str(td).replace('-', '')
+            sampled_margin.append({
+                'date': td_str,
+                'rzye': float(r['rzye'] or 0) / 1e8,
+                'rqye': float(r['rqye'] or 0) / 1e8,
+            })
+
+    kline_data = []
+    for r in kline_rows:
+        td = r['trade_date']
+        if hasattr(td, 'strftime'):
+            td_str = td.strftime('%Y%m%d')
+        else:
+            td_str = str(td).replace('-', '')
+        kline_data.append({
+            'date': td_str,
+            'close': float(r['close_price'] or 0),
+        })
+
+    return {
+        'margin': sampled_margin,
+        'kline': kline_data,
+    }
+
+
 # ── 触发刷新 ──
 @router.post('/profiles/refresh')
 def trigger_refresh():

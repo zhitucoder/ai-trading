@@ -868,6 +868,8 @@ app.component('profile-page', {
         const fundChartImg = ref('');
         const fundChartImgEl = ref(null);
         const divChartCanvas = ref(null);
+        const marginChartCanvas = ref(null);
+        const marginChartLoading = ref(false);
 
         let divChartGeo = null;
         function loadDivChart() {
@@ -999,6 +1001,7 @@ app.component('profile-page', {
                     profile.value = data;
                     loadFinChart();
                     loadFundChart();
+                    loadMarginChart();
                     loadZxmTags();
                     checkWatchlist();
                     nextTick(loadDivChart);
@@ -1300,6 +1303,184 @@ app.component('profile-page', {
                 fundChartImg.value = `${API_BASE}/profile/${stockCode.value}/fund-chart-img?t=${ts}`;
             } catch (e) {}
             finally { fundChartLoading.value = false; }
+        }
+
+        async function loadMarginChart() {
+            if (!stockCode.value) return;
+            marginChartLoading.value = true;
+            try {
+                const r = await fetch(`${API_BASE}/profile/${stockCode.value}/margin-chart`);
+                const data = await r.json();
+                if (data.margin && data.margin.length) renderMarginChart(data);
+            } catch (e) {}
+            finally { marginChartLoading.value = false; }
+        }
+
+        function renderMarginChart(data) {
+            const canvas = marginChartCanvas.value;
+            if (!canvas) return;
+            const parent = canvas.parentElement;
+            const rect = parent.getBoundingClientRect();
+
+            let tooltip = parent.querySelector('.chart-tooltip');
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.className = 'chart-tooltip';
+                tooltip.style.cssText = 'position:absolute;display:none;background:rgba(20,20,40,0.92);border:1px solid #333;border-radius:6px;padding:10px 14px;font-size:12px;color:#ccc;pointer-events:none;z-index:100;white-space:nowrap;line-height:1.7;';
+                parent.style.position = 'relative';
+                parent.appendChild(tooltip);
+            }
+
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            const pad = { top: 30*dpr, bottom: 30*dpr, left: 60*dpr, right: 60*dpr };
+            const cw = W - pad.left - pad.right, ch = H - pad.top - pad.bottom;
+
+            ctx.clearRect(0, 0, W, H);
+
+            const marginData = data.margin;
+            const klineData = data.kline;
+
+            const rzyeMax = Math.max(...marginData.map(m => m.rzye)) * 1.15 || 1;
+            const rqyeMax = Math.max(...marginData.map(m => m.rqye)) * 1.15 || 1;
+            const priceMax = Math.max(...klineData.map(k => k.close)) * 1.15 || 1;
+
+            function yRzye(v) { return pad.top + ch * (1 - v / rzyeMax); }
+            function yRqye(v) { return pad.top + ch * (1 - v / rqyeMax); }
+            function yPrice(v) { return pad.top + ch * (1 - v / priceMax); }
+
+            const allDates = [...new Set([...marginData.map(m => m.date), ...klineData.map(k => k.date)])].sort();
+            const dateMap = {};
+            allDates.forEach((d, i) => dateMap[d] = i);
+            const xStep = allDates.length > 1 ? cw / (allDates.length - 1) : cw;
+            function dateToX(dateStr) { return pad.left + (dateMap[dateStr] || 0) * xStep; }
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1*dpr;
+            for (let i = 0; i <= 4; i++) {
+                const y = pad.top + ch * i / 4;
+                ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+            }
+
+            if (klineData.length > 1) {
+                ctx.beginPath(); ctx.strokeStyle = '#4ecdc4'; ctx.lineWidth = 2*dpr;
+                for (let i = 0; i < klineData.length; i++) {
+                    const x = dateToX(klineData[i].date);
+                    const y = yPrice(klineData[i].close);
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
+            if (marginData.length > 1) {
+                ctx.beginPath(); ctx.strokeStyle = '#6495ed'; ctx.lineWidth = 2*dpr;
+                for (let i = 0; i < marginData.length; i++) {
+                    const x = dateToX(marginData[i].date);
+                    const y = yRzye(marginData[i].rzye);
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
+            if (marginData.length > 1) {
+                ctx.beginPath(); ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2*dpr;
+                for (let i = 0; i < marginData.length; i++) {
+                    const x = dateToX(marginData[i].date);
+                    const y = yRqye(marginData[i].rqye);
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#666'; ctx.font = `${10*dpr}px sans-serif`; ctx.textAlign = 'right';
+            for (let i = 0; i <= 4; i++) {
+                const v = (rzyeMax * i / 4).toFixed(0);
+                ctx.fillText(v + '亿', pad.left - 6*dpr, pad.top + ch * (1 - i/4) + 4*dpr);
+            }
+
+            ctx.textAlign = 'left';
+            for (let i = 0; i <= 4; i++) {
+                const v = (priceMax * i / 4).toFixed(0);
+                ctx.fillText(v + '元', pad.left + cw + 6*dpr, pad.top + ch * (1 - i/4) + 4*dpr);
+            }
+
+            if (allDates.length > 0) {
+                ctx.fillStyle = '#999'; ctx.font = `${11*dpr}px sans-serif`; ctx.textAlign = 'center';
+                const showCount = Math.min(6, allDates.length);
+                for (let i = 0; i < showCount; i++) {
+                    const idx = Math.floor(i * (allDates.length - 1) / (showCount - 1));
+                    const x = dateToX(allDates[idx]);
+                    const label = allDates[idx].substring(0, 4) + '-' + allDates[idx].substring(4, 6);
+                    ctx.fillText(label, x, H - pad.bottom + 16*dpr);
+                }
+            }
+
+            const legend = [
+                {label:'股价',color:'#4ecdc4'},{label:'融资余额',color:'#6495ed'},
+                {label:'融券余额',color:'#ffd700'},
+            ];
+            ctx.font = `${11*dpr}px sans-serif`; ctx.textAlign = 'left';
+            let lx = pad.left;
+            for (const item of legend) {
+                ctx.fillStyle = item.color;
+                ctx.fillRect(lx, 8*dpr, 12*dpr, 12*dpr);
+                ctx.fillStyle = '#ccc';
+                ctx.fillText(item.label, lx + 16*dpr, 19*dpr);
+                lx += ctx.measureText(item.label).width + 28*dpr;
+            }
+
+            const chartData = { marginData, klineData, allDates, dateToX, yRzye, yRqye, yPrice, pad, cw, ch, dpr };
+            canvas.chartData = chartData;
+
+            canvas.onmousemove = function(e) {
+                const cr = canvas.getBoundingClientRect();
+                const mx = (e.clientX - cr.left) * dpr;
+                const cd = canvas.chartData;
+                if (!cd) return;
+
+                let closestMargin = null, minMDist = Infinity;
+                for (const m of cd.marginData) {
+                    const x = dateToX(m.date);
+                    const dist = Math.abs(mx - x);
+                    if (dist < minMDist) { minMDist = dist; closestMargin = m; }
+                }
+                let closestKline = null, minKDist = Infinity;
+                for (const k of cd.klineData) {
+                    const x = dateToX(k.date);
+                    const dist = Math.abs(mx - x);
+                    if (dist < minKDist) { minKDist = dist; closestKline = k; }
+                }
+
+                const bestDist = Math.min(minMDist, minKDist);
+                if (bestDist > cw / cd.allDates.length * 2) { tooltip.style.display = 'none'; return; }
+
+                const displayDate = closestMargin ? closestMargin.date : (closestKline ? closestKline.date : null);
+                if (!displayDate) { tooltip.style.display = 'none'; return; }
+
+                const klinePoint = closestKline;
+                const marginPoint = closestMargin;
+
+                let html = `<div style="color:#4ecdc4;font-weight:700;margin-bottom:4px;">${displayDate.substring(0,4)}-${displayDate.substring(4,6)}-${displayDate.substring(6,8)}</div>`;
+                if (klinePoint) html += `<div><span style="color:#4ecdc4;">股价</span> ${klinePoint.close.toFixed(2)}元</div>`;
+                if (marginPoint) {
+                    html += `<div><span style="color:#6495ed;">融资余额</span> ${marginPoint.rzye.toFixed(2)}亿</div>`;
+                    html += `<div><span style="color:#ffd700;">融券余额</span> ${marginPoint.rqye.toFixed(2)}亿</div>`;
+                }
+
+                tooltip.innerHTML = html;
+                const tx = e.clientX - cr.left + 15;
+                const ty = e.clientY - cr.top - 10;
+                const tw = tooltip.offsetWidth || 180;
+                const th = tooltip.offsetHeight || 100;
+                tooltip.style.left = (tx + tw > cr.width ? tx - tw - 30 : tx) + 'px';
+                tooltip.style.top = (ty + th > cr.height ? cr.height - th - 5 : (ty < 0 ? 5 : ty)) + 'px';
+                tooltip.style.display = 'block';
+            };
+            canvas.onmouseout = function() { tooltip.style.display = 'none'; };
         }
 
         function renderFundChart(series) {
@@ -2108,8 +2289,8 @@ const filterPegMax = ref(null);
         });
 
         return {
-            activeTab, stockCode, loading, profile, error, finChartLoading, finChartCanvas, fundChartLoading, fundChartImg, fundChartImgEl, divChartCanvas,
-            loadProfile, loadFinChart, loadFundChart, loadDivChart, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile, goBack, currentPage, returnPage, introStatusName, chainName,
+            activeTab, stockCode, loading, profile, error, finChartLoading, finChartCanvas, fundChartLoading, fundChartImg, fundChartImgEl, divChartCanvas, marginChartCanvas, marginChartLoading,
+            loadProfile, loadFinChart, loadFundChart, loadDivChart, loadMarginChart, scoreClass, scoreTextClass, rsiClass, debtClass, gmTrendClass, goToProfile, goBack, currentPage, returnPage, introStatusName, chainName,
             stageOptions, selectedStages, filterTechScore, filterFundScore,
             filterRevGrowth, filterProfitGrowth, filterDebtMax,
             filterPrevYearProfitMin, filterPrevYearProfitMax, filterCurQuarterProfitMin, filterCurQuarterProfitMax,
