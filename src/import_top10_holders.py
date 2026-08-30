@@ -7,7 +7,7 @@
 用法:
   python import_top10_holders.py
   python import_top10_holders.py --start 20240101
-  python import_top10_holders.py --start 20240101 --end 20241231
+  python import_top10_holders.py --quarter 20240930
 """
 
 import argparse
@@ -30,7 +30,7 @@ API_KEY = os.environ.get('TUSHARE_TOKEN', '')
 if not API_KEY:
     raise SystemExit('缺少 TUSHARE_TOKEN 环境变量')
 
-SLEEP = 0.3
+SLEEP = 0.15
 
 NATIONAL_TEAM_TYPES = [
     '社保基金、社保机构',
@@ -43,9 +43,9 @@ NATIONAL_TEAM_TYPES = [
 NATIONAL_TEAM_KEYWORDS = [
     '中央汇金', '中国证券金融', '证金公司',
     '社保', '养老保险',
-    '人寿保险', '人寿保险', '保险公司',
+    '人寿保险', '保险公司',
     '太平洋', '平安保险', '中国人保', '新华保险',
-    '泰康', '阳光保险', '华安保险',
+    '泰康', '阳光保险',
 ]
 
 
@@ -123,12 +123,39 @@ def save_rows(rows):
         conn.close()
 
 
+def get_stock_list():
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT stock_code, exchange FROM stocks WHERE exchange IN ('sh', 'sz')")
+            rows = cur.fetchall()
+            result = []
+            for r in rows:
+                suffix = '.SH' if r['exchange'] == 'sh' else '.SZ'
+                result.append(r['stock_code'] + suffix)
+            return result
+    finally:
+        conn.close()
+
+
+def quarters_in_range(start, end):
+    quarters = []
+    for year in range(int(start[:4]), int(end[:4]) + 1):
+        for q in ['0331', '0630', '0930', '1231']:
+            period = f'{year}{q}'
+            if start <= period <= end:
+                quarters.append(period)
+    return quarters
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--start', type=str, default='20240101',
                         help='开始日期（YYYYMMDD，默认20240101）')
     parser.add_argument('--end', type=str, default=None,
                         help='结束日期（YYYYMMDD，默认今天）')
+    parser.add_argument('--quarter', type=str, default=None,
+                        help='只下载指定季度（如20240930）')
     parser.add_argument('--all', action='store_true',
                         help='下载全部数据（不限股东类型）')
     args = parser.parse_args()
@@ -143,68 +170,67 @@ def main():
     finally:
         conn.close()
 
-    end_date = args.end or time.strftime('%Y%m%d')
-    print(f'开始下载十大流通股东数据：{args.start} 至 {end_date}')
+    stock_list = get_stock_list()
+    print(f'沪深股票总数: {len(stock_list)}', flush=True)
 
-    quarters = ['0331', '0630', '0930', '1231']
-    total = 0
+    if args.quarter:
+        quarters = [args.quarter]
+    else:
+        end_date = args.end or time.strftime('%Y%m%d')
+        quarters = quarters_in_range(args.start, end_date)
 
-    for year in range(int(args.start[:4]), int(end_date[:4]) + 1):
-        for q in quarters:
-            period = f'{year}{q}'
-            if period < args.start or period > end_date:
+    print(f'下载季度: {quarters}', flush=True)
+    print(flush=True)
+
+    total_saved = 0
+
+    for period in quarters:
+        period_saved = 0
+        print(f'--- {period} ---', flush=True)
+
+        for i, ts_code in enumerate(stock_list):
+            try:
+                df = pro.top10_floatholders(ts_code=ts_code, period=period)
+            except Exception as e:
+                print(f'  [错误] {ts_code}: {e}', flush=True)
+                time.sleep(1)
                 continue
 
-            page = 1
-            while True:
-                try:
-                    df = pro.top10_floatholders(
-                        period=period,
-                        start_date=args.start,
-                        end_date=end_date,
-                        limit=5000,
-                        offset=(page - 1) * 5000
-                    )
-                except Exception as e:
-                    print(f'  [错误] {period} page={page}: {e}')
-                    time.sleep(2)
-                    continue
+            if df is None or len(df) == 0:
+                continue
 
-                if df is None or len(df) == 0:
-                    break
+            rows_to_save = []
+            for _, r in df.iterrows():
+                row_data = {
+                    'ts_code': r.get('ts_code'),
+                    'ann_date': r.get('ann_date'),
+                    'end_date': r.get('end_date'),
+                    'holder_name': r.get('holder_name'),
+                    'hold_amount': r.get('hold_amount'),
+                    'hold_ratio': r.get('hold_ratio'),
+                    'hold_float_ratio': r.get('hold_float_ratio'),
+                    'hold_change': r.get('hold_change'),
+                    'holder_type': r.get('holder_type'),
+                }
+                if args.all or is_national_team(row_data):
+                    rows_to_save.append(tuple(to_db(row_data[c]) for c in (
+                        'ts_code', 'ann_date', 'end_date', 'holder_name', 'hold_amount',
+                        'hold_ratio', 'hold_float_ratio', 'hold_change', 'holder_type')))
 
-                rows_to_save = []
-                for _, r in df.iterrows():
-                    row_data = {
-                        'ts_code': r.get('ts_code'),
-                        'ann_date': r.get('ann_date'),
-                        'end_date': r.get('end_date'),
-                        'holder_name': r.get('holder_name'),
-                        'hold_amount': r.get('hold_amount'),
-                        'hold_ratio': r.get('hold_ratio'),
-                        'hold_float_ratio': r.get('hold_float_ratio'),
-                        'hold_change': r.get('hold_change'),
-                        'holder_type': r.get('holder_type'),
-                    }
-                    if args.all or is_national_team(row_data):
-                        rows_to_save.append(tuple(to_db(row_data[c]) for c in (
-                            'ts_code', 'ann_date', 'end_date', 'holder_name', 'hold_amount',
-                            'hold_ratio', 'hold_float_ratio', 'hold_change', 'holder_type')))
+            if rows_to_save:
+                save_rows(rows_to_save)
+                period_saved += len(rows_to_save)
+                total_saved += len(rows_to_save)
 
-                if rows_to_save:
-                    save_rows(rows_to_save)
-                    total += len(rows_to_save)
-
-                print(f'  {period} page={page} 总原始={len(df)} 国家队={len(rows_to_save)} 累计={total}')
-
-                if len(df) < 5000:
-                    break
-                page += 1
-                time.sleep(SLEEP)
+            if (i + 1) % 200 == 0:
+                print(f'  进度: {i+1}/{len(stock_list)} 已保存: {total_saved}', flush=True)
 
             time.sleep(SLEEP)
 
-    print(f'下载完成，共保存 {total} 条国家队持仓记录')
+        print(f'  {period} 完成，本季度保存: {period_saved}条，累计: {total_saved}条', flush=True)
+        print(flush=True)
+
+    print(f'全部完成，共保存 {total_saved} 条国家队持仓记录', flush=True)
 
 
 if __name__ == '__main__':
