@@ -2078,3 +2078,163 @@ tbody tr:last-child td { border-bottom: none; }
 .dg-row-selected {
     background: rgba(0,212,255,0.06);
 }
+
+/* ── 投资逻辑页面 ── */
+.logic-content { display: flex; flex-direction: column; gap: 16px; }
+.logic-industries {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.logic-industry {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 22px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.logic-industry:hover { border-color: var(--accent); }
+.logic-industry.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+}
+.logic-industry .li-icon { font-size: 22px; }
+.logic-industry .li-name { font-size: 15px; font-weight: 600; }
+
+.logic-overview {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+}
+.logic-overview .lo-title { font-size: 16px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+.logic-overview .lo-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+.logic-chain {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+.chain-stage {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.chain-stage.stage-1 { border-top: 3px solid #f59e0b; }
+.chain-stage.stage-2 { border-top: 3px solid #00d4ff; }
+.chain-stage.stage-3 { border-top: 3px solid #22c55e; }
+.chain-stage-head {
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.03);
+}
+.chain-stage-head .csh-tag {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 8px;
+    color: #0a0e17;
+}
+.chain-stage-head .csh-title { font-size: 13px; font-weight: 600; }
+.chain-stage-body {
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+}
+.chain-driver {
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--border);
+}
+.chain-driver .cd-name {
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.chain-driver .cd-icon { font-size: 15px; }
+.chain-driver .cd-impact {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 6px;
+}
+.chain-driver .cd-benefit {
+    background: rgba(0,212,255,0.08);
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+.chain-driver .cdb-label { font-size: 10px; color: var(--accent); font-weight: 600; margin-bottom: 2px; }
+.chain-driver .cdb-text { font-size: 11.5px; color: var(--text); line-height: 1.5; }
+.chain-arrow {
+    position: absolute;
+    right: -14px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    color: var(--accent);
+    font-size: 18px;
+    text-shadow: 0 0 8px rgba(0,212,255,0.4);
+}
+
+.logic-stocks {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+}
+.logic-stocks-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+.logic-stocks-head .ls-title { font-size: 15px; font-weight: 700; }
+.logic-stocks-head .ls-sub { font-size: 11px; color: var(--text-muted); }
+.logic-stock-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px;
+}
+.logic-stock-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.logic-stock-card:hover { border-color: var(--accent); background: var(--accent-dim); }
+.ls-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+.ls-code { font-size: 12px; color: var(--accent); font-weight: 700; }
+.ls-tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 8px; background: rgba(255,255,255,0.06); }
+.ls-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.ls-logic { font-size: 11.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 8px; }
+.ls-factor { display: flex; gap: 4px; flex-wrap: wrap; }
+.ls-factor-tag {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 8px;
+    background: rgba(0,212,255,0.1);
+    color: var(--accent);
+}

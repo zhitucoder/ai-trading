@@ -44,6 +44,7 @@
         <data-lineage-page v-else-if="currentPage === 'data_lineage'"></data-lineage-page>
         <fund-page v-else-if="currentPage === 'fund'"></fund-page>
         <institution-page v-else-if="currentPage === 'institution'"></institution-page>
+        <logic-page v-else-if="currentPage === 'logic'"></logic-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
@@ -2023,6 +2024,72 @@
         <div v-else-if="!loading" class="card">
             <div class="placeholder" style="height:100px;">
                 <p style="font-size:13px;color:var(--text-muted);">暂无分红记录</p>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="logic-tpl">
+    <div class="topbar">
+        <h2>投资逻辑 · 上下游传导</h2>
+        <span class="badge">事件驱动 → 传导链 → 受益标的</span>
+    </div>
+    <div class="content logic-content">
+        <div class="logic-industries">
+            <div class="logic-industry" v-for="ind in industries" :key="ind.id"
+                 :class="{active: activeIndustry === ind.id}"
+                 @click="switchIndustry(ind.id)">
+                <span class="li-icon">{{ ind.icon }}</span>
+                <span class="li-name">{{ ind.name }}</span>
+            </div>
+        </div>
+
+        <div v-if="ind" class="logic-overview">
+            <div class="lo-title">{{ ind.title }}</div>
+            <div class="lo-desc">{{ ind.description }}</div>
+        </div>
+
+        <div v-if="ind" class="logic-chain">
+            <div class="chain-stage" v-for="(stage, si) in ind.stages" :key="si"
+                 :style="{width: stageWidth + '%'}" :class="'stage-' + stage.level">
+                <div class="chain-stage-head" :style="{background: stageColor(stage.level)}">
+                    <span class="csh-tag">{{ stage.tag }}</span>
+                    <span class="csh-title">{{ stage.name }}</span>
+                </div>
+                <div class="chain-stage-body">
+                    <div class="chain-driver" v-for="(d, di) in stage.drivers" :key="di">
+                        <div class="cd-name">
+                            <span class="cd-icon">{{ d.icon }}</span>
+                            <span>{{ d.name }}</span>
+                        </div>
+                        <div class="cd-impact" v-if="d.impact">{{ d.impact }}</div>
+                        <div class="cd-benefit" v-if="d.benefit">
+                            <div class="cdb-label">受益方向</div>
+                            <div class="cdb-text">{{ d.benefit }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chain-arrow" v-if="si < ind.stages.length - 1">➤</div>
+            </div>
+        </div>
+
+        <div v-if="ind" class="logic-stocks">
+            <div class="logic-stocks-head">
+                <div class="ls-title">受益标的 · {{ ind.name }}</div>
+                <div class="ls-sub">点击股票查看画像</div>
+            </div>
+            <div class="logic-stock-grid">
+                <div class="logic-stock-card" v-for="(s, si) in ind.stocks" :key="si" @click="goStock(s.code)">
+                    <div class="ls-card-top">
+                        <span class="ls-code">{{ s.code }}</span>
+                        <span class="ls-tag" :style="{color: stageColor(s.level)}">{{ stageTagName(s.level) }}</span>
+                    </div>
+                    <div class="ls-name">{{ s.name }}</div>
+                    <div class="ls-logic" v-if="s.logic">{{ s.logic }}</div>
+                    <div class="ls-factor" v-if="s.factor">
+                        <span v-for="(f, fi) in s.factor" :key="fi" class="ls-factor-tag">{{ f }}</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
