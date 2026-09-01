@@ -5161,8 +5161,711 @@ app.component('logic-page', {
             currentPage.value = 'profile';
         }
 
+        const viewMode = ref('event');
+        const activeSector = ref('880301');
+
+        const sectorGroups = ref([
+            {
+                id: 'cycle', name: '周期资源', icon: '⛰️',
+                industries: [
+                    {
+                        code: '880301', name: '煤炭', icon: '⛏️',
+                        desc: '黑色能源，动力煤+焦煤双主线',
+                        logic: '煤价由供需决定：动力煤看电厂日耗+库存，焦煤看钢厂高炉开工。政策保供稳价是最大变量，高分红+低估值提供安全边际。',
+                        drivers: [
+                            { icon: '🌡️', name: '迎峰度夏/度冬', desc: '用电旺季电厂日耗上升→动力煤价上行' },
+                            { icon: '🏗️', name: '焦煤需求', desc: '钢厂高炉开工率→焦煤需求' },
+                            { icon: '📜', name: '长协+保供政策', desc: '长协价稳定利润，政策压制煤价上限' },
+                        ],
+                        upstream: [{ icon: '🏭', name: '煤机设备', desc: '煤炭开采机械需求' }],
+                        downstream: [{ icon: '⚡', name: '火电', desc: '动力煤下游，发电耗煤' }, { icon: '🏗️', name: '焦化/钢铁', desc: '焦煤下游炼焦' }],
+                        stocks: [
+                            { code: '601088', name: '中国神华', logic: '煤电一体化，高分红龙头' },
+                            { code: '600188', name: '兖矿能源', logic: '动力煤+化工，业绩弹性' },
+                            { code: '601898', name: '中煤能源', logic: '央企煤炭，煤电一体化' },
+                        ],
+                    },
+                    {
+                        code: '880310', name: '石油', icon: '🛢️',
+                        desc: '油气开采+炼化双主线，油价是核心变量',
+                        logic: '油价由OPEC+供给+地缘+全球需求决定。上游开采盈利随油价弹性放大，炼化受油价波动影响。高油价利好上游，低油价利好炼化成本。',
+                        drivers: [
+                            { icon: '⚔️', name: '地缘冲突', desc: '中东/俄乌→供应中断预期→油价暴涨' },
+                            { icon: '🛢️', name: 'OPEC+减产', desc: '供给端调控→油价中枢上移' },
+                            { icon: '🌍', name: '全球需求', desc: '经济复苏→原油需求增长' },
+                        ],
+                        upstream: [{ icon: '⛏️', name: '油服设备', desc: '油气开采装备需求' }],
+                        downstream: [{ icon: '🧪', name: '炼化', desc: '原油炼制成成品油/化工' }, { icon: '🚗', name: '成品油消费', desc: '交通用油需求' }],
+                        stocks: [
+                            { code: '601857', name: '中国石油', logic: '上游油气龙头，油价弹性' },
+                            { code: '600938', name: '中国海油', logic: '纯上游，成本优势突出' },
+                            { code: '600028', name: '中国石化', logic: '炼化一体化，综合受益' },
+                        ],
+                    },
+                    {
+                        code: '880318', name: '钢铁', icon: '🔩',
+                        desc: '普钢+特钢，地产基建需求主导',
+                        logic: '钢铁受地产/基建/制造业需求驱动，供给端受粗钢压减+铁矿成本影响。地产企稳+基建发力→需求改善，高端特钢成长性强。',
+                        drivers: [
+                            { icon: '🏗️', name: '地产/基建', desc: '地产开工+基建投资→钢材需求' },
+                            { icon: '📉', name: '粗钢压减', desc: '限产政策→供给收缩→钢价支撑' },
+                            { icon: '⛏️', name: '铁矿成本', desc: '铁矿石价格→钢企成本' },
+                        ],
+                        upstream: [{ icon: '⛏️', name: '铁矿石', desc: '炼钢原料' }, { icon: '⚫', name: '焦炭', desc: '炼焦煤加工' }],
+                        downstream: [{ icon: '🏗️', name: '房地产', desc: '螺纹钢需求' }, { icon: '🚗', name: '汽车/机械', desc: '板材/特钢需求' }],
+                        stocks: [
+                            { code: '600019', name: '宝钢股份', logic: '普钢龙头，汽车板优势' },
+                            { code: '000708', name: '中信特钢', logic: '特钢龙头，高端制造' },
+                        ],
+                    },
+                    {
+                        code: '880324', name: '有色', icon: '🥇',
+                        desc: '铜铝铅锌黄金，工业金属+贵金属',
+                        logic: '铜铝看全球需求+新能源拉动，黄金看避险+美元+降息。新能源（电动车/光伏）提升铜铝需求，宏观宽松利好贵金属。',
+                        drivers: [
+                            { icon: '🚗', name: '新能源需求', desc: '电动车/光伏/电网→铜铝需求' },
+                            { icon: '💵', name: '美元/降息', desc: '美元走弱+降息→黄金上涨' },
+                            { icon: '🌍', name: '全球补库', desc: '经济复苏→工业金属需求' },
+                        ],
+                        upstream: [{ icon: '⛏️', name: '矿山', desc: '铜矿/铝土矿' }],
+                        downstream: [{ icon: '🚗', name: '新能源车', desc: '铜铝需求' }, { icon: '⚡', name: '电网/光伏', desc: '有色金属需求' }],
+                        stocks: [
+                            { code: '601899', name: '紫金矿业', logic: '铜金龙头，全球资源' },
+                            { code: '601600', name: '中国铝业', logic: '电解铝龙头，新能源受益' },
+                            { code: '600547', name: '山东黄金', logic: '黄金龙头，避险弹性' },
+                        ],
+                    },
+                    {
+                        code: '880330', name: '化纤', icon: '🧵',
+                        desc: '涤纶/粘胶，纺织原料',
+                        logic: '化纤受油价（原料PX/PTA）+下游纺织需求驱动。产能周期决定景气，油价上行+需求回暖→价差扩大。',
+                        drivers: [
+                            { icon: '🛢️', name: '油价', desc: 'PTA/PX原料成本' },
+                            { icon: '👕', name: '纺织需求', desc: '下游服装出口' },
+                            { icon: '🏭', name: '产能周期', desc: '新增产能→价差' },
+                        ],
+                        upstream: [{ icon: '🛢️', name: '原油/PTA', desc: '化纤原料' }],
+                        downstream: [{ icon: '👕', name: '纺织服装', desc: '涤纶/粘胶需求' }],
+                        stocks: [
+                            { code: '600346', name: '恒力石化', logic: '炼化+化纤一体化' },
+                            { code: '000301', name: '东方盛虹', logic: '炼化+涤纶龙头' },
+                        ],
+                    },
+                    {
+                        code: '880335', name: '化工', icon: '🧪',
+                        desc: '基础化工，周期+成长',
+                        logic: '化工品价格由供需决定，油价是成本端变量。地产/纺服/农业需求驱动，供给端受产能周期影响。细分看新材料/农药/化纤成长。',
+                        drivers: [
+                            { icon: '🛢️', name: '油价成本', desc: '化工品原料成本' },
+                            { icon: '🏗️', name: '地产/纺服需求', desc: '下游消费需求' },
+                            { icon: '🏭', name: '产能周期', desc: '供给端扩张/收缩' },
+                        ],
+                        upstream: [{ icon: '🛢️', name: '原油/煤炭', desc: '化工原料' }],
+                        downstream: [{ icon: '🌾', name: '农业', desc: '化肥需求' }, { icon: '🚗', name: '汽车/电子', desc: '新材料需求' }],
+                        stocks: [
+                            { code: '600309', name: '万华化学', logic: 'MDI龙头，化工白马' },
+                            { code: '002648', name: '卫星化学', logic: '轻烃化工，成长性强' },
+                        ],
+                    },
+                    {
+                        code: '880344', name: '建材', icon: '🏗️',
+                        desc: '水泥+玻璃+消费建材',
+                        logic: '建材受地产/基建需求驱动，水泥看区域供给格局+错峰生产，玻璃看地产竣工，消费建材看地产后周期。',
+                        drivers: [
+                            { icon: '🏗️', name: '地产/基建', desc: '水泥/玻璃需求' },
+                            { icon: '🏭', name: '错峰生产', desc: '供给约束→水泥价格' },
+                            { icon: '🏠', name: '地产竣工', desc: '玻璃/消费建材需求' },
+                        ],
+                        upstream: [{ icon: '⛏️', name: '石灰石/纯碱', desc: '建材原料' }],
+                        downstream: [{ icon: '🏗️', name: '房地产/基建', desc: '水泥需求' }, { icon: '🏠', name: '家装', desc: '消费建材需求' }],
+                        stocks: [
+                            { code: '600585', name: '海螺水泥', logic: '水泥龙头，成本优势' },
+                            { code: '601636', name: '旗滨集团', logic: '玻璃龙头，光伏玻璃' },
+                        ],
+                    },
+                    {
+                        code: '880350', name: '造纸', icon: '📄',
+                        desc: '纸浆+成品纸，周期消费',
+                        logic: '造纸受纸浆成本+下游需求（包装/文化纸）驱动。浆价是核心变量，需求看消费/出口。',
+                        drivers: [
+                            { icon: '🌲', name: '纸浆价格', desc: '木浆成本' },
+                            { icon: '📦', name: '包装需求', desc: '快递/消费包装' },
+                            { icon: '🌍', name: '出口', desc: '成品纸出口' },
+                        ],
+                        upstream: [{ icon: '🌲', name: '木浆', desc: '造纸原料' }],
+                        downstream: [{ icon: '📦', name: '包装', desc: '瓦楞/白卡需求' }, { icon: '📚', name: '文化纸', desc: '教材/办公' }],
+                        stocks: [
+                            { code: '600966', name: '博汇纸业', logic: '白卡纸龙头' },
+                            { code: '600308', name: '华泰股份', logic: '新闻纸/文化纸' },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: 'consumer', name: '大消费', icon: '🛍️',
+                industries: [
+                    {
+                        code: '880360', name: '农林牧渔', icon: '🌾',
+                        desc: '种植+养殖，粮食安全',
+                        logic: '受农产品价格驱动，猪周期看产能去化，种业看粮食安全+转基因，养殖看猪价/鸡价。粮价上涨利好种业种植。',
+                        drivers: [
+                            { icon: '🐷', name: '猪周期', desc: '母猪产能→猪价' },
+                            { icon: '🌾', name: '粮食安全', desc: '粮价+转基因商业化' },
+                            { icon: '🐔', name: '禽养殖', desc: '鸡价周期' },
+                        ],
+                        upstream: [{ icon: '🌱', name: '种子/饲料', desc: '养殖种植投入品' }],
+                        downstream: [{ icon: '🍖', name: '肉制品', desc: '猪肉/鸡肉消费' }],
+                        stocks: [
+                            { code: '002714', name: '牧原股份', logic: '生猪养殖龙头' },
+                            { code: '000998', name: '隆平高科', logic: '种业龙头' },
+                            { code: '000876', name: '新希望', logic: '饲料+养殖一体化' },
+                        ],
+                    },
+                    {
+                        code: '880372', name: '食品饮料', icon: '🍜',
+                        desc: '调味品+乳品+零食，消费刚需',
+                        logic: '必选消费，需求稳定。受消费复苏+成本（大豆/糖）+提价能力驱动。龙头品牌力强，提价转嫁成本。',
+                        drivers: [
+                            { icon: '📈', name: '消费复苏', desc: '居民消费意愿' },
+                            { icon: '🧂', name: '提价能力', desc: '调味品/零食提价' },
+                            { icon: '🌱', name: '原料成本', desc: '大豆/糖等成本' },
+                        ],
+                        upstream: [{ icon: '🌾', name: '农产品原料', desc: '大豆/小麦/糖' }],
+                        downstream: [{ icon: '🛒', name: '商超/电商', desc: '终端零售' }],
+                        stocks: [
+                            { code: '600887', name: '伊利股份', logic: '乳制品龙头' },
+                            { code: '603288', name: '海天味业', logic: '调味品龙头' },
+                        ],
+                    },
+                    {
+                        code: '880380', name: '酿酒', icon: '🍶',
+                        desc: '白酒+啤酒+红酒',
+                        logic: '白酒看高端需求+库存周期，啤酒看高端化+提价，红酒偏小众。白酒是消费升级核心，茅台等高端酒提价能力强。',
+                        drivers: [
+                            { icon: '🍶', name: '白酒需求', desc: '高端白酒景气' },
+                            { icon: '🏭', name: '库存周期', desc: '渠道库存去化' },
+                            { icon: '🍺', name: '啤酒高端化', desc: '吨价提升' },
+                        ],
+                        upstream: [{ icon: '🌾', name: '粮食/麦芽', desc: '酿酒原料' }],
+                        downstream: [{ icon: '🍽️', name: '餐饮/宴请', desc: '白酒消费场景' }],
+                        stocks: [
+                            { code: '600519', name: '贵州茅台', logic: '白酒龙头，提价能力' },
+                            { code: '000858', name: '五粮液', logic: '高端白酒' },
+                            { code: '600809', name: '山西汾酒', logic: '次高端成长' },
+                        ],
+                    },
+                    {
+                        code: '880387', name: '家用电器', icon: '📺',
+                        desc: '白电+黑电+小家电',
+                        logic: '家电看地产竣工+以旧换新+出口。白电格局好盈利稳，黑电受面板周期，小家电看新品。出口+政策补贴驱动。',
+                        drivers: [
+                            { icon: '🏠', name: '地产竣工', desc: '家电购置需求' },
+                            { icon: '🔄', name: '以旧换新', desc: '政策补贴拉动' },
+                            { icon: '🌍', name: '出口', desc: '海外需求' },
+                        ],
+                        upstream: [{ icon: '🔩', name: '铜铝/压缩机', desc: '家电核心部件' }],
+                        downstream: [{ icon: '🏠', name: '终端消费', desc: '家庭购买' }],
+                        stocks: [
+                            { code: '000333', name: '美的集团', logic: '白电龙头' },
+                            { code: '000651', name: '格力电器', logic: '空调龙头' },
+                            { code: '600690', name: '海尔智家', logic: '白电全球化' },
+                        ],
+                    },
+                    {
+                        code: '880355', name: '日用化工', icon: '🧴',
+                        desc: '日化用品，消费刚需',
+                        logic: '日化受消费需求+成本（油脂/包装）+渠道变革驱动。龙头品牌力强，个人护理/清洁用品需求稳定。',
+                        drivers: [
+                            { icon: '🛒', name: '消费需求', desc: '日化刚需' },
+                            { icon: '🌴', name: '油脂成本', desc: '原料棕榈油等' },
+                            { icon: '🛍️', name: '渠道', desc: '电商/新零售' },
+                        ],
+                        upstream: [{ icon: '🌴', name: '油脂/表面活性剂', desc: '日化原料' }],
+                        downstream: [{ icon: '🛒', name: '商超/电商', desc: '终端零售' }],
+                        stocks: [
+                            { code: '600315', name: '上海家化', logic: '日化龙头' },
+                            { code: '603605', name: '珀莱雅', logic: '美妆成长' },
+                        ],
+                    },
+                    {
+                        code: '880367', name: '纺织服饰', icon: '👕',
+                        desc: '纺织+服装+家纺',
+                        logic: '纺织看出口+棉价，服装看消费+品牌升级，家纺看地产。出口链+品牌消费双主线。',
+                        drivers: [
+                            { icon: '🌍', name: '出口', desc: '纺织出口订单' },
+                            { icon: '🌱', name: '棉价', desc: '棉花成本' },
+                            { icon: '🛍️', name: '品牌消费', desc: '国潮/运动服饰' },
+                        ],
+                        upstream: [{ icon: '🌾', name: '棉花/化纤', desc: '纺织原料' }],
+                        downstream: [{ icon: '🛍️', name: '服装零售', desc: '品牌消费' }],
+                        stocks: [
+                            { code: '002563', name: '森马服饰', logic: '大众服饰' },
+                            { code: '600398', name: '海澜之家', logic: '男装龙头' },
+                        ],
+                    },
+                    {
+                        code: '880406', name: '商业连锁', icon: '🏬',
+                        desc: '零售/超市/百货',
+                        logic: '零售受消费景气+新零售变革驱动。超市看生鲜供应链，百货看可选消费，免税/会员店新业态成长。',
+                        drivers: [
+                            { icon: '🛒', name: '消费景气', desc: '零售额增长' },
+                            { icon: '🛍️', name: '新零售', desc: '会员店/折扣业态' },
+                            { icon: '💳', name: '免税', desc: '免税消费' },
+                        ],
+                        upstream: [{ icon: '🏭', name: '品牌商', desc: '商品采购' }],
+                        downstream: [{ icon: '👤', name: '消费者', desc: '终端零售' }],
+                        stocks: [
+                            { code: '002024', name: 'ST易购', logic: '家电零售' },
+                            { code: '601933', name: '永辉超市', logic: '生鲜超市' },
+                        ],
+                    },
+                    {
+                        code: '880423', name: '酒店餐饮', icon: '🍽️',
+                        desc: '酒店+餐饮，出行消费',
+                        logic: '受出行/旅游景气+消费复苏驱动。酒店看入住率+RevPAR，餐饮看翻台率+开店扩张。',
+                        drivers: [
+                            { icon: '✈️', name: '出行恢复', desc: '旅游/商旅需求' },
+                            { icon: '🏨', name: '酒店RevPAR', desc: '入住率+房价' },
+                            { icon: '🍽️', name: '餐饮扩张', desc: '开店+翻台' },
+                        ],
+                        upstream: [{ icon: '🏢', name: '物业/食材', desc: '酒店餐饮成本' }],
+                        downstream: [{ icon: '👤', name: '消费者', desc: '住宿餐饮消费' }],
+                        stocks: [
+                            { code: '600754', name: '锦江酒店', logic: '酒店龙头' },
+                            { code: '601007', name: '金陵饭店', logic: '酒店餐饮' },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: 'pharma', name: '医药', icon: '💊',
+                industries: [
+                    {
+                        code: '880398', name: '医疗保健', icon: '🏥',
+                        desc: '医疗服务+器械+中药',
+                        logic: '医药受政策（集采）+创新+消费医疗驱动。创新药/械政策支持，中药传承，医疗服务看老龄化。集采压制仿制药，创新是主线。',
+                        drivers: [
+                            { icon: '🧬', name: '创新药', desc: '研发管线+出海' },
+                            { icon: '📜', name: '集采政策', desc: '仿制药降价' },
+                            { icon: '👴', name: '老龄化', desc: '医疗需求增长' },
+                        ],
+                        upstream: [{ icon: '🧪', name: '原料药/CXO', desc: '医药研发生产外包' }],
+                        downstream: [{ icon: '🏥', name: '医院/药店', desc: '终端用药' }],
+                        stocks: [
+                            { code: '600276', name: '恒瑞医药', logic: '创新药龙头' },
+                            { code: '300760', name: '迈瑞医疗', logic: '医疗器械龙头' },
+                            { code: '600085', name: '同仁堂', logic: '中药龙头' },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: 'tech', name: '科技成长', icon: '💻',
+                industries: [
+                    {
+                        code: '880491', name: '半导体', icon: '🔌',
+                        desc: '芯片设计+制造+设备材料',
+                        logic: 'AI算力+国产替代双主线。设计看AI芯片/SoC，制造看晶圆代工扩产，设备材料看国产化率提升。出口管制倒逼自主可控。',
+                        drivers: [
+                            { icon: '🤖', name: 'AI算力', desc: 'GPU/HBM需求爆发' },
+                            { icon: '🇨🇳', name: '国产替代', desc: '设备/材料导入' },
+                            { icon: '🏭', name: '晶圆扩产', desc: '产能满载' },
+                        ],
+                        upstream: [{ icon: '🔧', name: '设备材料', desc: '光刻/刻蚀/硅片' }],
+                        downstream: [{ icon: '📱', name: '消费电子/汽车', desc: '芯片应用' }, { icon: '🤖', name: 'AI算力', desc: '数据中心' }],
+                        stocks: [
+                            { code: '688981', name: '中芯国际', logic: '代工龙头' },
+                            { code: '688256', name: '寒武纪', logic: 'AI芯片' },
+                            { code: '002371', name: '北方华创', logic: '设备龙头' },
+                        ],
+                    },
+                    {
+                        code: '880492', name: '元器件', icon: '🔩',
+                        desc: '被动元件+PCB+连接器',
+                        logic: '受下游需求（消费电子/汽车/服务器）驱动。AI服务器+新能源车提升PCB/MLCC需求，国产替代加速。',
+                        drivers: [
+                            { icon: '🤖', name: 'AI服务器', desc: '高多层PCB需求' },
+                            { icon: '🚗', name: '新能源车', desc: '电子元器件用量' },
+                            { icon: '🇨🇳', name: '国产替代', desc: 'MLCC/连接器' },
+                        ],
+                        upstream: [{ icon: '🥉', name: '铜箔/覆铜板', desc: 'PCB原料' }],
+                        downstream: [{ icon: '📱', name: '消费电子', desc: '元器件应用' }, { icon: '🤖', name: '服务器', desc: 'PCB需求' }],
+                        stocks: [
+                            { code: '002463', name: '沪电股份', logic: '高多层PCB龙头' },
+                            { code: '002938', name: '鹏鼎控股', logic: 'PCB龙头' },
+                        ],
+                    },
+                    {
+                        code: '880490', name: '通信设备', icon: '📡',
+                        desc: '5G+光模块+主设备',
+                        logic: '受5G建设+AI数据中心+运营商资本开支驱动。光模块受AI算力拉动，主设备看运营商招标，物联网成长。',
+                        drivers: [
+                            { icon: '🤖', name: 'AI光模块', desc: '800G/1.6T需求' },
+                            { icon: '📡', name: '5G建设', desc: '主设备招标' },
+                            { icon: '🌍', name: '运营商资本开支', desc: '通信投资' },
+                        ],
+                        upstream: [{ icon: '💎', name: '光芯片/光纤', desc: '光模块核心' }],
+                        downstream: [{ icon: '🤖', name: '数据中心', desc: '光模块需求' }, { icon: '📱', name: '运营商', desc: '主设备采购' }],
+                        stocks: [
+                            { code: '300308', name: '中际旭创', logic: '光模块龙头' },
+                            { code: '000063', name: '中兴通讯', logic: '主设备龙头' },
+                        ],
+                    },
+                    {
+                        code: '880489', name: 'IT设备', icon: '🖥️',
+                        desc: '服务器+PC+存储',
+                        logic: '受AI算力+信创+企业IT支出驱动。AI服务器需求爆发，信创国产化，存储看价格周期。',
+                        drivers: [
+                            { icon: '🤖', name: 'AI服务器', desc: '算力需求' },
+                            { icon: '🇨🇳', name: '信创', desc: '国产化替代' },
+                            { icon: '💾', name: '存储周期', desc: 'DRAM/NAND价格' },
+                        ],
+                        upstream: [{ icon: '🔌', name: 'CPU/GPU/存储', desc: 'IT设备核心' }],
+                        downstream: [{ icon: '🤖', name: '数据中心', desc: '服务器需求' }, { icon: '🏢', name: '政企', desc: '信创采购' }],
+                        stocks: [
+                            { code: '601138', name: '工业富联', logic: 'AI服务器龙头' },
+                            { code: '000977', name: '浪潮信息', logic: '服务器龙头' },
+                        ],
+                    },
+                    {
+                        code: '880493', name: '软件服务', icon: '💻',
+                        desc: '行业软件+云+SaaS',
+                        logic: '受数字化转型+AI+信创驱动。AI应用落地，国产软件替代，云服务增长。政策支持数字经济。',
+                        drivers: [
+                            { icon: '🤖', name: 'AI应用', desc: '大模型+软件' },
+                            { icon: '🇨🇳', name: '信创', desc: '国产软件' },
+                            { icon: '☁️', name: '云化', desc: 'SaaS转型' },
+                        ],
+                        upstream: [{ icon: '🖥️', name: '硬件/云基础设施', desc: '软件运行平台' }],
+                        downstream: [{ icon: '🏢', name: '政企客户', desc: '行业软件需求' }],
+                        stocks: [
+                            { code: '600588', name: '用友网络', logic: 'ERP龙头' },
+                            { code: '688111', name: '金山办公', logic: '办公软件' },
+                        ],
+                    },
+                    {
+                        code: '880494', name: '互联网', icon: '🌐',
+                        desc: '平台经济+电商+游戏',
+                        logic: '受流量+商业化+监管政策驱动。电商/游戏/广告变现，AI赋能，政策监管趋缓利好平台。',
+                        drivers: [
+                            { icon: '📱', name: '流量', desc: '用户时长' },
+                            { icon: '🤖', name: 'AI赋能', desc: '降本增效' },
+                            { icon: '📜', name: '政策监管', desc: '平台经济支持' },
+                        ],
+                        upstream: [{ icon: '💻', name: '软件/云', desc: '互联网基础设施' }],
+                        downstream: [{ icon: '👤', name: '用户', desc: 'C端消费' }],
+                        stocks: [
+                            { code: '002230', name: '科大讯飞', logic: 'AI应用龙头' },
+                        ],
+                    },
+                    {
+                        code: '880418', name: '传媒娱乐', icon: '🎬',
+                        desc: '影视+游戏+广告',
+                        logic: '受内容供给+流量+消费复苏驱动。游戏版号常态化，影视复苏，广告随经济回暖。AI+传媒降本增效。',
+                        drivers: [
+                            { icon: '🎮', name: '游戏版号', desc: '供给恢复' },
+                            { icon: '🎬', name: '影视复苏', desc: '票房/剧集' },
+                            { icon: '🤖', name: 'AI内容', desc: '降本增效' },
+                        ],
+                        upstream: [{ icon: '🎭', name: '内容制作', desc: '影视/游戏研发' }],
+                        downstream: [{ icon: '👤', name: '用户', desc: '娱乐消费' }],
+                        stocks: [
+                            { code: '002555', name: '三七互娱', logic: '游戏龙头' },
+                            { code: '300413', name: '芒果超媒', logic: '内容平台' },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: 'manufacture', name: '中游制造', icon: '⚙️',
+                industries: [
+                    {
+                        code: '880390', name: '汽车类', icon: '🚗',
+                        desc: '整车+零部件，新能源转型',
+                        logic: '汽车电动化+智能化转型主线。新能源车渗透率提升，出口增长，智能驾驶升级。产业链看电池/零部件国产化。',
+                        drivers: [
+                            { icon: '🔋', name: '新能源车', desc: '渗透率提升' },
+                            { icon: '🌍', name: '出口', desc: '整车出海' },
+                            { icon: '🤖', name: '智能化', desc: '智驾+座舱' },
+                        ],
+                        upstream: [{ icon: '🔋', name: '电池/锂电', desc: '整车核心' }, { icon: '🔩', name: '零部件', desc: '汽车配件' }],
+                        downstream: [{ icon: '👤', name: '消费者', desc: '购车需求' }],
+                        stocks: [
+                            { code: '002594', name: '比亚迪', logic: '新能源车龙头' },
+                            { code: '601633', name: '长城汽车', logic: 'SUV+新能源' },
+                            { code: '300750', name: '宁德时代', logic: '动力电池龙头' },
+                        ],
+                    },
+                    {
+                        code: '880437', name: '通用机械', icon: '🔧',
+                        desc: '机床/工业机械/机械基件',
+                        logic: '受制造业投资+设备更新+出口驱动。机床看工业母机国产化，工程机械看基建/地产，通用机械看制造业资本开支。',
+                        drivers: [
+                            { icon: '🏭', name: '制造业投资', desc: '资本开支' },
+                            { icon: '🇨🇳', name: '工业母机', desc: '机床国产化' },
+                            { icon: '🌍', name: '出口', desc: '机械出口' },
+                        ],
+                        upstream: [{ icon: '🔩', name: '钢材/轴承', desc: '机械核心件' }],
+                        downstream: [{ icon: '🏭', name: '制造业', desc: '机床/机械需求' }],
+                        stocks: [
+                            { code: '600031', name: '三一重工', logic: '工程机械龙头' },
+                            { code: '300124', name: '汇川技术', logic: '工控龙头' },
+                        ],
+                    },
+                    {
+                        code: '880446', name: '电气设备', icon: '⚡',
+                        desc: '电力设备+新能源+电网',
+                        logic: '受电网投资+新能源装机+出口驱动。特高压/电网设备受益电网投资，光伏/风电装机增长，储能爆发。',
+                        drivers: [
+                            { icon: '🌞', name: '新能源装机', desc: '光伏/风电' },
+                            { icon: '⚡', name: '电网投资', desc: '特高压/配网' },
+                            { icon: '🔋', name: '储能', desc: '需求爆发' },
+                        ],
+                        upstream: [{ icon: '🔩', name: '铜/硅料', desc: '电力设备原料' }],
+                        downstream: [{ icon: '🏭', name: '电网/新能源电站', desc: '设备需求' }],
+                        stocks: [
+                            { code: '601012', name: '隆基绿能', logic: '光伏龙头' },
+                            { code: '300274', name: '阳光电源', logic: '逆变器+储能' },
+                            { code: '600406', name: '国电南瑞', logic: '电网设备龙头' },
+                        ],
+                    },
+                    {
+                        code: '880430', name: '航空', icon: '✈️',
+                        desc: '航空运输，周期+成长',
+                        logic: '受油价+汇率+出行需求驱动。油价是最大成本，汇率影响汇兑损益，出行复苏+国际航线恢复→供需改善。',
+                        drivers: [
+                            { icon: '🛢️', name: '油价', desc: '航油成本' },
+                            { icon: '✈️', name: '出行复苏', desc: '客运量恢复' },
+                            { icon: '💱', name: '汇率', desc: '汇兑损益' },
+                        ],
+                        upstream: [{ icon: '🛢️', name: '航油', desc: '航空成本' }],
+                        downstream: [{ icon: '👤', name: '旅客', desc: '航空出行' }],
+                        stocks: [
+                            { code: '600029', name: '南方航空', logic: '航空龙头' },
+                            { code: '601111', name: '中国国航', logic: '国际航线' },
+                        ],
+                    },
+                    {
+                        code: '880431', name: '船舶', icon: '🛳️',
+                        desc: '造船+航运装备',
+                        logic: '受全球运力需求+新船订单周期驱动。航运景气→船东下单→船厂订单饱满，船舶周期上行，军船/海工也有看点。',
+                        drivers: [
+                            { icon: '🚢', name: '航运景气', desc: '运价→新船订单' },
+                            { icon: '🛠️', name: '船舶周期', desc: '造船产能紧张' },
+                            { icon: '🎖️', name: '军船', desc: '海军装备' },
+                        ],
+                        upstream: [{ icon: '🔩', name: '钢板/船用设备', desc: '造船原料' }],
+                        downstream: [{ icon: '🚢', name: '航运公司', desc: '船舶采购' }],
+                        stocks: [
+                            { code: '600150', name: '中国船舶', logic: '造船龙头' },
+                            { code: '601989', name: '中国重工', logic: '造船+军工' },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: 'finance', name: '金融地产', icon: '🏦',
+                industries: [
+                    {
+                        code: '880471', name: '银行', icon: '🏦',
+                        desc: '商业银行，高股息',
+                        logic: '银行看净息差+资产质量+信贷需求。息差受LPR/存款利率影响，地产风险出清改善资产质量。高股息+低估值为防御配置。',
+                        drivers: [
+                            { icon: '📊', name: '净息差', desc: '存贷利差' },
+                            { icon: '🏠', name: '地产风险', desc: '资产质量' },
+                            { icon: '📈', name: '信贷需求', desc: '社融/投放' },
+                        ],
+                        upstream: [{ icon: '👤', name: '存款', desc: '银行负债' }],
+                        downstream: [{ icon: '🏢', name: '企业/居民', desc: '信贷投放' }],
+                        stocks: [
+                            { code: '600036', name: '招商银行', logic: '零售银行龙头' },
+                            { code: '601398', name: '工商银行', logic: '国有大行' },
+                            { code: '601166', name: '兴业银行', logic: '股份行' },
+                        ],
+                    },
+                    {
+                        code: '880472', name: '证券', icon: '📈',
+                        desc: '券商，牛市旗手',
+                        logic: '券商看市场成交+投行+自营。市场活跃→经纪/两融收入，注册制→投行，政策利好（并购重组）催化。',
+                        drivers: [
+                            { icon: '📈', name: '市场成交', desc: '成交量/两融' },
+                            { icon: '🏦', name: '投行业务', desc: 'IPO/再融资' },
+                            { icon: '🤝', name: '并购重组', desc: '券商整合' },
+                        ],
+                        upstream: [{ icon: '📊', name: '市场行情', desc: '券商盈利基础' }],
+                        downstream: [{ icon: '👤', name: '投资者', desc: '经纪/两融' }],
+                        stocks: [
+                            { code: '600030', name: '中信证券', logic: '券商龙头' },
+                            { code: '601688', name: '华泰证券', logic: '综合券商' },
+                            { code: '300059', name: '东方财富', logic: '互联网券商' },
+                        ],
+                    },
+                    {
+                        code: '880473', name: '保险', icon: '🛡️',
+                        desc: '寿险+财险，长端利率',
+                        logic: '保险看负债端（保费）+资产端（投资）。长端利率决定投资收益，新单保费增长，代理人改革提质。',
+                        drivers: [
+                            { icon: '📉', name: '长端利率', desc: '投资收益' },
+                            { icon: '📊', name: '保费收入', desc: 'NBV增长' },
+                            { icon: '👤', name: '代理人改革', desc: '产能提升' },
+                        ],
+                        upstream: [{ icon: '💵', name: '投资资产', desc: '险资配置' }],
+                        downstream: [{ icon: '👤', name: '投保人', desc: '保费' }],
+                        stocks: [
+                            { code: '601318', name: '中国平安', logic: '综合金融龙头' },
+                            { code: '601628', name: '中国人寿', logic: '寿险龙头' },
+                        ],
+                    },
+                    {
+                        code: '880474', name: '多元金融', icon: '💳',
+                        desc: '信托/租赁/期货',
+                        logic: '多元金融看政策+子行业景气。信托转型，租赁看制造业，期货看商品活跃度，互联网金融科技。',
+                        drivers: [
+                            { icon: '📜', name: '政策', desc: '金融监管' },
+                            { icon: '🏭', name: '租赁需求', desc: '设备租赁' },
+                            { icon: '📊', name: '期货活跃', desc: '商品市场' },
+                        ],
+                        upstream: [{ icon: '💵', name: '资金', desc: '金融杠杆' }],
+                        downstream: [{ icon: '🏢', name: '企业/个人', desc: '金融服务' }],
+                        stocks: [
+                            { code: '600816', name: '安信信托', logic: '信托' },
+                            { code: '600901', name: '江苏金租', logic: '金融租赁' },
+                        ],
+                    },
+                    {
+                        code: '880476', name: '建筑', icon: '🏗️',
+                        desc: '建筑工程，基建主力',
+                        logic: '建筑看基建投资+地产+海外工程。基建稳增长抓手，订单转化收入，央企低估值高股息。',
+                        drivers: [
+                            { icon: '🏗️', name: '基建投资', desc: '稳增长' },
+                            { icon: '🌍', name: '海外工程', desc: '一带一路' },
+                            { icon: '💵', name: '订单', desc: '新签订单' },
+                        ],
+                        upstream: [{ icon: '🔩', name: '钢材/水泥', desc: '建材' }],
+                        downstream: [{ icon: '🏗️', name: '政府/地产', desc: '工程发包' }],
+                        stocks: [
+                            { code: '601668', name: '中国建筑', logic: '建筑央企' },
+                            { code: '601390', name: '中国中铁', logic: '基建龙头' },
+                        ],
+                    },
+                    {
+                        code: '880482', name: '房地产', icon: '🏠',
+                        desc: '房地产开发+服务',
+                        logic: '地产看政策+销售+资金。政策宽松（限购/利率）→销售回暖→拿地开工。行业出清后格局改善，央国企受益。',
+                        drivers: [
+                            { icon: '📜', name: '政策', desc: '限购/降首付' },
+                            { icon: '📈', name: '销售', desc: '商品房成交' },
+                            { icon: '💰', name: '融资', desc: '信用/资金' },
+                        ],
+                        upstream: [{ icon: '🏗️', name: '土地/建材', desc: '开发成本' }],
+                        downstream: [{ icon: '👤', name: '购房者', desc: '商品房需求' }],
+                        stocks: [
+                            { code: '600048', name: '保利发展', logic: '央企地产龙头' },
+                            { code: '000002', name: '万科A', logic: '地产龙头' },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: 'utility', name: '公用交运', icon: '🚉',
+                industries: [
+                    {
+                        code: '880305', name: '电力', icon: '⚡',
+                        desc: '火电+水电+核电+新能源',
+                        logic: '电力看电量+电价+成本。火电看煤价（成本下降盈利改善），水电看来水，核电稳定，新能源装机增长。',
+                        drivers: [
+                            { icon: '⚡', name: '电价', desc: '市场化电价' },
+                            { icon: '⛏️', name: '煤价', desc: '火电成本' },
+                            { icon: '🌊', name: '来水', desc: '水电出力' },
+                        ],
+                        upstream: [{ icon: '⛏️', name: '煤炭', desc: '火电燃料' }],
+                        downstream: [{ icon: '🏭', name: '工商业/居民', desc: '用电需求' }],
+                        stocks: [
+                            { code: '600900', name: '长江电力', logic: '水电龙头' },
+                            { code: '601985', name: '中国核电', logic: '核电龙头' },
+                            { code: '600011', name: '华能国际', logic: '火电龙头' },
+                        ],
+                    },
+                    {
+                        code: '880453', name: '公共交通', icon: '🚌',
+                        desc: '公交+水务+燃气',
+                        logic: '公用事业，防御属性。水务/燃气看价改+量增，公交看运营补贴。现金流稳定，高股息。',
+                        drivers: [
+                            { icon: '📜', name: '价格改革', desc: '水/气价上调' },
+                            { icon: '👥', name: '人口增长', desc: '用水用气量' },
+                            { icon: '💵', name: '运营补贴', desc: '公交补贴' },
+                        ],
+                        upstream: [{ icon: '🌊', name: '水源/气源', desc: '公用原料' }],
+                        downstream: [{ icon: '👤', name: '居民/企业', desc: '公共需求' }],
+                        stocks: [
+                            { code: '600323', name: '瀚蓝环境', logic: '环保+水务' },
+                            { code: '600635', name: '大众公用', logic: '燃气+公用' },
+                        ],
+                    },
+                    {
+                        code: '880456', name: '环境保护', icon: '🌿',
+                        desc: '环保工程+运营',
+                        logic: '环保看政策+订单+运营现金流。双碳政策驱动，垃圾焚烧/危废运营稳定，检测/节能成长。',
+                        drivers: [
+                            { icon: '🌿', name: '双碳政策', desc: '环保投入' },
+                            { icon: '🏭', name: '运营项目', desc: '垃圾焚烧' },
+                            { icon: '🔬', name: '检测/节能', desc: '成长业务' },
+                        ],
+                        upstream: [{ icon: '🔧', name: '环保设备', desc: '治理装备' }],
+                        downstream: [{ icon: '🏭', name: '工业企业', desc: '环保服务' }],
+                        stocks: [
+                            { code: '300070', name: '碧水源', logic: '水务环保' },
+                            { code: '603568', name: '伟明环保', logic: '垃圾焚烧' },
+                        ],
+                    },
+                    {
+                        code: '880459', name: '运输服务', icon: '🚚',
+                        desc: '铁路/公路/港口/物流',
+                        logic: '运输看货量+运价+成本。港口看进出口，公路/铁路看货运量，物流看电商，高股息防御。',
+                        drivers: [
+                            { icon: '📦', name: '物流需求', desc: '电商/制造业' },
+                            { icon: '🌍', name: '进出口', desc: '港口吞吐' },
+                            { icon: '🚚', name: '货运量', desc: '公路/铁路' },
+                        ],
+                        upstream: [{ icon: '⛽', name: '燃油/车辆', desc: '运输成本' }],
+                        downstream: [{ icon: '🏭', name: '制造业/贸易', desc: '运输需求' }],
+                        stocks: [
+                            { code: '601006', name: '大秦铁路', logic: '铁路货运' },
+                            { code: '600018', name: '上港集团', logic: '港口龙头' },
+                            { code: '600233', name: '圆通速递', logic: '快递物流' },
+                        ],
+                    },
+                    {
+                        code: '880452', name: '电信运营', icon: '📡',
+                        desc: '运营商+通信服务',
+                        logic: '运营商看用户+ARPU+资本开支。5G用户增长，云计算/数字化第二曲线，高股息。',
+                        drivers: [
+                            { icon: '📱', name: '5G用户', desc: '渗透率' },
+                            { icon: '☁️', name: '云计算', desc: '产业数字化' },
+                            { icon: '💵', name: '分红', desc: '高股息' },
+                        ],
+                        upstream: [{ icon: '📡', name: '通信设备', desc: '网络建设' }],
+                        downstream: [{ icon: '👤', name: '用户', desc: '通信服务' }],
+                        stocks: [
+                            { code: '600941', name: '中国移动', logic: '运营商龙头' },
+                            { code: '600050', name: '中国联通', logic: '运营商' },
+                        ],
+                    },
+                ],
+            },
+        ]);
+
+        const curSector = computed(() => {
+            for (const g of sectorGroups.value) {
+                const found = g.industries.find(i => i.code === activeSector.value);
+                if (found) return found;
+            }
+            return null;
+        });
+
         return {
             events, activeEvent, ev, switchEvent, timingLabel, goStock,
+            viewMode, sectorGroups, activeSector, curSector,
         };
     },
 });

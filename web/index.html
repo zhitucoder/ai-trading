@@ -2031,10 +2031,15 @@
 
 <template id="logic-tpl">
     <div class="topbar">
-        <h2>投资逻辑 · 事件传导网络</h2>
-        <span class="badge">事件驱动 → 多行业传导 → 受益标的</span>
+        <h2>投资逻辑 · 事件传导 / 行业全景</h2>
+        <div class="tab-group">
+            <button class="tab-btn" :class="{active: viewMode === 'event'}" @click="viewMode = 'event'">事件驱动</button>
+            <button class="tab-btn" :class="{active: viewMode === 'sector'}" @click="viewMode = 'sector'">行业全景</button>
+        </div>
     </div>
-    <div class="content logic-content">
+
+    <!-- ═══ 事件驱动视图 ═══ -->
+    <div v-if="viewMode === 'event'" class="content logic-content">
         <div class="logic-events">
             <div class="logic-event" v-for="ev in events" :key="ev.id"
                  :class="{active: activeEvent === ev.id}"
@@ -2103,6 +2108,88 @@
                     <div class="ls-name">{{ s.name }}</div>
                     <div class="ls-chain" v-if="s.chain">{{ s.chain }}</div>
                     <div class="ls-logic" v-if="s.logic">{{ s.logic }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ 行业全景视图 ═══ -->
+    <div v-else class="content logic-content">
+        <div class="logic-sector-nav">
+            <div class="lsn-group" v-for="grp in sectorGroups" :key="grp.id">
+                <div class="lsn-group-name">{{ grp.icon }} {{ grp.name }}</div>
+                <div class="lsn-group-chips">
+                    <div class="lsn-chip" v-for="ind in grp.industries" :key="ind.code"
+                         :class="{active: activeSector === ind.code}"
+                         @click="activeSector = ind.code">
+                        {{ ind.name }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="curSector" class="sector-detail">
+            <div class="sector-detail-head">
+                <div class="sd-name">{{ curSector.icon }} {{ curSector.name }}</div>
+                <div class="sd-desc">{{ curSector.desc }}</div>
+            </div>
+
+            <div class="sector-drivers">
+                <div class="sd-block">
+                    <div class="sd-block-title">📊 核心投资逻辑</div>
+                    <div class="sd-logic">{{ curSector.logic }}</div>
+                </div>
+                <div class="sd-block">
+                    <div class="sd-block-title">🔄 驱动因素</div>
+                    <div class="sd-driver-list">
+                        <div class="sd-driver" v-for="(d, di) in curSector.drivers" :key="di">
+                            <span class="sdd-icon">{{ d.icon }}</span>
+                            <div class="sdd-body">
+                                <div class="sdd-name">{{ d.name }}</div>
+                                <div class="sdd-desc">{{ d.desc }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sector-updown">
+                <div class="sd-block" v-if="curSector.upstream">
+                    <div class="sd-block-title">⬆️ 上游</div>
+                    <div class="sd-updown">
+                        <div class="sdu-item" v-for="(u, ui) in curSector.upstream" :key="ui">
+                            <span class="sdu-icon">{{ u.icon }}</span>
+                            <div class="sdu-body">
+                                <div class="sdu-name">{{ u.name }}</div>
+                                <div class="sdu-desc">{{ u.desc }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="sd-block" v-if="curSector.downstream">
+                    <div class="sd-block-title">⬇️ 下游</div>
+                    <div class="sd-updown">
+                        <div class="sdu-item" v-for="(d, di) in curSector.downstream" :key="di">
+                            <span class="sdu-icon">{{ d.icon }}</span>
+                            <div class="sdu-body">
+                                <div class="sdu-name">{{ d.name }}</div>
+                                <div class="sdu-desc">{{ d.desc }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sector-stocks">
+                <div class="sd-block-title">🏢 相关标的</div>
+                <div class="sector-stock-list">
+                    <div class="ss-item" v-for="(s, si) in curSector.stocks" :key="si" @click="goStock(s.code)">
+                        <span class="ss-code">{{ s.code }}</span>
+                        <div class="ss-body">
+                            <div class="ss-name">{{ s.name }}</div>
+                            <div class="ss-logic">{{ s.logic }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

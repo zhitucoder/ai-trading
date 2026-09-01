@@ -2282,3 +2282,117 @@ tbody tr:last-child td { border-bottom: none; }
 .ls-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
 .ls-chain { font-size: 11px; color: var(--accent); margin-bottom: 4px; font-weight: 600; }
 .ls-logic { font-size: 11.5px; color: var(--text-muted); line-height: 1.5; }
+
+/* ── 投资逻辑 · 行业全景 ── */
+.logic-sector-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.lsn-group {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+}
+.lsn-group-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 10px;
+}
+.lsn-group-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.lsn-chip {
+    padding: 7px 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--text-muted);
+}
+.lsn-chip:hover { border-color: var(--accent); color: var(--text); }
+.lsn-chip.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.sector-detail {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+}
+.sector-detail-head { margin-bottom: 18px; }
+.sector-detail-head .sd-name { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.sector-detail-head .sd-desc { font-size: 13px; color: var(--text-muted); }
+
+.sector-drivers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.sector-updown {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.sd-block {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+.sd-block-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--accent);
+}
+.sd-logic { font-size: 13px; color: var(--text); line-height: 1.7; }
+
+.sd-driver-list { display: flex; flex-direction: column; gap: 10px; }
+.sd-driver { display: flex; gap: 10px; align-items: flex-start; }
+.sd-driver .sdd-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.sd-driver .sdd-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.sd-driver .sdd-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+.sd-updown { display: flex; flex-direction: column; gap: 10px; }
+.sdu-item { display: flex; gap: 10px; align-items: flex-start; }
+.sdu-item .sdu-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.sdu-item .sdu-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.sdu-item .sdu-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+.sector-stocks { margin-top: 4px; }
+.sector-stock-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+}
+.ss-item {
+    display: flex;
+    gap: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.ss-item:hover { border-color: var(--accent); background: var(--accent-dim); }
+.ss-item .ss-code { font-size: 12px; color: var(--accent); font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+.ss-item .ss-name { font-size: 13.5px; font-weight: 700; margin-bottom: 4px; }
+.ss-item .ss-logic { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+@media (max-width: 900px) {
+    .sector-drivers, .sector-updown { grid-template-columns: 1fr; }
+}
