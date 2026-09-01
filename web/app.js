@@ -5145,6 +5145,79 @@ app.component('logic-page', {
                     { code: '600900', name: '长江电力', chain: '电力·能源', timing: 4, logic: '稳定电力龙头' },
                 ],
             },
+            {
+                id: 'aigc', icon: '✨', name: 'AIGC应用',
+                short: '生成式AI → 算力/应用/数据安全',
+                title: 'AIGC（生成式AI）全景传导',
+                description: 'AIGC是本轮AI产业的核心爆发点：底层是算力需求爆发，中间是模型/平台能力提升，顶层是各类应用落地与商业化。核心逻辑：算力先行 → 应用变现 → 数据与安全受益。',
+                chains: [
+                    {
+                        name: '算力硬件 · 芯片/服务器', icon: '🔌', timing: 1,
+                        desc: 'AIGC模型训练/推理 → 算力需求爆发（即时）',
+                        nodes: [
+                            { icon: '✨', name: 'AIGC爆发', sub: '大模型训练/推理', type: 'trigger' },
+                            { icon: '📈', name: '算力需求', sub: 'GPU/CPU/服务器', type: 'impact' },
+                            { icon: '💰', name: '算力硬件盈利', sub: '订单饱满+涨价', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '688256', name: '寒武纪', logic: 'AI芯片龙头，训练推理需求', factor: ['AI芯片', 'GPU'] },
+                            { code: '688041', name: '海光信息', logic: '国产DCU/CPU，算力核心', factor: ['DCU', '国产算力'] },
+                            { code: '601138', name: '工业富联', logic: 'AI服务器代工龙头', factor: ['AI服务器', '算力'] },
+                        ],
+                    },
+                    {
+                        name: '算力基建 · 光模块/液冷', icon: '🖥️', timing: 2,
+                        desc: '算力集群建设 → 网络/散热配套（短期）',
+                        nodes: [
+                            { icon: '🏗️', name: '算力集群建设', sub: '智算中心/大集群', type: 'trigger' },
+                            { icon: '📡', name: '网络/散热需求', sub: '光模块/液冷/PCB', type: 'impact' },
+                            { icon: '💰', name: '配套硬件受益', sub: '量价齐升', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '300308', name: '中际旭创', logic: '光模块龙头，AI网络核心', factor: ['光模块', '800G'] },
+                            { code: '002463', name: '沪电股份', logic: '高多层PCB，AI服务器用', factor: ['PCB', 'AI服务器'] },
+                            { code: '000977', name: '浪潮信息', logic: '国产服务器，智算中心', factor: ['服务器', '智算'] },
+                        ],
+                    },
+                    {
+                        name: 'AI应用 · 办公/传媒/电商', icon: '💼', timing: 3,
+                        desc: '模型能力 → 应用商业化落地（中期）',
+                        nodes: [
+                            { icon: '📦', name: '模型平台化', sub: 'API/工具成熟', type: 'trigger' },
+                            { icon: '💼', name: '应用落地', sub: '办公/传媒/教育/电商', type: 'impact' },
+                            { icon: '💰', name: '应用变现', sub: '订阅/广告/提效', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '688111', name: '金山办公', logic: 'WPS AI，办公提效', factor: ['AI办公', 'WPS'] },
+                            { code: '002230', name: '科大讯飞', logic: 'AI应用龙头，星火大模型', factor: ['大模型', 'AI应用'] },
+                            { code: '300413', name: '芒果超媒', logic: 'AI内容生成，传媒降本', factor: ['AI传媒', '内容'] },
+                        ],
+                    },
+                    {
+                        name: '数据 · 安全/数据要素', icon: '🔐', timing: 4,
+                        desc: 'AI依赖数据 → 数据要素/安全（长期）',
+                        nodes: [
+                            { icon: '📊', name: 'AI数据需求', sub: '高质量训练数据', type: 'trigger' },
+                            { icon: '🔐', name: '数据安全/要素', sub: '合规/确权/交易', type: 'impact' },
+                            { icon: '💰', name: '数据服务受益', sub: '数据要素产业化', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '688561', name: '奇安信', logic: '网络安全龙头，AI安全', factor: ['网络安全', 'AI安全'] },
+                            { code: '300229', name: '拓尔思', logic: '数据要素+语义智能', factor: ['数据要素', '语义AI'] },
+                        ],
+                    },
+                ],
+                allStocks: [
+                    { code: '688256', name: '寒武纪', chain: '算力硬件·芯片', timing: 1, logic: 'AI芯片需求爆发' },
+                    { code: '688041', name: '海光信息', chain: '算力硬件·芯片', timing: 1, logic: '国产DCU/CPU' },
+                    { code: '601138', name: '工业富联', chain: '算力硬件·服务器', timing: 1, logic: 'AI服务器龙头' },
+                    { code: '300308', name: '中际旭创', chain: '算力基建·光模块', timing: 2, logic: '光模块800G放量' },
+                    { code: '002463', name: '沪电股份', chain: '算力基建·PCB', timing: 2, logic: 'AI服务器PCB' },
+                    { code: '688111', name: '金山办公', chain: 'AI应用·办公', timing: 3, logic: 'WPS AI提效' },
+                    { code: '002230', name: '科大讯飞', chain: 'AI应用', timing: 3, logic: '星火大模型' },
+                    { code: '688561', name: '奇安信', chain: '数据·安全', timing: 4, logic: 'AI安全龙头' },
+                ],
+            },
         ]);
 
         const ev = computed(() => events.value.find(e => e.id === activeEvent.value));
