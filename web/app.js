@@ -5006,6 +5006,20 @@ app.component('logic-page', {
                         ],
                     },
                     {
+                        name: '化工 · 炼化/化纤', icon: '🏭', timing: 1, type: 'bull',
+                        desc: '战争 → 油价上涨 → 化工品售价联动跟涨 → 炼化/化纤盈利反而改善（即时）',
+                        nodes: [
+                            { icon: '⚔️', name: '战争冲突', sub: '油价暴涨', type: 'trigger' },
+                            { icon: '📈', name: '化工品售价跟涨', sub: '炼化价差/化纤价差扩大', type: 'impact' },
+                            { icon: '💰', name: '盈利改善', sub: '产品售价联动油价', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '600309', name: '万华化学', logic: 'MDI/聚氨酯售价联动油价，盈利改善', factor: ['MDI', '化工'] },
+                            { code: '000301', name: '东方盛虹', logic: '炼化一体化，成品油价差受益', factor: ['炼化', '化纤'] },
+                            { code: '000703', name: '恒逸石化', logic: '聚酯/炼化，油价上行价差扩大', factor: ['炼化', '聚酯'] },
+                        ],
+                    },
+                    {
                         name: '利空 · 航空', icon: '✈️', timing: 2, type: 'bear',
                         desc: '战争 → 油价暴涨 → 航油成本激增 → 航空盈利承压（短期）',
                         nodes: [
@@ -5020,16 +5034,16 @@ app.component('logic-page', {
                         ],
                     },
                     {
-                        name: '利空 · 下游制造', icon: '🏭', timing: 2, type: 'bear',
-                        desc: '战争 → 油价/大宗上涨 → 原材料成本上升 → 下游毛利承压（短期）',
+                        name: '利空 · 下游成本敏感制造', icon: '🏭', timing: 2, type: 'bear',
+                        desc: '战争 → 油价/大宗上涨 → 提价能力弱的下游制造业毛利承压（短期）',
                         nodes: [
                             { icon: '⚔️', name: '战争冲突', sub: '大宗商品上涨', type: 'trigger' },
-                            { icon: '📈', name: '原材料成本上升', sub: '塑料/化纤/运输成本', type: 'impact' },
-                            { icon: '📉', name: '下游毛利承压', sub: '成本转嫁困难', type: 'bear' },
+                            { icon: '📈', name: '原材料成本上升', sub: '塑料/金属/物流成本', type: 'impact' },
+                            { icon: '📉', name: '毛利承压', sub: '产品提价能力弱', type: 'bear' },
                         ],
                         stocks: [
-                            { code: '600309', name: '万华化学', logic: '化工原料成本上行，短期承压', factor: ['化工', '成本'] },
-                            { code: '601012', name: '隆基绿能', logic: '原材料+物流成本上升', factor: ['光伏', '成本'] },
+                            { code: '601012', name: '隆基绿能', logic: '光伏硅料+物流成本上升，承压', factor: ['光伏', '成本'] },
+                            { code: '002594', name: '比亚迪', logic: '原材料+电池成本上升，短期承压', factor: ['新能源车', '成本'] },
                         ],
                     },
                     {
