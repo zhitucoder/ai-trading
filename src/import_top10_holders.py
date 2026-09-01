@@ -156,8 +156,8 @@ def main():
                         help='结束日期（YYYYMMDD，默认今天）')
     parser.add_argument('--quarter', type=str, default=None,
                         help='只下载指定季度（如20240930）')
-    parser.add_argument('--all', action='store_true',
-                        help='下载全部数据（不限股东类型）')
+    parser.add_argument('--start-stock', type=int, default=0,
+                        help='从第N只股票开始（用于断点续传）')
     args = parser.parse_args()
 
     pro = ts.pro_api(API_KEY)
@@ -189,6 +189,8 @@ def main():
         print(f'--- {period} ---', flush=True)
 
         for i, ts_code in enumerate(stock_list):
+            if i < args.start_stock:
+                continue
             try:
                 df = pro.top10_floatholders(ts_code=ts_code, period=period)
             except Exception as e:
@@ -212,10 +214,9 @@ def main():
                     'hold_change': r.get('hold_change'),
                     'holder_type': r.get('holder_type'),
                 }
-                if args.all or is_national_team(row_data):
-                    rows_to_save.append(tuple(to_db(row_data[c]) for c in (
-                        'ts_code', 'ann_date', 'end_date', 'holder_name', 'hold_amount',
-                        'hold_ratio', 'hold_float_ratio', 'hold_change', 'holder_type')))
+                rows_to_save.append(tuple(to_db(row_data[c]) for c in (
+                    'ts_code', 'ann_date', 'end_date', 'holder_name', 'hold_amount',
+                    'hold_ratio', 'hold_float_ratio', 'hold_change', 'holder_type')))
 
             if rows_to_save:
                 save_rows(rows_to_save)

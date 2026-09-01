@@ -798,6 +798,36 @@ def list_dividends(year: Optional[int] = None, is_mid: Optional[int] = None,
     return {'total': total, 'page': page, 'page_size': page_size, 'rows': rows}
 
 
+@router.get('/dividends/tushare/list')
+def list_dividends_tushare(year: Optional[int] = None, sort: str = 'ex_date',
+                           order: str = 'desc', page: int = 1, page_size: int = 50):
+    where = []
+    params = {}
+    if year:
+        where.append('d.ex_date LIKE %(year)s')
+        params['year'] = f'{year}%'
+    if sort not in ('ex_date', 'end_date', 'cash_div_tax'):
+        sort = 'ex_date'
+    sort_col = f'd.{sort}'
+    sort_dir = 'DESC' if order == 'desc' else 'ASC'
+
+    where_sql = (' WHERE ' + ' AND '.join(where)) if where else ''
+    total = query(f"SELECT COUNT(*) AS c FROM dividend_tushare d{where_sql}", params)[0]['c']
+    offset = (page - 1) * page_size
+    rows = query(f"""
+        SELECT d.ts_code, s.stock_name, d.end_date, d.div_proc, d.cash_div_tax,
+               d.cash_div, d.stk_bo_rate, d.stk_co_rate, d.stk_div,
+               d.ex_date, d.record_date, d.ann_date, d.pay_date
+        FROM dividend_tushare d
+        LEFT JOIN stocks s ON s.stock_code = SUBSTRING_INDEX(d.ts_code, '.', 1)
+        {where_sql}
+        ORDER BY {sort_col} {sort_dir}
+        LIMIT %(lo)s OFFSET %(of)s
+    """, {**params, 'lo': page_size, 'of': offset})
+
+    return {'total': total, 'page': page, 'page_size': page_size, 'rows': rows}
+
+
 @router.get('/stocks/search')
 def search_stocks(q: str = Query('', min_length=1)):
     q = q.strip()

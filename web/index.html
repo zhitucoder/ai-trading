@@ -43,6 +43,7 @@
         <data-catalog-page v-else-if="currentPage === 'data_catalog'"></data-catalog-page>
         <data-lineage-page v-else-if="currentPage === 'data_lineage'"></data-lineage-page>
         <fund-page v-else-if="currentPage === 'fund'"></fund-page>
+        <institution-page v-else-if="currentPage === 'institution'"></institution-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
@@ -1923,7 +1924,10 @@
 <template id="dividend-tpl">
     <div class="topbar">
         <h2>分红列表</h2>
-        <span class="badge">东方财富</span>
+        <div class="tab-group">
+            <button class="tab-btn" :class="{active: source === 'eastmoney'}" @click="switchSource('eastmoney')">东方财富</button>
+            <button class="tab-btn" :class="{active: source === 'tushare'}" @click="switchSource('tushare')">Tushare</button>
+        </div>
     </div>
     <div class="content">
         <div class="card">
@@ -1934,7 +1938,7 @@
                         <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
                     </select>
                 </div>
-                <div class="config-item">
+                <div class="config-item" v-if="source === 'eastmoney'">
                     <label>分红类型</label>
                     <select v-model="isMid" @change="onFilter" style="width:110px;">
                         <option :value="0">全部</option>
@@ -1954,7 +1958,7 @@
             <div style="overflow-x:auto;">
                 <table class="screening-table div-table">
                     <thead>
-                        <tr>
+                        <tr v-if="source === 'eastmoney'">
                             <th style="width:70px;">代码</th>
                             <th style="width:90px;">名称</th>
                             <th style="width:90px;cursor:pointer;" @click="toggleSort('report_date')">报告期{{ sortArrow('report_date') }}</th>
@@ -1967,9 +1971,21 @@
                             <th style="width:70px;">类型</th>
                             <th style="width:80px;">状态</th>
                         </tr>
+                        <tr v-else>
+                            <th style="width:70px;">代码</th>
+                            <th style="width:90px;">名称</th>
+                            <th style="width:90px;cursor:pointer;" @click="toggleSort('end_date')">分红年度{{ sortArrow('end_date') }}</th>
+                            <th style="width:80px;cursor:pointer;" @click="toggleSort('cash_div_tax')">每股分红{{ sortArrow('cash_div_tax') }}</th>
+                            <th style="width:70px;">每股送转</th>
+                            <th style="width:100px;cursor:pointer;" @click="toggleSort('ex_date')">除息日{{ sortArrow('ex_date') }}</th>
+                            <th style="width:100px;">登记日</th>
+                            <th style="width:100px;">公告日</th>
+                            <th style="width:100px;">派息日</th>
+                            <th style="width:80px;">状态</th>
+                        </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="(row, i) in rows" :key="row.stock_code + row.report_date" class="screening-row" @click="goStock(row.stock_code)">
+                        <tr v-if="source === 'eastmoney'" v-for="(row, i) in rows" :key="row.stock_code + row.report_date" class="screening-row" @click="goStock(row.stock_code)">
                             <td><strong>{{ row.stock_code }}</strong></td>
                             <td>{{ row.stock_name }}</td>
                             <td>{{ row.report_date }}</td>
@@ -1981,6 +1997,18 @@
                             <td>{{ row.equity_record_date || '-' }}</td>
                             <td><span v-if="row.is_mid_year" class="screening-tag" style="color:#00d4ff;">中期</span><span v-else class="screening-tag" style="color:var(--text-dim);">年度</span></td>
                             <td>{{ row.assign_progress }}</td>
+                        </tr>
+                        <tr v-else v-for="(row, i) in rows" :key="row.ts_code + row.end_date" class="screening-row" @click="goStock(tsToCode(row.ts_code))">
+                            <td><strong>{{ row.ts_code }}</strong></td>
+                            <td>{{ row.stock_name }}</td>
+                            <td>{{ row.end_date }}</td>
+                            <td>{{ row.cash_div_tax != null ? row.cash_div_tax.toFixed(2) : '-' }}</td>
+                            <td>{{ row.stk_div != null ? row.stk_div.toFixed(1) : '-' }}</td>
+                            <td>{{ row.ex_date || '-' }}</td>
+                            <td>{{ row.record_date || '-' }}</td>
+                            <td>{{ row.ann_date || '-' }}</td>
+                            <td>{{ row.pay_date || '-' }}</td>
+                            <td>{{ row.div_proc }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -2742,6 +2770,53 @@
                     </button>
                     <span v-if="adsResult" class="dm-toast dm-toast-ok">✓ {{ adsResult }}</span>
                     <span v-if="adsError" class="dm-toast dm-toast-err">✗ {{ adsError }}</span>
+                </div>
+            </div>
+
+            <!-- 国家队持仓分析 Card -->
+            <div class="dm-card dm-card-inst">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(226,183,20,0.12);">
+                        <span style="font-size:22px;">🏛</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">国家队持仓分析</div>
+                        <div class="dm-card-subtitle">ads_institution_* · 社保/养老/财政部/国资委/保险/北向</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot" :class="instDotClass"></span>
+                        <span class="dm-status-text">{{ instStatusText }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row">
+                        <span>机构×股票 持仓</span>
+                        <span class="dm-val accent">{{ status.institution?.inst_stock || 0 }} 条</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>季环比/增减持</span>
+                        <span class="dm-val">{{ status.institution?.inst_change || 0 }} 条</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>板块资金流向</span>
+                        <span class="dm-val">{{ status.institution?.inst_sector || 0 }} 条</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>季度总览</span>
+                        <span class="dm-val">{{ status.institution?.inst_overview || 0 }} 条</span>
+                    </div>
+                    <div class="dm-info-row">
+                        <span>数据源</span>
+                        <span class="dm-val">top10_float_holders</span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <button class="btn btn-primary" style="background:var(--green);border-color:var(--green);" @click="updateInstitution" :disabled="instLoading">
+                        <span v-if="instLoading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ instLoading ? '计算中...' : '⟳ 更新国家队持仓分析' }}
+                    </button>
+                    <span v-if="instResult" class="dm-toast dm-toast-ok">✓ {{ instResult }}</span>
+                    <span v-if="instError" class="dm-toast dm-toast-err">✗ {{ instError }}</span>
                 </div>
             </div>
 
@@ -3749,9 +3824,224 @@
     </div>
 </template>
 
+<template id="institution-tpl">
+    <div class="topbar">
+        <h2>国家队持仓分析</h2>
+        <span class="badge">社保 / 养老 / 保险 / 财政 / 国资委 / 北向</span>
+    </div>
+    <div class="content">
+        <div class="tabs" style="margin-bottom:16px;flex-wrap:wrap;">
+            <button v-for="o in ownerMeta" :key="o.owner_type"
+                    :class="{active: owner === o.owner_type}"
+                    @click="switchOwner(o.owner_type)">
+                {{ o.icon }} {{ o.label }}
+            </button>
+        </div>
+
+        <div v-if="error" class="error">{{ error }}</div>
+        <div v-if="loading" class="loading"><div class="spinner"></div></div>
+
+        <template v-if="owner && !loading">
+            <div class="tabs" style="margin-bottom:16px;">
+                <button :class="{active: subTab==='overview'}" @click="onSubTab('overview')">总览</button>
+                <button :class="{active: subTab==='change'}" @click="onSubTab('change')">季度变化</button>
+                <button :class="{active: subTab==='sector'}" @click="onSubTab('sector')">板块分布</button>
+                <button :class="{active: subTab==='stock'}" @click="onSubTab('stock')">个股轨迹</button>
+                <button v-if="owner !== 'hk_central'" :class="{active: subTab==='cross'}" @click="onSubTab('cross')">共持透视</button>
+            </div>
+
+            <!-- ═══ 总览 ═══ -->
+            <template v-if="subTab==='overview' && overviewData">
+                <div class="card">
+                    <div class="card-title">{{ ownerLabel() }} — 持仓趋势（{{ overviewData.latest_date }}）</div>
+                    <div class="stat-strip" style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px;">
+                        <div><span class="dm-strip-label">覆盖股票数</span><div class="dm-strip-value">{{ overviewData.latest.stock_cnt?.toLocaleString() }}</div></div>
+                        <div><span class="dm-strip-label">持仓市值</span><div class="dm-strip-value">{{ fmtMoney(overviewData.latest.total_mkv) }}</div></div>
+                        <div><span class="dm-strip-label">平均占流通比</span><div class="dm-strip-value">{{ fmtPct(overviewData.latest.avg_ratio) }}</div></div>
+                    </div>
+                    <div class="table-wrap scroll-table">
+                        <table class="table" style="width:100%;">
+                            <thead><tr><th>季度</th><th>主体</th><th>覆盖股票</th><th>持仓市值</th><th>平均占流通比</th></tr></thead>
+                            <tbody>
+                                <tr v-for="q in overviewData.trend" :key="q.end_date + (q.group_name || '')">
+                                    <td>{{ q.quarter }}</td>
+                                    <td>{{ q.group_name || '-' }}</td>
+                                    <td>{{ q.stock_cnt?.toLocaleString() }}</td>
+                                    <td>{{ fmtMoney(q.total_mkv) }}</td>
+                                    <td>{{ fmtPct(q.avg_ratio) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">最新季度持仓市值 TOP20</div>
+                    <div class="table-wrap scroll-table">
+                        <table class="table" style="width:100%;">
+                            <thead><tr><th>代码</th><th>名称</th><th>持仓股数</th><th>占流通比</th><th>持仓市值</th></tr></thead>
+                            <tbody>
+                                <tr v-for="r in overviewData.top" :key="r.stock_code" style="cursor:pointer;"
+                                    @click="openStock(r.stock_code)">
+                                    <td>{{ r.stock_code }}</td>
+                                    <td>{{ r.stock_name }}</td>
+                                    <td>{{ fmtShares(r.total_hold) }}</td>
+                                    <td>{{ fmtPct(r.hold_float_ratio) }}</td>
+                                    <td>{{ fmtMoney(r.hold_mkv) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </template>
+
+            <!-- ═══ 季度变化 ═══ -->
+            <template v-if="subTab==='change' && changeData">
+                <div class="card">
+                    <div class="card-title">
+                        {{ ownerLabel() }} — 季度增减持
+                        <select v-model="changeQuarter" @change="loadChange" style="margin-left:12px;padding:4px 8px;border-radius:4px;background:var(--bg-secondary);color:var(--text);">
+                            <option v-for="d in quarterList" :key="d" :value="d">{{ d }}</option>
+                        </select>
+                        <select v-model="changeAction" @change="loadChange" style="margin-left:8px;padding:4px 8px;border-radius:4px;background:var(--bg-secondary);color:var(--text);">
+                            <option value="">全部</option>
+                            <option value="增持">增持</option>
+                            <option value="减持">减持</option>
+                            <option value="新开仓">新开仓</option>
+                            <option value="清仓">清仓</option>
+                            <option value="持有">持有</option>
+                        </select>
+                    </div>
+                    <div class="table-wrap scroll-table">
+                        <table class="table" style="width:100%;">
+                            <thead><tr><th>代码</th><th>名称</th><th>动作</th><th>持仓市值</th><th>市值变动</th><th>持股数变动</th><th>变动幅度</th></tr></thead>
+                            <tbody>
+                                <tr v-for="r in changeData.rows" :key="r.stock_code+'-'+r.end_date" style="cursor:pointer;"
+                                    @click="openStock(r.stock_code)">
+                                    <td>{{ r.stock_code }}</td>
+                                    <td>{{ r.stock_name }}</td>
+                                    <td :style="{color: actionColor(r.action)}">{{ r.action }}</td>
+                                    <td>{{ fmtMoney(r.hold_mkv) }}</td>
+                                    <td :class="valClass(r.mkv_change)">{{ fmtMoney(r.mkv_change) }}</td>
+                                    <td :class="valClass(r.hold_change)">{{ r.hold_change != null ? fmtShares(r.hold_change) : '-' }}</td>
+                                    <td :class="valClass(r.hold_change_pct)">{{ fmtGrowth(r.hold_change_pct) }}</td>
+                                </tr>
+                                <tr v-if="!changeData.rows.length"><td colspan="7" style="text-align:center;color:var(--text-muted);">该季度无变动记录</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </template>
+
+            <!-- ═══ 板块分布 ═══ -->
+            <template v-if="subTab==='sector' && sectorData">
+                <div class="card">
+                    <div class="card-title">
+                        {{ ownerLabel() }} — 板块持仓
+                        <select v-model="sectorQuarter" @change="loadSector" style="margin-left:12px;padding:4px 8px;border-radius:4px;background:var(--bg-secondary);color:var(--text);">
+                            <option v-for="d in quarterList" :key="d" :value="d">{{ d }}</option>
+                        </select>
+                        <select v-model="sectorType" @change="loadSector" style="margin-left:8px;padding:4px 8px;border-radius:4px;background:var(--bg-secondary);color:var(--text);">
+                            <option value="industry">行业板块</option>
+                            <option value="concept">概念板块</option>
+                            <option value="region">地区板块</option>
+                        </select>
+                    </div>
+                    <div class="table-wrap scroll-table">
+                        <table class="table" style="width:100%;">
+                            <thead><tr><th>板块</th><th>股票数</th><th>持仓市值</th><th>上期市值</th><th>市值变动</th></tr></thead>
+                            <tbody>
+                                <tr v-for="r in sectorData.rows" :key="r.sector_name">
+                                    <td>{{ r.sector_name }}</td>
+                                    <td>{{ r.stock_cnt }}</td>
+                                    <td>{{ fmtMoney(r.hold_mkv) }}</td>
+                                    <td>{{ fmtMoney(r.prev_hold_mkv) }}</td>
+                                    <td :class="valClass(r.mkv_change)">{{ fmtMoney(r.mkv_change) }}</td>
+                                </tr>
+                                <tr v-if="!sectorData.rows.length"><td colspan="5" style="text-align:center;color:var(--text-muted);">无板块数据</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </template>
+
+            <!-- ═══ 个股轨迹 ═══ -->
+            <template v-if="subTab==='stock'">
+                <div class="card">
+                    <div class="card-title">
+                        {{ ownerLabel() }} — 个股持仓轨迹
+                        <input v-model="stockInput" placeholder="代码，如 600176"
+                               @keyup.enter="loadStock(stockInput)"
+                               style="margin-left:12px;padding:6px 12px;border-radius:4px;background:var(--bg-secondary);color:var(--text);border:1px solid var(--border);width:160px;" />
+                        <button class="btn btn-sm" @click="loadStock(stockInput)">查询</button>
+                        <span v-if="stockData && stockData.history.length" style="margin-left:12px;color:var(--text-muted);">{{ stockData.history[stockData.history.length-1].stock_name }}</span>
+                    </div>
+                </div>
+                <div v-if="stockData" class="card">
+                    <div class="card-title">持仓历史</div>
+                    <div class="table-wrap scroll-table">
+                        <table class="table" style="width:100%;">
+                            <thead><tr><th>季度</th><th>持仓股数</th><th>占流通比</th><th>持仓市值</th><th>季末价</th></tr></thead>
+                            <tbody>
+                                <tr v-for="r in stockData.history" :key="r.end_date">
+                                    <td>{{ r.quarter }}</td>
+                                    <td>{{ fmtShares(r.total_hold) }}</td>
+                                    <td>{{ fmtPct(r.hold_float_ratio) }}</td>
+                                    <td>{{ fmtMoney(r.hold_mkv) }}</td>
+                                    <td>{{ r.close_price }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div v-if="stockData && stockData.change.length" class="card">
+                    <div class="card-title">季度变动</div>
+                    <div class="table-wrap scroll-table">
+                        <table class="table" style="width:100%;">
+                            <thead><tr><th>季度</th><th>动作</th><th>市值</th><th>市值变动</th><th>股数变动</th><th>变动幅度</th></tr></thead>
+                            <tbody>
+                                <tr v-for="r in stockData.change" :key="r.end_date">
+                                    <td>{{ r.quarter }}</td>
+                                    <td :style="{color: actionColor(r.action)}">{{ r.action }}</td>
+                                    <td>{{ fmtMoney(r.hold_mkv) }}</td>
+                                    <td :class="valClass(r.mkv_change)">{{ fmtMoney(r.mkv_change) }}</td>
+                                    <td :class="valClass(r.hold_change)">{{ r.hold_change != null ? fmtShares(r.hold_change) : '-' }}</td>
+                                    <td :class="valClass(r.hold_change_pct)">{{ fmtGrowth(r.hold_change_pct) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </template>
+
+            <!-- ═══ 共持透视 ═══ -->
+            <template v-if="subTab==='cross' && crossData">
+                <div class="card">
+                    <div class="card-title">多势力共同持仓（{{ crossData.quarter }}）</div>
+                    <div class="table-wrap scroll-table">
+                        <table class="table" style="width:100%;">
+                            <thead><tr><th>代码</th><th>名称</th><th>共同持有势力数</th><th>势力</th><th>合计市值</th></tr></thead>
+                            <tbody>
+                                <tr v-for="r in crossData.rows" :key="r.stock_code" style="cursor:pointer;"
+                                    @click="openStock(r.stock_code)">
+                                    <td>{{ r.stock_code }}</td>
+                                    <td>{{ r.stock_name }}</td>
+                                    <td><span class="badge">{{ r.owner_cnt }}</span></td>
+                                    <td>{{ r.owners.split(',').map(ownerLabelOf).join(' / ') }}</td>
+                                    <td>{{ fmtMoney(r.total_mkv) }}</td>
+                                </tr>
+                                <tr v-if="!crossData.rows.length"><td colspan="5" style="text-align:center;color:var(--text-muted);">无共同持仓记录</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </template>
+        </template>
+    </div>
+</template>
+
 <script src="vue.global.prod.js"></script>
 <script src="lightweight-charts.standalone.production.js"></script>
 <script src="cytoscape.min.js"></script>
-<script src="app.js?v=20260825b"></script>
+<script src="app.js?v=20260831-inst"></script>
 </body>
 </html>

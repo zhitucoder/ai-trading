@@ -55,6 +55,7 @@ const app = createApp({
             { id: 'data_catalog', label: '数据资产', icon: '🗂' },
             { id: 'data_lineage', label: '数据血缘', icon: '⛓' },
             { id: 'fund', label: '基金持仓', icon: '◈' },
+            { id: 'institution', label: '国家队持仓', icon: '🏛' },
         ];
         const navPages = computed(() => pages);
         provide('currentPage', currentPage);
@@ -2344,20 +2345,30 @@ app.component('dividend-page', {
         const rows = ref([]);
         const loading = ref(false);
         const error = ref('');
+        const source = ref('eastmoney');
 
         async function loadList() {
             loading.value = true;
             error.value = '';
             try {
+                const endpoint = source.value === 'tushare' ? '/dividends/tushare/list' : '/dividends/list';
                 const params = new URLSearchParams({
-                    year: year.value || '', is_mid: isMid.value, sort: sort.value, order: order.value,
+                    year: year.value || '', sort: sort.value, order: order.value,
                     page: page.value, page_size: pageSize.value,
                 });
-                const r = await fetch(`${API_BASE}/dividends/list?${params}`);
+                if (source.value === 'eastmoney') params.set('is_mid', isMid.value);
+                const r = await fetch(`${API_BASE}${endpoint}?${params}`);
                 const d = await r.json();
                 if (d.error) error.value = d.error;
                 else { rows.value = d.rows; total.value = d.total; }
             } catch (e) { error.value = e.message; } finally { loading.value = false; }
+        }
+
+        function switchSource(src) {
+            if (source.value === src) return;
+            source.value = src;
+            page.value = 1;
+            loadList();
         }
 
         function toggleSort(col) {
@@ -2375,6 +2386,10 @@ app.component('dividend-page', {
         function goStock(code) {
             window._profileStockCode = code;
             currentPage.value = 'profile';
+        }
+
+        function tsToCode(ts_code) {
+            return (ts_code || '').split('.')[0];
         }
 
         function onFilter() { page.value = 1; loadList(); }
@@ -2405,7 +2420,7 @@ app.component('dividend-page', {
         }
 
         onMounted(loadList);
-        return { years, year, isMid, sort, order, page, pageSize, total, rows, loading, error, loadList, toggleSort, sortArrow, goStock, onFilter, yieldTip, payoutTip, planWidth, startResize };
+        return { years, year, isMid, sort, order, page, pageSize, total, rows, loading, error, source, switchSource, loadList, toggleSort, sortArrow, goStock, tsToCode, onFilter, yieldTip, payoutTip, planWidth, startResize };
     },
 });
 
@@ -2808,7 +2823,7 @@ app.component('expert-page', {
 app.component('data-mgmt-page', {
     template: '#data-mgmt-tpl',
     setup() {
-        const status = ref({ kline: {}, financial: {}, sector: {} });
+        const status = ref({ kline: {}, financial: {}, sector: {}, institution: {} });
         const klineLoading = ref(false);
         const klineResult = ref('');
         const klineError = ref('');
@@ -3136,6 +3151,39 @@ app.component('data-mgmt-page', {
             }
         }
 
+        const instLoading = ref(false);
+        const instResult = ref('');
+        const instError = ref('');
+
+        const instDotClass = computed(() => {
+            return instLoading.value ? 'dm-dot-sync' : ((status.value.institution?.inst_stock > 0) ? 'dm-dot-online' : 'dm-dot-pending');
+        });
+        const instStatusText = computed(() => {
+            return instLoading.value ? '计算中' : (status.value.institution?.status === 'running' ? '运行中' : ((status.value.institution?.inst_stock > 0) ? '已计算' : '待计算'));
+        });
+
+        async function updateInstitution() {
+            instLoading.value = true;
+            instResult.value = '';
+            instError.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/data/update-institution-ads`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    instResult.value = '国家队持仓预计算任务已在执行中';
+                } else if (data.status === 'error') {
+                    instError.value = data.message || '计算失败';
+                } else {
+                    instResult.value = data.message || '国家队持仓预计算已启动';
+                }
+                setTimeout(loadStatus, 1500);
+            } catch (e) {
+                instError.value = e.message;
+            } finally {
+                instLoading.value = false;
+            }
+        }
+
         const dmdlLoading = ref(false);
         const dmdlResult = ref('');
         const dmdlStatus = ref(null);
@@ -3181,6 +3229,7 @@ app.component('data-mgmt-page', {
             profileRefreshing, refreshProgressBar, profileRefreshDone, profileRefreshData,
             triggerDataRefresh, loadProfileRefreshStatus,
             adsLoading, adsResult, adsError, adsDotClass, adsStatusText, updateAds,
+            instLoading, instResult, instError, instDotClass, instStatusText, updateInstitution,
             dmdlLoading, dmdlResult, dmdlStatus, dmdlDotClass, dmdlStatusText, updateDmdl,
         };
     },
@@ -4696,6 +4745,163 @@ app.component('fund-page', {
             sortHoldings, sortArrowH, fmtShares, fmtPct, fundHoldRatio,
             loadMoreHoldings, openFundHistory, closeFundModal,
             fmtMoney, fmtGrowth, valClass,
+        };
+    },
+});
+
+app.component('institution-page', {
+    template: '#institution-tpl',
+    setup() {
+        const ownerMeta = ref([]);
+        const owner = ref('');
+        const subTab = ref('overview');
+        const loading = ref(false);
+        const error = ref('');
+        const overviewData = ref(null);
+        const changeData = ref(null);
+        const sectorData = ref(null);
+        const stockData = ref(null);
+        const crossData = ref(null);
+        const quarters = ref([]);
+        const changeQuarter = ref('');
+        const changeAction = ref('');
+        const sectorQuarter = ref('');
+        const sectorType = ref('industry');
+        const stockInput = ref('');
+
+        const ownerOf = o => ownerMeta.value.find(x => x.owner_type === o);
+
+        function ownerLabel() {
+            const o = ownerOf(owner.value);
+            return o ? o.label : owner.value;
+        }
+        function ownerLabelOf(code) {
+            const o = ownerOf(code);
+            return o ? o.label : code;
+        }
+
+        async function loadOwners() {
+            try {
+                const res = await fetch(`${API_BASE}/institution/owners`);
+                const d = await res.json();
+                ownerMeta.value = d.owners || [];
+                quarters.value = (d.dates || []).slice().reverse().map(dateToQuarter);
+                if (ownerMeta.value.length) switchOwner(ownerMeta.value[0].owner_type);
+            } catch (e) { error.value = e.message; }
+        }
+
+        function dateToQuarter(d) {
+            const yy = String(d).slice(2, 4);
+            const q = parseInt(String(d).slice(4, 6));
+            return yy + 'Q' + Math.ceil(q / 3);
+        }
+
+        function latestQuarterOf() {
+            return quarters.value[0] || '';
+        }
+
+        function switchOwner(t) {
+            owner.value = t;
+            subTab.value = 'overview';
+            stockInput.value = '';
+            loadOverview();
+        }
+
+        function onSubTab(t) {
+            subTab.value = t;
+            if (t === 'change') loadChange();
+            else if (t === 'sector') loadSector();
+            else if (t === 'cross') loadCross();
+        }
+
+        async function loadOverview() {
+            loading.value = true;
+            error.value = '';
+            try {
+                const res = await fetch(`${API_BASE}/institution/${owner.value}/overview`);
+                overviewData.value = await res.json();
+            } catch (e) { error.value = e.message; }
+            loading.value = false;
+        }
+
+        async function loadChange() {
+            loading.value = true;
+            error.value = '';
+            try {
+                const q = changeQuarter.value || latestQuarterOf();
+                const act = changeAction.value ? '&action=' + encodeURIComponent(changeAction.value) : '';
+                const res = await fetch(`${API_BASE}/institution/${owner.value}/change?quarter=${q}${act}`);
+                changeData.value = await res.json();
+                if (!changeQuarter.value) changeQuarter.value = changeData.value.quarter || q;
+            } catch (e) { error.value = e.message; }
+            loading.value = false;
+        }
+
+        async function loadSector() {
+            loading.value = true;
+            error.value = '';
+            try {
+                const q = sectorQuarter.value || latestQuarterOf();
+                const res = await fetch(`${API_BASE}/institution/${owner.value}/sector?quarter=${q}&sector_type=${sectorType.value}`);
+                sectorData.value = await res.json();
+                if (!sectorQuarter.value) sectorQuarter.value = sectorData.value.quarter || q;
+            } catch (e) { error.value = e.message; }
+            loading.value = false;
+        }
+
+        async function loadStock(code) {
+            const c = (code || stockInput.value || '').trim();
+            if (!c) return;
+            loading.value = true;
+            error.value = '';
+            try {
+                const res = await fetch(`${API_BASE}/institution/${owner.value}/stock/${c}`);
+                stockData.value = await res.json();
+            } catch (e) { error.value = e.message; }
+            loading.value = false;
+        }
+
+        function openStock(code) {
+            if (!code) return;
+            subTab.value = 'stock';
+            stockInput.value = code;
+            loadStock(code);
+        }
+
+        async function loadCross() {
+            subTab.value = 'cross';
+            loading.value = true;
+            error.value = '';
+            try {
+                const q = latestQuarterOf();
+                const res = await fetch(`${API_BASE}/institution/cross?types=shebao,yanglao,baoxian,caizheng,guozwei&quarter=${q}`);
+                crossData.value = await res.json();
+            } catch (e) { error.value = e.message; }
+            loading.value = false;
+        }
+
+        function fmtPct(v) {
+            if (v == null || v === '') return '-';
+            return Number(v).toFixed(2) + '%';
+        }
+        function fmtShares(amount) {
+            if (amount == null) return '-';
+            return (amount / 10000).toFixed(2);
+        }
+        function actionColor(a) {
+            return a === '增持' || a === '新开仓' ? '#22c55e' : a === '减持' || a === '清仓' ? '#ef4444' : '#8e8ea0';
+        }
+
+        onMounted(loadOwners);
+
+        return {
+            ownerMeta, owner, subTab, loading, error,
+            overviewData, changeData, sectorData, stockData, crossData,
+            quarters, changeQuarter, changeAction,
+            sectorQuarter, sectorType, stockInput,
+            ownerLabel, ownerLabelOf, switchOwner, onSubTab,
+            loadOverview, loadChange, loadSector, loadStock, loadCross, openStock,
+            fmtPct, fmtShares, actionColor, fmtMoney, fmtGrowth, valClass,
         };
     },
 });

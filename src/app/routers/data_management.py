@@ -18,6 +18,7 @@ RECORD_SIZE = 32
 
 _update_lock = threading.Lock()
 _ads_lock = threading.Lock()
+_inst_lock = threading.Lock()
 _dmdl_lock = threading.Lock()
 _qfq_lock = threading.Lock()
 
@@ -92,6 +93,15 @@ def data_status():
     """)
     ads_row = ads[0] if ads else {}
 
+    inst = query("""
+        SELECT
+          (SELECT COUNT(*) FROM ads_institution_stock) AS inst_stock,
+          (SELECT COUNT(*) FROM ads_institution_change) AS inst_change,
+          (SELECT COUNT(*) FROM ads_institution_sector) AS inst_sector,
+          (SELECT COUNT(*) FROM ads_institution_overview) AS inst_overview
+    """)
+    inst_row = inst[0] if inst else {}
+
     return {
         'kline': {
             'latest_date': str(kline_row.get('max_date') or ''),
@@ -131,6 +141,13 @@ def data_status():
             'stock_fund_trend': ads_row.get('stock_fund_trend') or 0,
             'last_run': str(ads_row.get('last_run') or ''),
             'status': ads_row.get('last_status') or 'idle',
+        },
+        'institution': {
+            'inst_stock': inst_row.get('inst_stock') or 0,
+            'inst_change': inst_row.get('inst_change') or 0,
+            'inst_sector': inst_row.get('inst_sector') or 0,
+            'inst_overview': inst_row.get('inst_overview') or 0,
+            'status': 'running' if _inst_lock.locked() else 'idle',
         },
     }
 
@@ -535,6 +552,29 @@ def update_ads():
     t = threading.Thread(target=_run, daemon=True)
     t.start()
     return {'status': 'started', 'message': '分析预计算已启动（后台运行）'}
+
+
+@router.post('/data/update-institution-ads')
+def update_institution_ads():
+    if not _inst_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '国家队持仓预计算任务已在执行中'}
+    from ...compute_institution_ads import compute
+
+    def _run():
+        try:
+            result = compute(progress_cb=None)
+        except Exception as e:
+            result = {'error': str(e)}
+        finally:
+            _inst_lock.release()
+        if result.get('error'):
+            print(f'[institution-ads] error: {result["error"]}', flush=True)
+        else:
+            print(f"[institution-ads] done: {result}", flush=True)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'message': '国家队持仓预计算已启动（后台运行）'}
 
 
 # ── 前复权K线（daily_kline_qfq） ──

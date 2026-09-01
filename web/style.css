@@ -94,6 +94,31 @@ body {
     background: var(--accent-dim);
     color: var(--accent);
 }
+.topbar .tab-group {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+}
+.topbar .tab-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 5px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.topbar .tab-btn:hover { color: var(--text); }
+.topbar .tab-btn.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-weight: 600;
+}
 .content {
     flex: 1;
     padding: 20px 24px;
