@@ -5272,6 +5272,79 @@ app.component('logic-page', {
                     { code: '688561', name: '奇安信', chain: '数据·安全', timing: 4, logic: 'AI安全龙头' },
                 ],
             },
+            {
+                id: 'power', icon: '⚡', name: '十五五电力',
+                short: '电力投资政策 → 电网设备/新能源/储能',
+                title: '十五五电力投资政策全景传导',
+                description: '十五五（2026-2030）新型电力系统建设进入加速期：电网投资规模创新高，特高压/配网改造先行，新能源+储能配套跟进，火电灵活性改造与核电同步推进。核心逻辑：政策驱动 → 电网/电源投资放量 → 设备订单兑现。',
+                chains: [
+                    {
+                        name: '电网投资 · 特高压/主网', icon: '⚡', timing: 1,
+                        desc: '十五五规划 → 电网投资规模上调 → 特高压核准/招标（即时）',
+                        nodes: [
+                            { icon: '📜', name: '十五五政策', sub: '新型电力系统规划', type: 'trigger' },
+                            { icon: '📈', name: '电网投资放量', sub: '特高压/主网扩建', type: 'impact' },
+                            { icon: '💰', name: '输变电设备订单', sub: '招标集中落地', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '600406', name: '国电南瑞', logic: '电网二次设备龙头，特高压核心', factor: ['电网设备', '特高压'] },
+                            { code: '002028', name: '思源电气', logic: '输变电设备，海外+国内双轮', factor: ['输变电', '电网'] },
+                            { code: '601126', name: '四方股份', logic: '电网自动化，继保龙头', factor: ['继电保护', '电网'] },
+                        ],
+                    },
+                    {
+                        name: '配网改造 · 变压器/开关', icon: '🔌', timing: 2,
+                        desc: '配电网升级 → 变压器/开关/电表需求（短期）',
+                        nodes: [
+                            { icon: '🏗️', name: '配网改造', sub: '智能化/扩容', type: 'trigger' },
+                            { icon: '📈', name: '设备需求', sub: '变压器/开关柜/智能电表', type: 'impact' },
+                            { icon: '💰', name: '配电设备盈利', sub: '量价齐升', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '600089', name: '特变电工', logic: '变压器龙头，新能源+电网双受益', factor: ['变压器', '输变电'] },
+                            { code: '300341', name: '麦克奥迪', logic: '变压器核心部件', factor: ['变压器', '部件'] },
+                            { code: '002121', name: '科陆电子', logic: '智能电表+储能', factor: ['智能电表', '储能'] },
+                        ],
+                    },
+                    {
+                        name: '新能源 · 风光储', icon: '☀️', timing: 3,
+                        desc: '新能源大基地 → 风光装机+储能配套（中期）',
+                        nodes: [
+                            { icon: '🌞', name: '新能源大基地', sub: '沙戈荒基地建设', type: 'trigger' },
+                            { icon: '📈', name: '风光装机', sub: '光伏/风电放量', type: 'impact' },
+                            { icon: '💰', name: '逆变器/储能受益', sub: '量价齐升', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '300274', name: '阳光电源', logic: '逆变器+储能全球龙头', factor: ['逆变器', '储能'] },
+                            { code: '601012', name: '隆基绿能', logic: '光伏组件龙头，装机受益', factor: ['光伏', '组件'] },
+                            { code: '002459', name: '晶澳科技', logic: '光伏组件，一体化布局', factor: ['光伏', '组件'] },
+                        ],
+                    },
+                    {
+                        name: '电源 · 火电改造/核电', icon: '🏭', timing: 4,
+                        desc: '电力保供 → 火电灵活性改造+核电核准（长期）',
+                        nodes: [
+                            { icon: '📜', name: '电力保供', sub: '迎峰度夏+调峰需求', type: 'trigger' },
+                            { icon: '📈', name: '火电改造/核电', sub: '灵活性改造+新机组', type: 'impact' },
+                            { icon: '💰', name: '电力设备受益', sub: '改造+新建投资', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '601985', name: '中国核电', logic: '核电核准提速，装机增长', factor: ['核电', '电力'] },
+                            { code: '600795', name: '国电电力', logic: '火电+新能源转型', factor: ['火电', '新能源'] },
+                            { code: '002335', name: '科华数据', logic: '储能+数据中心电源', factor: ['储能', '电源'] },
+                        ],
+                    },
+                ],
+                allStocks: [
+                    { code: '600406', name: '国电南瑞', chain: '电网·特高压', timing: 1, logic: '电网二次设备龙头' },
+                    { code: '002028', name: '思源电气', chain: '电网·输变电', timing: 1, logic: '输变电设备' },
+                    { code: '600089', name: '特变电工', chain: '配网·变压器', timing: 2, logic: '变压器龙头' },
+                    { code: '300274', name: '阳光电源', chain: '新能源·储能', timing: 3, logic: '逆变器储能龙头' },
+                    { code: '601012', name: '隆基绿能', chain: '新能源·光伏', timing: 3, logic: '光伏组件龙头' },
+                    { code: '601985', name: '中国核电', chain: '电源·核电', timing: 4, logic: '核电核准提速' },
+                    { code: '600795', name: '国电电力', chain: '电源·火电', timing: 4, logic: '火电+新能源' },
+                ],
+            },
         ]);
 
         const ev = computed(() => events.value.find(e => e.id === activeEvent.value));
