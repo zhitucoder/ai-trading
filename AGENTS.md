@@ -278,6 +278,27 @@ python src/compute_fund_ads.py
 
 ---
 
+## 分红数据更新
+
+两个数据源，前端分红列表页双 tab 切换：
+
+| 数据源 | 脚本 | 写入表 | 说明 |
+|---|---|---|---|
+| 东方财富 | `scripts/fetch_dividend.py` | `stock_dividend` (source=eastmoney) | 增量参数 `--since YYYY-MM-DD`，可 `--resume` |
+| Tushare | `src/import_dividend_tushare.py` | `dividend_tushare`（独立表，16字段） | 逐股票下载，可选 `--since`、`--codes` |
+
+```bash
+# 东方财富增量更新
+python scripts/fetch_dividend.py --since 2026-07-01
+
+# Tushare 全量/增量更新（默认全量，约10-15分钟）
+python src/import_dividend_tushare.py --since 20260101
+```
+
+注意：Tushare dividend 与东方财富字段结构不同（ts_code/end_date/div_proc/cash_div_tax/ex_date 等），必须写入独立表 `dividend_tushare`，不能混入 `stock_dividend`。详情见脚本注释与接口文档 `https://tushare.pro/document/2?doc_id=103`。
+
+---
+
 ## 公众号发布
 - **文章格式规范（必读）**：`docs/article-format.md` — 写作规范、排版要求、表格截图风格、封面规范等全部在此
 - **排版命令**：`cd analysis/ && node /home/rick/.claude/skills/wechat-article-typeset/wechat-copy.js "文件名.md" --preset "墨色书香"`
