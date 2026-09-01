@@ -2396,3 +2396,17 @@ tbody tr:last-child td { border-bottom: none; }
 @media (max-width: 900px) {
     .sector-drivers, .sector-updown { grid-template-columns: 1fr; }
 }
+
+/* ── 投资逻辑 · 利好/利空 ── */
+.chain-card.chain-bear { border-top-color: #ef4444 !important; }
+.chain-card.chain-bull { border-top-color: #22c55e !important; }
+.ch-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+.ch-badge.bull { background: rgba(34,197,94,0.15); color: #22c55e; }
+.ch-badge.bear { background: rgba(239,68,68,0.15); color: #ef4444; }
+.ch-node.node-bear { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); }

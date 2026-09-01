@@ -4922,7 +4922,7 @@ app.component('logic-page', {
                 description: '战争是最典型的多行业共振事件：即时冲击能源与避险资产，短期传导至航运与军工，中期影响粮食与化工。核心逻辑：供需冲击 → 运距/成本重构 → 盈利与估值双升。',
                 chains: [
                     {
-                        name: '能源 · 石油', icon: '🛢️', timing: 1,
+                        name: '能源 · 石油', icon: '🛢️', timing: 1, type: 'bull',
                         desc: '战争 → 供应中断预期 → 油价暴涨（即时）',
                         nodes: [
                             { icon: '⚔️', name: '战争冲突', sub: '中东/俄乌供应受阻', type: 'trigger' },
@@ -4936,7 +4936,7 @@ app.component('logic-page', {
                         ],
                     },
                     {
-                        name: '贵金属 · 避险', icon: '🥇', timing: 1,
+                        name: '贵金属 · 避险', icon: '🥇', timing: 1, type: 'bull',
                         desc: '战争 → 避险需求 → 金价上涨（即时）',
                         nodes: [
                             { icon: '⚔️', name: '地缘冲突', sub: '避险情绪升温', type: 'trigger' },
@@ -4950,7 +4950,7 @@ app.component('logic-page', {
                         ],
                     },
                     {
-                        name: '航运 · 油运/集运', icon: '🚢', timing: 2,
+                        name: '航运 · 油运/集运', icon: '🚢', timing: 2, type: 'bull',
                         desc: '战争 → 红海封锁/制裁 → 绕行运距拉长 → 运价上涨（短期）',
                         nodes: [
                             { icon: '⚔️', name: '战争冲突', sub: '红海/海峡封锁', type: 'trigger' },
@@ -4965,7 +4965,7 @@ app.component('logic-page', {
                         ],
                     },
                     {
-                        name: '军工 · 装备', icon: '🎖️', timing: 2,
+                        name: '军工 · 装备', icon: '🎖️', timing: 2, type: 'bull',
                         desc: '战争 → 军费扩张预期 → 装备采购（短期）',
                         nodes: [
                             { icon: '⚔️', name: '战争冲突', sub: '军备竞赛升级', type: 'trigger' },
@@ -4979,7 +4979,7 @@ app.component('logic-page', {
                         ],
                     },
                     {
-                        name: '粮食 · 种业', icon: '🌾', timing: 3,
+                        name: '粮食 · 种业', icon: '🌾', timing: 3, type: 'bull',
                         desc: '战争 → 黑海粮仓受阻 → 粮价上涨 → 种业景气（中期）',
                         nodes: [
                             { icon: '⚔️', name: '战争冲突', sub: '黑海粮食走廊受阻', type: 'trigger' },
@@ -4993,7 +4993,7 @@ app.component('logic-page', {
                         ],
                     },
                     {
-                        name: '化工 · 钾肥', icon: '🧪', timing: 4,
+                        name: '化工 · 钾肥', icon: '🧪', timing: 4, type: 'bull',
                         desc: '战争 → 俄罗斯钾肥断供 → 钾肥涨价 → 农化受益（中期）',
                         nodes: [
                             { icon: '⚔️', name: '战争冲突', sub: '俄钾出口制裁', type: 'trigger' },
@@ -5003,6 +5003,46 @@ app.component('logic-page', {
                         stocks: [
                             { code: '000792', name: '盐湖股份', logic: '钾肥龙头，价格弹性大', factor: ['钾肥', '盐湖'] },
                             { code: '000893', name: '亚钾国际', logic: '钾肥产能扩张，量价齐升', factor: ['钾肥', '农业'] },
+                        ],
+                    },
+                    {
+                        name: '利空 · 航空', icon: '✈️', timing: 2, type: 'bear',
+                        desc: '战争 → 油价暴涨 → 航油成本激增 → 航空盈利承压（短期）',
+                        nodes: [
+                            { icon: '⚔️', name: '战争冲突', sub: '油价暴涨', type: 'trigger' },
+                            { icon: '📈', name: '航油成本飙升', sub: '燃油占总成本30%+', type: 'impact' },
+                            { icon: '📉', name: '航空盈利承压', sub: '成本挤压利润', type: 'bear' },
+                        ],
+                        stocks: [
+                            { code: '600029', name: '南方航空', logic: '航油成本敏感，油价上涨利空', factor: ['航空', '航油成本'] },
+                            { code: '601111', name: '中国国航', logic: '国际航线多，油价弹性大', factor: ['航空', '航油'] },
+                            { code: '600115', name: '中国东航', logic: '航油成本占比高，油价利空', factor: ['航空', '航油'] },
+                        ],
+                    },
+                    {
+                        name: '利空 · 下游制造', icon: '🏭', timing: 2, type: 'bear',
+                        desc: '战争 → 油价/大宗上涨 → 原材料成本上升 → 下游毛利承压（短期）',
+                        nodes: [
+                            { icon: '⚔️', name: '战争冲突', sub: '大宗商品上涨', type: 'trigger' },
+                            { icon: '📈', name: '原材料成本上升', sub: '塑料/化纤/运输成本', type: 'impact' },
+                            { icon: '📉', name: '下游毛利承压', sub: '成本转嫁困难', type: 'bear' },
+                        ],
+                        stocks: [
+                            { code: '600309', name: '万华化学', logic: '化工原料成本上行，短期承压', factor: ['化工', '成本'] },
+                            { code: '601012', name: '隆基绿能', logic: '原材料+物流成本上升', factor: ['光伏', '成本'] },
+                        ],
+                    },
+                    {
+                        name: '利空 · 粮食进口依赖', icon: '🌾', timing: 3, type: 'bear',
+                        desc: '战争 → 粮价上涨 → 饲料/养殖成本上升（中期）',
+                        nodes: [
+                            { icon: '⚔️', name: '战争冲突', sub: '全球粮价上涨', type: 'trigger' },
+                            { icon: '📈', name: '饲料成本上升', sub: '豆粕/玉米涨价', type: 'impact' },
+                            { icon: '📉', name: '养殖盈利承压', sub: '成本挤压利润', type: 'bear' },
+                        ],
+                        stocks: [
+                            { code: '002714', name: '牧原股份', logic: '饲料成本占比高，粮价上涨利空', factor: ['养殖', '饲料成本'] },
+                            { code: '000876', name: '新希望', logic: '饲料+养殖，成本敏感', factor: ['饲料', '养殖'] },
                         ],
                     },
                 ],

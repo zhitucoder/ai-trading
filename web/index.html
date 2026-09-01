@@ -2066,10 +2066,11 @@
 
         <div v-if="ev" class="logic-chains">
             <div class="chain-card" v-for="(chain, ci) in ev.chains" :key="ci"
-                 :class="'t-' + chain.timing">
+                 :class="['t-' + chain.timing, chain.type === 'bear' ? 'chain-bear' : 'chain-bull']">
                 <div class="chain-head">
                     <span class="ch-icon">{{ chain.icon }}</span>
                     <span class="ch-name">{{ chain.name }}</span>
+                    <span class="ch-badge" :class="chain.type === 'bear' ? 'bear' : 'bull'">{{ chain.type === 'bear' ? '利空' : '利好' }}</span>
                     <span class="ch-timing" :class="'t-' + chain.timing">{{ timingLabel(chain.timing) }}</span>
                 </div>
                 <div class="ch-desc">{{ chain.desc }}</div>
