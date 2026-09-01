@@ -4907,153 +4907,254 @@ app.component('institution-page', {
     },
 });
 
-// ── 投资逻辑 · 上下游传导 ──
+// ── 投资逻辑 · 事件传导网络 ──
 app.component('logic-page', {
     template: '#logic-tpl',
     setup() {
         const currentPage = inject('currentPage');
-        const activeIndustry = ref('shipping');
+        const activeEvent = ref('war');
 
-        const industries = ref([
+        const events = ref([
             {
-                id: 'shipping', icon: '🚢', name: '航运',
-                title: '航运 · 事件驱动传导链',
-                description: '地缘冲突（俄乌/中东）→ 油运运距拉长 + 有效运力收缩 → 运价上涨 → 油运/干散货/集运受益',
-                stages: [
+                id: 'war', icon: '⚔️', name: '地缘冲突',
+                short: '俄乌/中东战争 → 能源/航运/避险',
+                title: '地缘冲突（战争）全景传导',
+                description: '战争是最典型的多行业共振事件：即时冲击能源与避险资产，短期传导至航运与军工，中期影响粮食与化工。核心逻辑：供需冲击 → 运距/成本重构 → 盈利与估值双升。',
+                chains: [
                     {
-                        name: '最上游 · 需求驱动', tag: '上游', level: 1,
-                        drivers: [
-                            { icon: '⚔️', name: '地缘冲突（俄乌战争/中东战争）', impact: '制裁与红海封锁 → 绕行好望角，全球有效运力下降10-15%' },
-                            { icon: '🛢️', name: '原油供需扰动', impact: '中东/俄原油出口受阻 → 跨区套利增加，长距离运输需求上升' },
-                            { icon: '🌍', name: '全球贸易格局重塑', impact: '贸易流向改变 → 船期拉长，吨海里需求增长' },
+                        name: '能源 · 石油', icon: '🛢️', timing: 1,
+                        desc: '战争 → 供应中断预期 → 油价暴涨（即时）',
+                        nodes: [
+                            { icon: '⚔️', name: '战争冲突', sub: '中东/俄乌供应受阻', type: 'trigger' },
+                            { icon: '📈', name: '油价暴涨', sub: '布伦特冲高', type: 'impact' },
+                            { icon: '💰', name: '油气开采盈利暴增', sub: '上游量价齐升', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '601857', name: '中国石油', logic: '上游油气开采龙头，油价弹性大', factor: ['石油', '油气开采'] },
+                            { code: '600938', name: '中国海油', logic: '纯上游油气标的，成本优势突出', factor: ['海上油气', '低成本'] },
+                            { code: '600028', name: '中国石化', logic: '炼化一体化，油价上行受益', factor: ['炼化', '上游'] },
                         ],
                     },
                     {
-                        name: '中游 · 传导环节', tag: '中游', level: 2,
-                        drivers: [
-                            { icon: '⚓', name: '运力供需失衡', impact: '新船订单低+老旧船拆解 → 有效运力增速<需求增速' },
-                            { icon: '📈', name: '运价指数上涨', impact: 'BDI / VLCC-TCE / SCFI 运价攀升 → 船东盈利改善' },
-                            { icon: '🏭', name: '船公司议价权提升', impact: '集运联盟提价，油运现货运价弹性放大' },
+                        name: '贵金属 · 避险', icon: '🥇', timing: 1,
+                        desc: '战争 → 避险需求 → 金价上涨（即时）',
+                        nodes: [
+                            { icon: '⚔️', name: '地缘冲突', sub: '避险情绪升温', type: 'trigger' },
+                            { icon: '📈', name: '金价上涨', sub: 'COMEX黄金创新高', type: 'impact' },
+                            { icon: '💰', name: '黄金股量价齐升', sub: '金矿公司盈利改善', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '600547', name: '山东黄金', logic: '黄金采选龙头，金价弹性大', factor: ['黄金', '避险'] },
+                            { code: '600489', name: '中金黄金', logic: '央企黄金龙头，资源储备丰富', factor: ['黄金', '央企'] },
+                            { code: '601899', name: '紫金矿业', logic: '铜金双驱，全球资源龙头', factor: ['黄金', '铜'] },
                         ],
                     },
                     {
-                        name: '下游 · 受益环节', tag: '下游', level: 3,
-                        drivers: [
-                            { icon: '💰', name: '航运公司盈利兑现', impact: '运价传导至营收 → 利润弹性释放，业绩超预期' },
-                            { icon: '💵', name: '分红与估值修复', impact: '高盈利+高分红 → 股息率提升，估值中枢上移' },
-                            { icon: '🔍', name: '资本市场关注', impact: '运价高频数据跟踪 → 主题资金持续流入' },
+                        name: '航运 · 油运/集运', icon: '🚢', timing: 2,
+                        desc: '战争 → 红海封锁/制裁 → 绕行运距拉长 → 运价上涨（短期）',
+                        nodes: [
+                            { icon: '⚔️', name: '战争冲突', sub: '红海/海峡封锁', type: 'trigger' },
+                            { icon: '🔄', name: '运距拉长', sub: '绕行好望角+10-15%', type: 'impact' },
+                            { icon: '📈', name: '运价上涨', sub: 'VLCC-TCE / SCFI', type: 'impact' },
+                            { icon: '💰', name: '船东盈利兑现', sub: '业绩弹性释放', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '600026', name: '中远海能', logic: '全球最大油轮船队，运价弹性最纯正', factor: ['油运', 'VLCC'] },
+                            { code: '601872', name: '招商轮船', logic: 'VLCC油运龙头，油散双轮驱动', factor: ['油运', '干散货'] },
+                            { code: '601919', name: '中远海控', logic: '集运龙头，红海绕行运价核心受益', factor: ['集运', '红海'] },
+                        ],
+                    },
+                    {
+                        name: '军工 · 装备', icon: '🎖️', timing: 2,
+                        desc: '战争 → 军费扩张预期 → 装备采购（短期）',
+                        nodes: [
+                            { icon: '⚔️', name: '战争冲突', sub: '军备竞赛升级', type: 'trigger' },
+                            { icon: '🏛️', name: '军费扩张', sub: '国防预算上调', type: 'impact' },
+                            { icon: '💰', name: '装备订单放量', sub: '主机厂/核心零部件', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '600760', name: '中航沈飞', logic: '歼击机龙头，军机放量', factor: ['军机', '主机厂'] },
+                            { code: '600893', name: '航发动力', logic: '航空发动机唯一上市平台', factor: ['航发', '军工'] },
+                            { code: '601989', name: '中国重工', logic: '船舶+军工装备，海军建设受益', factor: ['军工', '船舶'] },
+                        ],
+                    },
+                    {
+                        name: '粮食 · 种业', icon: '🌾', timing: 3,
+                        desc: '战争 → 黑海粮仓受阻 → 粮价上涨 → 种业景气（中期）',
+                        nodes: [
+                            { icon: '⚔️', name: '战争冲突', sub: '黑海粮食走廊受阻', type: 'trigger' },
+                            { icon: '📈', name: '全球粮价上涨', sub: '小麦/玉米/油脂', type: 'impact' },
+                            { icon: '💰', name: '种业量价齐升', sub: '种子涨价+推广', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '000998', name: '隆平高科', logic: '水稻/玉米种子龙头', factor: ['种业', '粮食'] },
+                            { code: '600313', name: '农发种业', logic: '小麦/玉米种子，粮价弹性', factor: ['种业', '小麦'] },
+                            { code: '002041', name: '登海种业', logic: '玉米种业龙头', factor: ['玉米', '种业'] },
+                        ],
+                    },
+                    {
+                        name: '化工 · 钾肥', icon: '🧪', timing: 4,
+                        desc: '战争 → 俄罗斯钾肥断供 → 钾肥涨价 → 农化受益（中期）',
+                        nodes: [
+                            { icon: '⚔️', name: '战争冲突', sub: '俄钾出口制裁', type: 'trigger' },
+                            { icon: '📈', name: '钾肥价格上涨', sub: '供给收缩', type: 'impact' },
+                            { icon: '💰', name: '农化盈利提升', sub: '钾肥/磷肥量价', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '000792', name: '盐湖股份', logic: '钾肥龙头，价格弹性大', factor: ['钾肥', '盐湖'] },
+                            { code: '000893', name: '亚钾国际', logic: '钾肥产能扩张，量价齐升', factor: ['钾肥', '农业'] },
                         ],
                     },
                 ],
-                stocks: [
-                    { code: '601872', name: '招商轮船', level: 1, logic: 'VLCC油运龙头，中东局势升级直接受益', factor: ['油运', 'VLCC', '中东冲突'] },
-                    { code: '600026', name: '中远海能', level: 1, logic: '全球最大油轮船队，运价弹性最纯正', factor: ['油运', 'LNG运输', '运价弹性'] },
-                    { code: '601919', name: '中远海控', level: 1, logic: '集运龙头，红海绕行运价上涨核心标的', factor: ['集运', 'SCFI', '红海绕行'] },
-                    { code: '600428', name: '中远海特', level: 2, logic: '特种船（纸浆/汽车船），多用途运输受益', factor: ['特种运输', '汽车船'] },
-                    { code: '601880', name: '辽港股份', level: 3, logic: '港口物流，货量增长间接受益', factor: ['港口', '物流'] },
-                    { code: '600018', name: '上港集团', level: 3, logic: '核心港口枢纽，吞吐量增长受益', factor: ['港口', '吞吐量'] },
+                allStocks: [
+                    { code: '601857', name: '中国石油', chain: '能源·石油', timing: 1, logic: '油价暴涨，上游开采盈利暴增' },
+                    { code: '600938', name: '中国海油', chain: '能源·石油', timing: 1, logic: '纯上游油气，成本优势' },
+                    { code: '600547', name: '山东黄金', chain: '贵金属·避险', timing: 1, logic: '金价上涨，避险受益' },
+                    { code: '600026', name: '中远海能', chain: '航运·油运', timing: 2, logic: '油运运价弹性最纯正' },
+                    { code: '601872', name: '招商轮船', chain: '航运·油运', timing: 2, logic: 'VLCC龙头，运距拉长受益' },
+                    { code: '601919', name: '中远海控', chain: '航运·集运', timing: 2, logic: '红海绕行运价上涨' },
+                    { code: '600760', name: '中航沈飞', chain: '军工·装备', timing: 2, logic: '军机放量' },
+                    { code: '000998', name: '隆平高科', chain: '粮食·种业', timing: 3, logic: '粮价上涨，种业景气' },
+                    { code: '000792', name: '盐湖股份', chain: '化工·钾肥', timing: 3, logic: '钾肥涨价' },
                 ],
             },
             {
-                id: 'grain', icon: '🌾', name: '粮食',
-                title: '粮食 · 供给冲击传导链',
-                description: '极端天气/地缘减产 → 全球粮价上涨 → 种业/农资量价齐升 → 种植业盈利改善',
-                stages: [
+                id: 'climate', icon: '🌧️', name: '极端天气',
+                short: '干旱/洪水/厄尔尼诺 → 粮食/农资/水电',
+                title: '极端天气（减产）全景传导',
+                description: '极端天气直接冲击农产品供给，引发粮价上涨，进而带动种业景气、农资需求提升；同时影响水电/火电出力与基建。核心逻辑：供给收缩 → 量价齐升。',
+                chains: [
                     {
-                        name: '最上游 · 需求/供给驱动', tag: '上游', level: 1,
-                        drivers: [
-                            { icon: '🌧️', name: '极端天气（厄尔尼诺/拉尼娜）', impact: '干旱/洪涝 → 全球主粮减产预期' },
-                            { icon: '⚔️', name: '地缘冲突（俄乌粮仓）', impact: '黑海粮食走廊受阻 → 全球小麦/玉米供给收缩' },
-                            { icon: '👨‍🌾', name: '种植面积缩减', impact: '粮价低迷→农户弃种 → 供给进一步收缩' },
+                        name: '粮食 · 种业', icon: '🌾', timing: 1,
+                        desc: '极端天气 → 减产预期 → 粮价上涨 → 种业（即时）',
+                        nodes: [
+                            { icon: '🌧️', name: '极端天气', sub: '干旱/洪涝', type: 'trigger' },
+                            { icon: '📉', name: '作物减产', sub: '主粮供给收缩', type: 'impact' },
+                            { icon: '📈', name: '粮价上涨', sub: '期货现货上行', type: 'impact' },
+                            { icon: '💰', name: '种业景气', sub: '种子涨价推广', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '000998', name: '隆平高科', logic: '水稻/玉米种子龙头', factor: ['种业', '粮食'] },
+                            { code: '002041', name: '登海种业', logic: '玉米种业龙头', factor: ['玉米', '种业'] },
+                            { code: '600313', name: '农发种业', logic: '小麦种子，粮价弹性', factor: ['小麦', '种业'] },
                         ],
                     },
                     {
-                        name: '中游 · 传导环节', tag: '中游', level: 2,
-                        drivers: [
-                            { icon: '🌾', name: '粮价上涨', impact: '小麦/玉米/水稻现货期货价格上行' },
-                            { icon: '💧', name: '农资需求提升', impact: '涨价预期→农户加大化肥/种子投入' },
-                            { icon: '🪙', name: '种业景气度回升', impact: '种子提价+推广面积扩大 → 量价齐升' },
+                        name: '农化 · 化肥农药', icon: '🧪', timing: 2,
+                        desc: '粮价上涨 → 农户扩种 → 化肥农药需求（短期）',
+                        nodes: [
+                            { icon: '📈', name: '粮价上涨', sub: '种植收益提升', type: 'trigger' },
+                            { icon: '👨‍🌾', name: '扩种意愿', sub: '增加农资投入', type: 'impact' },
+                            { icon: '💰', name: '农化需求回暖', sub: '化肥/农药量价', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '002556', name: '辉隆股份', logic: '农资流通龙头', factor: ['化肥', '农资'] },
+                            { code: '000792', name: '盐湖股份', logic: '钾肥龙头', factor: ['钾肥', '农业'] },
                         ],
                     },
                     {
-                        name: '下游 · 受益环节', tag: '下游', level: 3,
-                        drivers: [
-                            { icon: '💰', name: '种业公司盈利提升', impact: '种子销量+价格双升 → 业绩弹性' },
-                            { icon: '🏭', name: '农化企业受益', impact: '化肥/农药需求回暖 → 量价修复' },
-                            { icon: '🚜', name: '种植业景气', impact: '粮价高企 → 种植公司/土地流转受益' },
+                        name: '电力 · 水电', icon: '⚡', timing: 2,
+                        desc: '干旱 → 水电出力下降 → 火电/核电补位（短期）',
+                        nodes: [
+                            { icon: '🌧️', name: '极端干旱', sub: '来水减少', type: 'trigger' },
+                            { icon: '📉', name: '水电出力下降', sub: '发电量下滑', type: 'impact' },
+                            { icon: '💰', name: '火电/核电受益', sub: '发电量替代', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '600011', name: '华能国际', logic: '火电龙头，水电不足补位', factor: ['火电', '电力'] },
+                            { code: '601985', name: '中国核电', logic: '核电稳定出力', factor: ['核电', '电力'] },
                         ],
                     },
                 ],
-                stocks: [
-                    { code: '002385', name: '大北农', level: 2, logic: '转基因种业龙头，种子+饲料双轮驱动', factor: ['转基因', '种业'] },
-                    { code: '000998', name: '隆平高科', level: 2, logic: '水稻/玉米种子龙头，粮食涨价受益', factor: ['水稻种子', '杂交玉米'] },
-                    { code: '600313', name: '农发种业', level: 2, logic: '小麦/玉米种子，粮价上行弹性大', factor: ['小麦种子', '粮价'] },
-                    { code: '002041', name: '登海种业', level: 2, logic: '玉米种业龙头，推广面积扩张', factor: ['玉米种子', '杂交'] },
-                    { code: '002556', name: '辉隆股份', level: 3, logic: '农资流通龙头，化肥需求回暖受益', factor: ['化肥', '农资流通'] },
-                    { code: '601952', name: '苏垦农发', level: 3, logic: '粮食种植+加工，粮价上涨直接受益', factor: ['种植', '粮食加工'] },
+                allStocks: [
+                    { code: '000998', name: '隆平高科', chain: '粮食·种业', timing: 1, logic: '减产预期种业景气' },
+                    { code: '002556', name: '辉隆股份', chain: '农化', timing: 2, logic: '农资需求回暖' },
+                    { code: '600011', name: '华能国际', chain: '电力·火电', timing: 2, logic: '水电不足补位' },
+                    { code: '601985', name: '中国核电', chain: '电力·核电', timing: 2, logic: '稳定出力' },
                 ],
             },
             {
-                id: 'semi', icon: '🔌', name: '半导体',
-                title: '半导体 · 供需周期传导链',
-                description: 'AI算力需求+国产替代 → 设计/制造/设备材料全链受益 → 先进制程突破',
-                stages: [
+                id: 'ai', icon: '🤖', name: 'AI算力',
+                short: 'AI爆发 → 半导体/服务器/光模块/电力',
+                title: 'AI算力（科技革命）全景传导',
+                description: 'AI大模型爆发是需求驱动的多环节共振：最上游算力需求 → 芯片/设备/材料 → 服务器/光模块 → 电力能源。核心逻辑：需求爆发 → 国产替代 → 全链景气。',
+                chains: [
                     {
-                        name: '最上游 · 需求驱动', tag: '上游', level: 1,
-                        drivers: [
-                            { icon: '🤖', name: 'AI大模型算力需求爆发', impact: 'GPU/HBM/先进封装需求指数级增长' },
-                            { icon: '🇨🇳', name: '国产替代加速', impact: '出口管制倒逼 → 国产芯片/设备/材料导入提速' },
-                            { icon: '🚗', name: '汽车电子/工控复苏', impact: '车规芯片+功率半导体需求回暖' },
+                        name: '半导体 · 芯片', icon: '🔌', timing: 1,
+                        desc: 'AI需求 → GPU/CPU/ASIC 订单爆发（即时）',
+                        nodes: [
+                            { icon: '🤖', name: 'AI大模型', sub: '算力需求指数增长', type: 'trigger' },
+                            { icon: '📈', name: 'AI芯片需求', sub: 'GPU/HBM/ASIC', type: 'impact' },
+                            { icon: '💰', name: '芯片设计盈利', sub: 'ASP提升订单饱满', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '688256', name: '寒武纪', logic: 'AI芯片龙头，弹性最大', factor: ['AI芯片', 'GPU'] },
+                            { code: '688041', name: '海光信息', logic: '国产CPU/DCU，算力受益', factor: ['CPU', 'DCU'] },
+                            { code: '603501', name: '韦尔股份', logic: 'CIS设计龙头', factor: ['CIS', '芯片'] },
                         ],
                     },
                     {
-                        name: '中游 · 传导环节', tag: '中游', level: 2,
-                        drivers: [
-                            { icon: '🖥️', name: '设计环节景气', impact: 'AI芯片/SoC设计订单饱满，ASP提升' },
-                            { icon: '🏭', name: '晶圆制造扩产', impact: '代工产能满载 → 先进制程/成熟制程提价' },
-                            { icon: '🔧', name: '设备材料国产化', impact: '晶圆厂扩产 → 国产设备/材料订单放量' },
+                        name: '半导体 · 设备材料', icon: '🔧', timing: 2,
+                        desc: '晶圆厂扩产 → 国产设备/材料放量（短期）',
+                        nodes: [
+                            { icon: '🏭', name: '晶圆厂扩产', sub: '产能满载+新建', type: 'trigger' },
+                            { icon: '📈', name: '设备订单', sub: '刻蚀/薄膜/光刻', type: 'impact' },
+                            { icon: '💰', name: '设备材料盈利', sub: '国产替代加速', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '002371', name: '北方华创', logic: '设备平台龙头', factor: ['设备', '国产替代'] },
+                            { code: '688012', name: '中微公司', logic: '刻蚀设备龙头', factor: ['刻蚀', '设备'] },
+                            { code: '688126', name: '沪硅产业', logic: '大硅片材料', factor: ['硅片', '材料'] },
                         ],
                     },
                     {
-                        name: '下游 · 受益环节', tag: '下游', level: 3,
-                        drivers: [
-                            { icon: '💰', name: '产业链盈利兑现', impact: '设计/制造/设备材料全环节利润增长' },
-                            { icon: '📈', name: '估值修复', impact: '高景气+国产替代 → 板块估值溢价' },
-                            { icon: '🎯', name: '主题资金关注', impact: 'AI+国产替代双主线 → 资金持续流入' },
+                        name: '算力基建 · 服务器/光模块', icon: '🖥️', timing: 3,
+                        desc: '数据中心建设 → 服务器/光模块/交换机（中期）',
+                        nodes: [
+                            { icon: '🏗️', name: '数据中心建设', sub: '智算中心放量', type: 'trigger' },
+                            { icon: '📈', name: '算力硬件需求', sub: '服务器/光模块', type: 'impact' },
+                            { icon: '💰', name: '硬件厂商受益', sub: '订单+涨价', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '601138', name: '工业富联', logic: 'AI服务器代工龙头', factor: ['AI服务器', '算力'] },
+                            { code: '300308', name: '中际旭创', logic: '光模块龙头，800G放量', factor: ['光模块', '800G'] },
+                            { code: '000977', name: '浪潮信息', logic: '国产服务器龙头', factor: ['服务器', '算力'] },
+                        ],
+                    },
+                    {
+                        name: '电力 · 能源', icon: '⚡', timing: 4,
+                        desc: '算力耗电 → 核电/绿电需求（长期）',
+                        nodes: [
+                            { icon: '🤖', name: 'AI耗电', sub: '数据中心用电激增', type: 'trigger' },
+                            { icon: '📈', name: '电力需求', sub: '绿电/核电/火电', type: 'impact' },
+                            { icon: '💰', name: '电力运营商受益', sub: '电量电价双升', type: 'benefit' },
+                        ],
+                        stocks: [
+                            { code: '601985', name: '中国核电', logic: '核电稳定增长', factor: ['核电', '电力'] },
+                            { code: '600900', name: '长江电力', logic: '水电龙头，稳定现金流', factor: ['水电', '电力'] },
                         ],
                     },
                 ],
-                stocks: [
-                    { code: '688981', name: '中芯国际', level: 2, logic: '晶圆代工龙头，国产替代核心', factor: ['代工', '国产替代'] },
-                    { code: '688041', name: '海光信息', level: 2, logic: '国产CPU/DCU龙头，AI算力受益', factor: ['CPU', 'AI算力'] },
-                    { code: '688256', name: '寒武纪', level: 1, logic: 'AI芯片龙头，算力需求弹性最大', factor: ['AI芯片', 'GPU'] },
-                    { code: '603501', name: '韦尔股份', level: 2, logic: 'CIS设计龙头，手机+汽车双轮', factor: ['CIS', '图像传感器'] },
-                    { code: '688012', name: '中微公司', level: 2, logic: '刻蚀设备龙头，晶圆厂扩产受益', factor: ['刻蚀设备', '设备国产化'] },
-                    { code: '002371', name: '北方华创', level: 2, logic: '半导体设备平台，国产替代核心标的', factor: ['设备', '薄膜沉积'] },
-                    { code: '688126', name: '沪硅产业', level: 3, logic: '大硅片材料，晶圆制造上游受益', factor: ['硅片', '材料'] },
-                    { code: '600584', name: '长电科技', level: 3, logic: '封测龙头，先进封装受益', factor: ['封测', '先进封装'] },
+                allStocks: [
+                    { code: '688256', name: '寒武纪', chain: '半导体·芯片', timing: 1, logic: 'AI芯片弹性最大' },
+                    { code: '688041', name: '海光信息', chain: '半导体·芯片', timing: 1, logic: '国产CPU/DCU' },
+                    { code: '002371', name: '北方华创', chain: '半导体·设备', timing: 2, logic: '设备平台龙头' },
+                    { code: '601138', name: '工业富联', chain: '算力基建', timing: 3, logic: 'AI服务器龙头' },
+                    { code: '300308', name: '中际旭创', chain: '算力基建', timing: 3, logic: '光模块800G放量' },
+                    { code: '601985', name: '中国核电', chain: '电力·能源', timing: 4, logic: '算力耗电受益' },
+                    { code: '600900', name: '长江电力', chain: '电力·能源', timing: 4, logic: '稳定电力龙头' },
                 ],
             },
         ]);
 
-        const ind = computed(() => industries.value.find(i => i.id === activeIndustry.value));
+        const ev = computed(() => events.value.find(e => e.id === activeEvent.value));
 
-        function switchIndustry(id) { activeIndustry.value = id; }
+        function switchEvent(id) { activeEvent.value = id; }
 
-        function stageColor(level) {
-            const colors = { 1: '#f59e0b', 2: '#00d4ff', 3: '#22c55e' };
-            return colors[level] || '#8e8ea0';
+        function timingLabel(t) {
+            const names = { 1: '即时', 2: '短期', 3: '中期', 4: '长期' };
+            return names[t] || '';
         }
-
-        function stageTagName(level) {
-            const names = { 1: '上游', 2: '中游', 3: '下游' };
-            return names[level] || '';
-        }
-
-        const stageWidth = computed(() => {
-            const n = ind.value ? ind.value.stages.length : 3;
-            return 100 / n;
-        });
 
         function goStock(code) {
             window._profileStockCode = code;
@@ -5061,8 +5162,7 @@ app.component('logic-page', {
         }
 
         return {
-            industries, activeIndustry, ind, switchIndustry,
-            stageColor, stageTagName, stageWidth, goStock,
+            events, activeEvent, ev, switchEvent, timingLabel, goStock,
         };
     },
 });

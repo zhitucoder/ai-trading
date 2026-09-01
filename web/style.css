@@ -2081,29 +2081,31 @@ tbody tr:last-child td { border-bottom: none; }
 
 /* ── 投资逻辑页面 ── */
 .logic-content { display: flex; flex-direction: column; gap: 16px; }
-.logic-industries {
-    display: flex;
+.logic-events {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 12px;
-    flex-wrap: wrap;
 }
-.logic-industry {
+.logic-event {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 22px;
+    gap: 12px;
+    padding: 14px 18px;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s;
 }
-.logic-industry:hover { border-color: var(--accent); }
-.logic-industry.active {
+.logic-event:hover { border-color: var(--accent); }
+.logic-event.active {
     background: var(--accent-dim);
     border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(0,212,255,0.1);
 }
-.logic-industry .li-icon { font-size: 22px; }
-.logic-industry .li-name { font-size: 15px; font-weight: 600; }
+.logic-event .le-icon { font-size: 28px; flex-shrink: 0; }
+.logic-event .le-name { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+.logic-event .le-desc { font-size: 11px; color: var(--text-muted); }
 
 .logic-overview {
     background: var(--bg-card);
@@ -2112,84 +2114,129 @@ tbody tr:last-child td { border-bottom: none; }
     padding: 16px 20px;
 }
 .logic-overview .lo-title { font-size: 16px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
-.logic-overview .lo-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+.logic-overview .lo-desc { font-size: 13px; color: var(--text-muted); line-height: 1.7; }
 
-.logic-chain {
+.logic-timeline {
     display: flex;
-    gap: 10px;
-    align-items: stretch;
-}
-.chain-stage {
-    position: relative;
+    gap: 0;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+    padding: 10px 16px;
+    justify-content: space-around;
 }
-.chain-stage.stage-1 { border-top: 3px solid #f59e0b; }
-.chain-stage.stage-2 { border-top: 3px solid #00d4ff; }
-.chain-stage.stage-3 { border-top: 3px solid #22c55e; }
-.chain-stage-head {
-    padding: 10px 14px;
+.lt-item { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.lt-item .lt-dot { width: 10px; height: 10px; border-radius: 50%; }
+.lt-item .lt-sub { font-size: 10px; color: var(--text-muted); font-weight: 400; }
+.lt-1 .lt-dot { background: #f59e0b; box-shadow: 0 0 8px rgba(245,158,11,0.6); }
+.lt-2 .lt-dot { background: #00d4ff; box-shadow: 0 0 8px rgba(0,212,255,0.6); }
+.lt-3 .lt-dot { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.6); }
+.lt-4 .lt-dot { background: #7c3aed; box-shadow: 0 0 8px rgba(124,58,237,0.6); }
+
+.logic-chains {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 14px;
+}
+.chain-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    border-top: 3px solid var(--border);
+    transition: all 0.2s;
+}
+.chain-card.t-1 { border-top-color: #f59e0b; }
+.chain-card.t-2 { border-top-color: #00d4ff; }
+.chain-card.t-3 { border-top-color: #22c55e; }
+.chain-card.t-4 { border-top-color: #7c3aed; }
+.chain-card:hover { border-color: var(--accent); }
+
+.chain-head {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(255,255,255,0.03);
+    margin-bottom: 6px;
 }
-.chain-stage-head .csh-tag {
-    font-size: 11px;
+.chain-head .ch-icon { font-size: 20px; }
+.chain-head .ch-name { font-size: 15px; font-weight: 700; flex: 1; }
+.ch-timing {
+    font-size: 10px;
     font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 8px;
-    color: #0a0e17;
+    padding: 3px 10px;
+    border-radius: 10px;
 }
-.chain-stage-head .csh-title { font-size: 13px; font-weight: 600; }
-.chain-stage-body {
-    padding: 10px 14px;
+.ch-timing.t-1 { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.ch-timing.t-2 { background: rgba(0,212,255,0.15); color: #00d4ff; }
+.ch-timing.t-3 { background: rgba(34,197,94,0.15); color: #22c55e; }
+.ch-timing.t-4 { background: rgba(124,58,237,0.2); color: #a78bfa; }
+
+.ch-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+.ch-flow {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.ch-node {
+    flex: 1;
+    min-width: 90px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    padding: 8px 10px;
+    text-align: center;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    flex: 1;
+    align-items: center;
+    gap: 3px;
 }
-.chain-driver {
-    background: rgba(255,255,255,0.03);
-    border-radius: 8px;
-    padding: 10px 12px;
-    border-left: 3px solid var(--border);
+.ch-node.node-trigger { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); }
+.ch-node.node-impact { background: rgba(0,212,255,0.06); border: 1px solid rgba(0,212,255,0.2); }
+.ch-node.node-benefit { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25); }
+.ch-node .chn-icon { font-size: 18px; }
+.ch-node .chn-name { font-size: 12px; font-weight: 600; line-height: 1.3; }
+.ch-node .chn-sub { font-size: 10px; color: var(--text-muted); line-height: 1.3; }
+.ch-flow-arrow {
+    display: flex;
+    align-items: center;
+    color: var(--accent);
+    font-size: 16px;
+    flex-shrink: 0;
 }
-.chain-driver .cd-name {
-    font-size: 13px;
-    font-weight: 600;
+
+.ch-stocks {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+}
+.ch-stock {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: 4px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
 }
-.chain-driver .cd-icon { font-size: 15px; }
-.chain-driver .cd-impact {
-    font-size: 11.5px;
-    color: var(--text-muted);
-    line-height: 1.5;
-    margin-bottom: 6px;
-}
-.chain-driver .cd-benefit {
-    background: rgba(0,212,255,0.08);
+.ch-stock:hover { background: var(--accent-dim); border-color: var(--accent); }
+.ch-stock .cs-code { font-size: 11px; color: var(--accent); font-weight: 700; }
+.ch-stock .cs-name { font-size: 12px; font-weight: 600; }
+.ch-stock .cs-tag {
+    font-size: 9px;
+    padding: 1px 6px;
     border-radius: 6px;
-    padding: 6px 8px;
-}
-.chain-driver .cdb-label { font-size: 10px; color: var(--accent); font-weight: 600; margin-bottom: 2px; }
-.chain-driver .cdb-text { font-size: 11.5px; color: var(--text); line-height: 1.5; }
-.chain-arrow {
-    position: absolute;
-    right: -14px;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 2;
-    color: var(--accent);
-    font-size: 18px;
-    text-shadow: 0 0 8px rgba(0,212,255,0.4);
+    background: rgba(255,255,255,0.06);
+    color: var(--text-muted);
 }
 
 .logic-stocks {
@@ -2228,13 +2275,10 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .ls-code { font-size: 12px; color: var(--accent); font-weight: 700; }
 .ls-tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 8px; background: rgba(255,255,255,0.06); }
+.ls-tag.t-1 { color: #f59e0b; }
+.ls-tag.t-2 { color: #00d4ff; }
+.ls-tag.t-3 { color: #22c55e; }
+.ls-tag.t-4 { color: #a78bfa; }
 .ls-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
-.ls-logic { font-size: 11.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 8px; }
-.ls-factor { display: flex; gap: 4px; flex-wrap: wrap; }
-.ls-factor-tag {
-    font-size: 10px;
-    padding: 2px 7px;
-    border-radius: 8px;
-    background: rgba(0,212,255,0.1);
-    color: var(--accent);
-}
+.ls-chain { font-size: 11px; color: var(--accent); margin-bottom: 4px; font-weight: 600; }
+.ls-logic { font-size: 11.5px; color: var(--text-muted); line-height: 1.5; }

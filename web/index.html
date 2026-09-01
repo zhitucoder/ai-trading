@@ -2031,64 +2031,78 @@
 
 <template id="logic-tpl">
     <div class="topbar">
-        <h2>投资逻辑 · 上下游传导</h2>
-        <span class="badge">事件驱动 → 传导链 → 受益标的</span>
+        <h2>投资逻辑 · 事件传导网络</h2>
+        <span class="badge">事件驱动 → 多行业传导 → 受益标的</span>
     </div>
     <div class="content logic-content">
-        <div class="logic-industries">
-            <div class="logic-industry" v-for="ind in industries" :key="ind.id"
-                 :class="{active: activeIndustry === ind.id}"
-                 @click="switchIndustry(ind.id)">
-                <span class="li-icon">{{ ind.icon }}</span>
-                <span class="li-name">{{ ind.name }}</span>
+        <div class="logic-events">
+            <div class="logic-event" v-for="ev in events" :key="ev.id"
+                 :class="{active: activeEvent === ev.id}"
+                 @click="switchEvent(ev.id)">
+                <span class="le-icon">{{ ev.icon }}</span>
+                <div class="le-body">
+                    <div class="le-name">{{ ev.name }}</div>
+                    <div class="le-desc">{{ ev.short }}</div>
+                </div>
             </div>
         </div>
 
-        <div v-if="ind" class="logic-overview">
-            <div class="lo-title">{{ ind.title }}</div>
-            <div class="lo-desc">{{ ind.description }}</div>
+        <div v-if="ev" class="logic-overview">
+            <div class="lo-title">{{ ev.icon }} {{ ev.title }}</div>
+            <div class="lo-desc">{{ ev.description }}</div>
         </div>
 
-        <div v-if="ind" class="logic-chain">
-            <div class="chain-stage" v-for="(stage, si) in ind.stages" :key="si"
-                 :style="{width: stageWidth + '%'}" :class="'stage-' + stage.level">
-                <div class="chain-stage-head" :style="{background: stageColor(stage.level)}">
-                    <span class="csh-tag">{{ stage.tag }}</span>
-                    <span class="csh-title">{{ stage.name }}</span>
+        <div class="logic-timeline">
+            <div class="lt-item lt-1"><span class="lt-dot"></span><span>即时</span><span class="lt-sub">0-1个月</span></div>
+            <div class="lt-item lt-2"><span class="lt-dot"></span><span>短期</span><span class="lt-sub">1-3个月</span></div>
+            <div class="lt-item lt-3"><span class="lt-dot"></span><span>中期</span><span class="lt-sub">3-12个月</span></div>
+            <div class="lt-item lt-4"><span class="lt-dot"></span><span>长期</span><span class="lt-sub">1年以上</span></div>
+        </div>
+
+        <div v-if="ev" class="logic-chains">
+            <div class="chain-card" v-for="(chain, ci) in ev.chains" :key="ci"
+                 :class="'t-' + chain.timing">
+                <div class="chain-head">
+                    <span class="ch-icon">{{ chain.icon }}</span>
+                    <span class="ch-name">{{ chain.name }}</span>
+                    <span class="ch-timing" :class="'t-' + chain.timing">{{ timingLabel(chain.timing) }}</span>
                 </div>
-                <div class="chain-stage-body">
-                    <div class="chain-driver" v-for="(d, di) in stage.drivers" :key="di">
-                        <div class="cd-name">
-                            <span class="cd-icon">{{ d.icon }}</span>
-                            <span>{{ d.name }}</span>
+                <div class="ch-desc">{{ chain.desc }}</div>
+                <div class="ch-flow">
+                    <template v-for="(node, ni) in chain.nodes" :key="ni">
+                        <div class="ch-node" :class="'node-' + node.type">
+                            <span class="chn-icon">{{ node.icon }}</span>
+                            <span class="chn-name">{{ node.name }}</span>
+                            <span class="chn-sub" v-if="node.sub">{{ node.sub }}</span>
                         </div>
-                        <div class="cd-impact" v-if="d.impact">{{ d.impact }}</div>
-                        <div class="cd-benefit" v-if="d.benefit">
-                            <div class="cdb-label">受益方向</div>
-                            <div class="cdb-text">{{ d.benefit }}</div>
-                        </div>
+                        <div class="ch-flow-arrow" v-if="ni < chain.nodes.length - 1">➜</div>
+                    </template>
+                </div>
+                <div class="ch-stocks" v-if="chain.stocks && chain.stocks.length">
+                    <div class="ch-stock" v-for="(s, si) in chain.stocks" :key="si"
+                         @click="goStock(s.code)" :title="s.logic">
+                        <span class="cs-code">{{ s.code }}</span>
+                        <span class="cs-name">{{ s.name }}</span>
+                        <span class="cs-tag" v-for="(f, fi) in s.factor" :key="fi">{{ f }}</span>
                     </div>
                 </div>
-                <div class="chain-arrow" v-if="si < ind.stages.length - 1">➤</div>
             </div>
         </div>
 
-        <div v-if="ind" class="logic-stocks">
+        <div v-if="ev" class="logic-stocks">
             <div class="logic-stocks-head">
-                <div class="ls-title">受益标的 · {{ ind.name }}</div>
+                <div class="ls-title">全事件受益标的 · {{ ev.name }}</div>
                 <div class="ls-sub">点击股票查看画像</div>
             </div>
             <div class="logic-stock-grid">
-                <div class="logic-stock-card" v-for="(s, si) in ind.stocks" :key="si" @click="goStock(s.code)">
+                <div class="logic-stock-card" v-for="(s, si) in ev.allStocks" :key="si" @click="goStock(s.code)">
                     <div class="ls-card-top">
                         <span class="ls-code">{{ s.code }}</span>
-                        <span class="ls-tag" :style="{color: stageColor(s.level)}">{{ stageTagName(s.level) }}</span>
+                        <span class="ls-tag" :class="'t-' + s.timing">{{ timingLabel(s.timing) }}</span>
                     </div>
                     <div class="ls-name">{{ s.name }}</div>
+                    <div class="ls-chain" v-if="s.chain">{{ s.chain }}</div>
                     <div class="ls-logic" v-if="s.logic">{{ s.logic }}</div>
-                    <div class="ls-factor" v-if="s.factor">
-                        <span v-for="(f, fi) in s.factor" :key="fi" class="ls-factor-tag">{{ f }}</span>
-                    </div>
                 </div>
             </div>
         </div>
