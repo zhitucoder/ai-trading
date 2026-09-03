@@ -4007,7 +4007,7 @@ app.component('data-catalog-page', {
         const suggestionIdx = ref(-1);
         let searchTimer = null;
 
-        const categories = ['全部', '行情', '财务', '板块与股本', '预计算分析', '用户与日志'];
+        const categories = ['全部', '行情', '财务', '基金', '报告', '板块与股本', '预计算分析', '用户与日志'];
         const sortOptions = [
             { value: 'table_name', label: '按名称' },
             { value: 'latest_date', label: '按最新日期' },

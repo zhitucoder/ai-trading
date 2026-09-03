@@ -146,33 +146,376 @@ tables:
       - {name: avg_roe,            from: [ads_stock_latest.roe],                     transform: aggregate, formula: "AVG"}
       - {name: avg_debt_ratio,     from: [ads_stock_latest.debt_ratio],              transform: aggregate, formula: "AVG"}
 
-  # ─────────────────────────── 其他预计算表（表级血缘） ───────────────────────────
+  # ─────────────────────────── ads_annual_cagr（3/5/10年CAGR） ───────────────────────────
   - name: ads_annual_cagr
     comment: 年化增长率(CAGR)统计表（3/5/10年营收与净利CAGR）
-    upstream: [fin_income]
-    downstream: [stock_profiles]
-    fields: []
+    upstream: [fin_income, fin_balance_sheet]
+    downstream: []
+    note: 逐股票取最近11年年报(12-31)，营收>0 才参与；收益可靠性校验：净利/营收<2 且 营收/总资产>0.001
+    fields:
+      - {name: stock_code,    from: [fin_income.stock_code],                 transform: direct}
+      - {name: report_date,   from: [fin_income.report_date],                transform: direct, note: "最新年报报告期(12-31)"}
+      - {name: rev_cagr_3y,   from: [fin_income.operating_revenue],          transform: derive, formula: "(最新营收/3年前营收)^(1/3)-1", note: "区间端点需通过可靠性校验"}
+      - {name: rev_cagr_5y,   from: [fin_income.operating_revenue],          transform: derive, formula: "(最新营收/5年前营收)^(1/5)-1"}
+      - {name: rev_cagr_10y,  from: [fin_income.operating_revenue],          transform: derive, formula: "(最新营收/10年前营收)^(1/10)-1"}
+      - {name: profit_cagr_3y, from: [fin_income.parent_net_profit],         transform: derive, formula: "(最新归母净利/3年前归母净利)^(1/3)-1"}
+      - {name: profit_cagr_5y, from: [fin_income.parent_net_profit],         transform: derive, formula: "(最新归母净利/5年前归母净利)^(1/5)-1"}
+      - {name: profit_cagr_10y, from: [fin_income.parent_net_profit],        transform: derive, formula: "(最新归母净利/10年前归母净利)^(1/10)-1"}
 
+  # ─────────────────────────── ads_sector_finance（板块单季财务汇总） ───────────────────────────
   - name: ads_sector_finance
     comment: 板块财务汇总（基于单季度财务 fin_quarterly）
     upstream: [fin_quarterly, stock_sectors]
     downstream: []
-    fields: []
+    note: 仅 industry 分类，按 sector_code + report_date 分组
+    fields:
+      - {name: sector_code,    from: [stock_sectors.sector_code],            transform: aggregate, formula: "GROUP BY"}
+      - {name: report_date,    from: [fin_quarterly.report_date],            transform: aggregate, formula: "JOIN 继承"}
+      - {name: total_revenue,  from: [fin_quarterly.q_revenue],              transform: aggregate, formula: "SUM"}
+      - {name: total_net_profit, from: [fin_quarterly.q_parent_net_profit],  transform: aggregate, formula: "SUM"}
+      - {name: revenue_growth, from: [ads_sector_finance.total_revenue],     transform: self, formula: "本年 / 上年 - 1"}
+      - {name: net_profit_growth, from: [ads_sector_finance.total_net_profit], transform: self, formula: "本年 / 上年 - 1"}
 
+  # ─────────────────────────── sector_prosperity（板块景气度） ───────────────────────────
   - name: sector_prosperity
     comment: 板块景气度评分
     upstream: [fin_income, fin_ratios, fin_balance_sheet, stock_sectors]
     downstream: []
-    fields: []
+    note: score=0.4×营收增速+0.35×ROE+0.25×负债率；level按阈值分档
+    fields:
+      - {name: sector_code,    from: [stock_sectors.sector_code],            transform: aggregate, formula: "GROUP BY"}
+      - {name: avg_rev_growth, from: [fin_income.operating_revenue],         transform: derive, formula: "AVG(营收同比)"}
+      - {name: avg_roe,        from: [fin_ratios.roe],                       transform: aggregate, formula: "AVG"}
+      - {name: avg_debt_ratio, from: [fin_balance_sheet.total_liabilities, fin_balance_sheet.total_assets],
+         transform: derive, formula: "AVG(总负债/总资产×100)"}
+      - {name: score,          from: [sector_prosperity.avg_rev_growth, sector_prosperity.avg_roe, sector_prosperity.avg_debt_ratio],
+         transform: derive, formula: "0.4×营收+0.35×ROE+0.25×负债"}
+      - {name: level,          from: [sector_prosperity.score],              transform: derive, formula: "≥70 high / ≥40 medium / else low"}
+      - {name: computed_at,    from: [],                                     transform: direct, note: "运行期写入 NOW()"}
 
+  # ─────────────────────────── zxm_stock_tags（张新民六维标签） ───────────────────────────
   - name: zxm_stock_tags
     comment: 张新民战略视角财务分析标签表
-    upstream: [fin_income, fin_balance_sheet, fin_cash_flow, fin_quarterly, fin_extended, fin_contract_bs, stocks]
+    upstream: [fin_income, fin_balance_sheet, fin_cash_flow, fin_contract_bs, fin_extended, stocks]
     downstream: []
-    fields: []
+    note: 最新年报口径(MONTH=12 DAY=31)；规则见 src/app/zxm_tags.py compute_tags()
+    fields:
+      - {name: stock_code,          from: [fin_income.stock_code],              transform: direct}
+      - {name: stock_name,          from: [stocks.stock_name],                  transform: lookup}
+      - {name: report_date,         from: [fin_income.report_date],             transform: direct}
+      - {name: data_date,           from: [],                                   transform: direct, note: "运行期写入 date.today()"}
+      - {name: asset_type,          from: [fin_balance_sheet.trading_fa, fin_extended.long_term_equity, fin_balance_sheet.total_assets],
+         transform: derive, formula: "投资类资产=交易性金融资产+长期股权投资；占比判经营/投资主导"}
+      - {name: asset_weight,        from: [fin_balance_sheet.fixed_assets, fin_balance_sheet.total_assets],
+         transform: derive, formula: "固定资产/总资产：<15轻 / ≤30中 / else重"}
+      - {name: cash_status,         from: [fin_balance_sheet.cash, fin_balance_sheet.short_term_borrow, fin_balance_sheet.total_assets],
+         transform: derive, formula: "现金/总资产×100 且 现金 vs 短借 判定"}
+      - {name: inventory_risk,      from: [fin_balance_sheet.inventory, fin_income.operating_revenue],
+         transform: derive, formula: "存货/营收×100：<15低 / ≤30中 / else高"}
+      - {name: contract_liab_tag,   from: [fin_contract_bs.contract_liab, fin_balance_sheet.total_assets],
+         transform: derive, formula: "合同负债/总资产×100 分档"}
+      - {name: hematopoiesis,       from: [fin_balance_sheet.accounts_payable, fin_balance_sheet.surplus_reserve,
+                                           fin_balance_sheet.retained_profit, fin_balance_sheet.short_term_borrow,
+                                           fin_balance_sheet.long_term_borrow, fin_balance_sheet.share_capital,
+                                           fin_balance_sheet.capital_surplus],
+         transform: derive, formula: "(应付款+盈余公积+未分配)/全部资金源 分档 造血/均衡/输血"}
+      - {name: hematopoiesis_ratio, from: [fin_balance_sheet.accounts_payable, fin_balance_sheet.surplus_reserve,
+                                           fin_balance_sheet.retained_profit, fin_balance_sheet.short_term_borrow,
+                                           fin_balance_sheet.long_term_borrow, fin_balance_sheet.share_capital,
+                                           fin_balance_sheet.capital_surplus],
+         transform: derive, formula: "造血资金源 / 总资金源 × 100"}
+      - {name: leverage,            from: [fin_balance_sheet.short_term_borrow, fin_balance_sheet.long_term_borrow, fin_balance_sheet.total_assets],
+         transform: derive, formula: "有息负债/总资产×100 分档"}
+      - {name: debt_ratio,          from: [fin_balance_sheet.short_term_borrow, fin_balance_sheet.long_term_borrow, fin_balance_sheet.total_assets],
+         transform: derive, formula: "(短借+长借)/总资产×100"}
+      - {name: margin_level,        from: [fin_income.operating_revenue, fin_income.operating_cost],
+         transform: derive, formula: "毛利率：>40高 / ≥15中 / else低"}
+      - {name: core_profit_margin,  from: [fin_income.operating_revenue, fin_income.operating_cost,
+                                           fin_income.selling_expense, fin_income.admin_expense],
+         transform: derive, formula: "核心利润/营收×100"}
+      - {name: profit_source,       from: [fin_income.operating_revenue, fin_income.operating_cost,
+                                           fin_income.selling_expense, fin_income.admin_expense,
+                                           fin_income.operating_profit, fin_income.investment_income,
+                                           fin_income.non_op_income, fin_income.total_profit],
+         transform: derive, formula: "核心利润占比/投资收益占比/非经常占比 判 价值创造/整合/会计调整/经营驱动"}
+      - {name: minority_ratio,      from: [fin_income.parent_net_profit, fin_income.net_profit],
+         transform: derive, formula: "归母净利/净利润×100"}
+      - {name: profit_status,       from: [fin_income.net_profit, fin_income.operating_revenue],
+         transform: derive, formula: "净利率分档 盈利/微利/亏损"}
+      - {name: match_fa_rev,        from: [fin_income.operating_revenue, fin_balance_sheet.fixed_assets],
+         transform: derive, formula: "营收/固定资产：>3产能高效 / ≥1正常 / else低效"}
+      - {name: match_fa_rev_ratio,  from: [fin_income.operating_revenue, fin_balance_sheet.fixed_assets],
+         transform: derive, formula: "营收/固定资产×100"}
+      - {name: match_rev_profit,    from: [fin_income.operating_revenue, fin_income.operating_cost,
+                                           fin_income.selling_expense, fin_income.admin_expense],
+         transform: derive, formula: "核心利润率分档 强/中/弱/极弱转化"}
+      - {name: match_rev_profit_ratio, from: [fin_income.operating_revenue, fin_income.operating_cost,
+                                              fin_income.selling_expense, fin_income.admin_expense],
+         transform: derive, formula: "核心利润/营收×100"}
+      - {name: match_profit_ocf,    from: [fin_cash_flow.op_cash_flow, fin_income.operating_revenue,
+                                           fin_income.operating_cost, fin_income.selling_expense,
+                                           fin_income.admin_expense],
+         transform: derive, formula: "经营现金流/核心利润：>0.8强 / ≥0.3中 / else弱"}
+      - {name: match_profit_ocf_ratio, from: [fin_cash_flow.op_cash_flow, fin_income.operating_revenue,
+                                              fin_income.operating_cost, fin_income.selling_expense,
+                                              fin_income.admin_expense],
+         transform: derive, formula: "经营现金流/核心利润"}
+      - {name: cashflow_type,       from: [fin_cash_flow.op_cash_flow, fin_income.net_profit],
+         transform: derive, formula: "净现比分档 现金奶牛/正常/纸面富贵/失血"}
+      - {name: ocf_to_np,           from: [fin_cash_flow.op_cash_flow, fin_income.net_profit],
+         transform: derive, formula: "经营现金流/净利润"}
+      - {name: fcf_status,          from: [fin_cash_flow.free_cash_flow],     transform: derive, formula: "FCF>0充裕 / else为负"}
+      - {name: growth_rate,         from: [fin_income.operating_revenue],     transform: derive, formula: "营收同比分档"}
+      - {name: growth_quality,      from: [fin_income.operating_revenue, fin_income.net_profit],
+         transform: derive, formula: "营收/净利同比组合 判 增收增利/增收不增利等"}
+      - {name: risk_flags,          from: [fin_balance_sheet.inventory, fin_balance_sheet.accounts_receivable,
+                                           fin_balance_sheet.goodwill, fin_balance_sheet.total_equity,
+                                           fin_balance_sheet.fixed_assets, fin_balance_sheet.total_assets,
+                                           fin_balance_sheet.cash, fin_balance_sheet.short_term_borrow,
+                                           fin_income.operating_revenue],
+         transform: derive, formula: "存货/应收/商誉/短债长投 风险标记(JSON)"}
+      - {name: overall_rating,      from: [zxm_stock_tags.hematopoiesis, zxm_stock_tags.leverage,
+                                           zxm_stock_tags.margin_level, zxm_stock_tags.cashflow_type,
+                                           zxm_stock_tags.growth_quality, zxm_stock_tags.asset_weight,
+                                           zxm_stock_tags.cash_status, zxm_stock_tags.match_fa_rev,
+                                           zxm_stock_tags.match_rev_profit, zxm_stock_tags.match_profit_ocf,
+                                           zxm_stock_tags.profit_status, zxm_stock_tags.risk_flags],
+         transform: derive, formula: "13项规则加权打分分档 优秀/良好/中等/中下/差"}
+      - {name: pattern_label,       from: [zxm_stock_tags.asset_weight, zxm_stock_tags.margin_level,
+                                           zxm_stock_tags.cashflow_type, zxm_stock_tags.hematopoiesis,
+                                           zxm_stock_tags.growth_quality, zxm_stock_tags.leverage,
+                                           fin_contract_bs.contract_liab, fin_balance_sheet.total_assets],
+         transform: derive, formula: "标签拼接 轻资产/高毛利/现金奶牛/造血…"}
 
+  # ─────────────────────────── stock_profiles（股票画像） ───────────────────────────
   - name: stock_profiles
     comment: 股票画像预计算表
-    upstream: [fin_income, fin_balance_sheet, fin_cash_flow, daily_kline, ads_annual_cagr, stock_dividend, fin_contract_bs]
+    upstream: [fin_income, fin_balance_sheet, fin_cash_flow, fin_quarterly, fin_ratios, daily_kline, stock_shares_dfcf, stock_dividend, stocks]
     downstream: []
-    fields: []
+    note: 技术面+基本面+标签体系综合画像，见 src/app/strategies/profile.py generate_profile()
+    fields:
+      - {name: stock_code,          from: [stocks.stock_code],                transform: direct}
+      - {name: stock_name,          from: [stocks.stock_name],                transform: lookup}
+      - {name: trade_date,          from: [daily_kline.trade_date],           transform: direct, note: "K线数据截止日"}
+      - {name: stage_id,            from: [daily_kline.close_price],          transform: derive, formula: "技术面阶段识别"}
+      - {name: stage_confidence,    from: [daily_kline.close_price],          transform: derive, formula: "阶段置信度"}
+      - {name: tech_score,          from: [daily_kline.close_price],          transform: derive, formula: "技术面评分"}
+      - {name: fund_score,          from: [daily_kline.close_price],          transform: derive, formula: "资金面评分"}
+      - {name: latest_price,        from: [daily_kline.close_price],          transform: lookup}
+      - {name: price_change_pct,    from: [daily_kline.close_price],          transform: derive, formula: "近250日涨跌幅"}
+      - {name: dividend_yield,      from: [stock_dividend.dividend_yield],    transform: lookup}
+      - {name: has_dividend_this_year, from: [stock_dividend.cash_per_10],    transform: derive, formula: "本年度每股分红>0"}
+      - {name: consecutive_dividend_years, from: [stock_dividend.report_date], transform: derive, formula: "连续分红年数"}
+      - {name: has_mid_year_dividend, from: [stock_dividend.cash_per_10],     transform: derive, formula: "中报分红预案"}
+      - {name: revenue_growth,      from: [fin_income.operating_revenue],     transform: derive, formula: "最新报告期同比"}
+      - {name: net_profit_growth,   from: [fin_income.parent_net_profit],     transform: derive, formula: "最新报告期同比"}
+      - {name: debt_ratio,          from: [fin_balance_sheet.total_liabilities, fin_balance_sheet.total_assets],
+         transform: derive, formula: "总负债/总资产×100"}
+      - {name: roe,                 from: [fin_income.parent_net_profit, fin_balance_sheet.total_equity],
+         transform: derive, formula: "归母净利/净资产×100"}
+      - {name: roe_ttm,             from: [fin_quarterly.q_parent_net_profit, fin_balance_sheet.total_equity],
+         transform: derive, formula: "TTM归母净利/净资产×100"}
+      - {name: net_margin,          from: [fin_income.parent_net_profit, fin_income.operating_revenue],
+         transform: derive, formula: "归母净利/营收×100"}
+      - {name: pe_ttm,              from: [stock_shares_dfcf.total_shares, daily_kline.close_price, fin_income.parent_net_profit],
+         transform: derive, formula: "市值/TTM归母净利"}
+      - {name: peg,                 from: [stock_profiles.pe_ttm, stock_profiles.net_profit_growth],
+         transform: derive, formula: "PE/净利增速"}
+      - {name: gross_margin,        from: [fin_income.operating_revenue, fin_income.operating_cost],
+         transform: derive, formula: "(营收-成本)/营收×100"}
+      - {name: prev_year_revenue,   from: [fin_income.operating_revenue],     transform: derive, formula: "上年同期营收"}
+      - {name: rev_cagr_3y,         from: [fin_income.operating_revenue],     transform: derive, formula: "3年营收CAGR"}
+      - {name: rev_cagr_5y,         from: [fin_income.operating_revenue],     transform: derive, formula: "5年营收CAGR"}
+      - {name: rev_cagr_10y,        from: [fin_income.operating_revenue],     transform: derive, formula: "10年营收CAGR"}
+      - {name: profit_cagr_3y,      from: [fin_income.parent_net_profit],     transform: derive, formula: "3年净利CAGR"}
+      - {name: profit_cagr_5y,      from: [fin_income.parent_net_profit],     transform: derive, formula: "5年净利CAGR"}
+      - {name: profit_cagr_10y,     from: [fin_income.parent_net_profit],     transform: derive, formula: "10年净利CAGR"}
+      - {name: data_date,           from: [],                                 transform: direct, note: "运行期写入"}
+      - {name: fin_report_date,     from: [fin_ratios.report_date],           transform: lookup, note: "MAX(report_date)"}
+      - {name: profile_json,        from: [],                                 transform: direct, note: "整份画像JSON"}
+      - {name: tag_*,               from: [fin_income, fin_balance_sheet, fin_cash_flow, fin_quarterly, daily_kline, stock_dividend],
+         transform: derive, note: "行业/经营标签，多源判定布尔"}
+
+  # ─────────────────────────── 基金持仓聚合（compute_ads.py 产出） ───────────────────────────
+  - name: ads_stock_fund
+    comment: 个股×季度 基金持仓聚合(基金家数/持股量/市值)+季度股价
+    upstream: [fund_portfolio, fund_basic, stock_shares_dfcf, daily_kline]
+    downstream: [ads_stock_fund_trend, ads_fund_stock_change, ads_fund_sector_flow, ads_fund_stock_trend]
+    note: 按 stock_code+end_date 聚合；被动基金由 fund_basic.name 关键词判定
+    fields:
+      - {name: stock_code,    from: [fund_portfolio.symbol],                 transform: derive, formula: "SUBSTRING_INDEX(symbol,'.',1)"}
+      - {name: end_date,      from: [fund_portfolio.end_date],               transform: direct}
+      - {name: quarter,       from: [fund_portfolio.end_date],               transform: derive, formula: "yyQn 标签"}
+      - {name: report_type,   from: [fund_portfolio.end_date],               transform: derive, formula: "0331/0930→Q季报, else F"}
+      - {name: fund_count,    from: [fund_portfolio.ts_code],                transform: aggregate, formula: "COUNT(*)"}
+      - {name: active_count,  from: [fund_basic.passive],                    transform: aggregate, formula: "SUM(被动=0)"}
+      - {name: passive_count, from: [fund_basic.passive],                    transform: aggregate, formula: "SUM"}
+      - {name: total_amount,  from: [fund_portfolio.amount],                 transform: aggregate, formula: "SUM"}
+      - {name: total_mkv,     from: [fund_portfolio.mkv],                    transform: aggregate, formula: "SUM"}
+      - {name: total_shares,  from: [stock_shares_dfcf.total_shares],        transform: lookup}
+      - {name: close_price,   from: [daily_kline.close_price],               transform: lookup, note: "≤季末最近交易日收盘价"}
+      - {name: intra_high,    from: [daily_kline.high_price],                transform: aggregate, formula: "季内 MAX"}
+
+  - name: ads_stock_fund_trend
+    comment: 个股基金持仓季度增减序列(±1列)+派生统计
+    upstream: [ads_stock_fund]
+    downstream: []
+    note: 仅 report_type='F' 的完整披露季度；d列=持股量环比±1，fc列=持仓基金家数
+    fields:
+      - {name: stock_code,            from: [ads_stock_fund.stock_code],      transform: direct}
+      - {name: "d*",                  from: [ads_stock_fund.total_amount],    transform: derive, formula: "环比增量>=0→1 else -1"}
+      - {name: "fc*",                 from: [ads_stock_fund.fund_count],      transform: aggregate, formula: "各季度家数(缺失按0)"}
+      - {name: recent8_up,            from: [ads_stock_fund.total_amount],    transform: derive, formula: "最近8个增量中=1的个数"}
+      - {name: recent8_net,           from: [ads_stock_fund.total_amount],    transform: derive, formula: "2×recent8_up-8"}
+      - {name: recent6_up,            from: [ads_stock_fund.total_amount],    transform: derive, formula: "最近6个增量中=1的个数"}
+      - {name: recent4_up,            from: [ads_stock_fund.total_amount],    transform: derive, formula: "最近4个增量中=1的个数"}
+      - {name: max_consec_growth,     from: [ads_stock_fund.total_amount],    transform: derive, formula: "最长连续增持"}
+      - {name: max_consec_decline,    from: [ads_stock_fund.total_amount],    transform: derive, formula: "最长连续减持"}
+      - {name: recent2q_fund_count,   from: [ads_stock_fund.fund_count],      transform: aggregate, formula: "最近2季度均值"}
+      - {name: recent4q_fund_count,   from: [ads_stock_fund.fund_count],      transform: aggregate, formula: "最近4季度均值"}
+      - {name: recent1q_fund_count,   from: [ads_stock_fund.fund_count],      transform: aggregate, formula: "最新季度"}
+      - {name: prev1q_fund_count,     from: [ads_stock_fund.fund_count],      transform: aggregate, formula: "上一季度"}
+      - {name: recent1q_fund_growth,  from: [ads_stock_fund.fund_count],      transform: derive, formula: "(最新-上一)/上一×100"}
+      - {name: recent8q_amount,       from: [ads_stock_fund.total_amount],    transform: aggregate, formula: "最近8季度持股量均值"}
+      - {name: prev2q_fund_count,     from: [ads_stock_fund.fund_count],      transform: aggregate, formula: "前2季度均值"}
+      - {name: recent2q_fund_growth,  from: [ads_stock_fund.fund_count],      transform: derive, formula: "(近2季度-前2季度)/前2季度×100"}
+
+  # ─────────────────────────── 基金分析预计算（compute_fund_ads.py 产出） ───────────────────────────
+  - name: ads_fund_stock_change
+    comment: 个股×双季度 基金持仓环比(增减/市值/主动被动)
+    upstream: [ads_stock_fund]
+    downstream: []
+    note: 仅 Q2/Q4 完整数据，a=当前季, b=上一季
+    fields:
+      - {name: stock_code,         from: [ads_stock_fund.stock_code],       transform: direct}
+      - {name: end_date,           from: [ads_stock_fund.end_date],         transform: direct}
+      - {name: prev_end_date,      from: [],                                transform: direct, note: "上季度截止日映射"}
+      - {name: quarter,            from: [ads_stock_fund.quarter],          transform: direct}
+      - {name: fund_count,         from: [ads_stock_fund.fund_count],       transform: direct}
+      - {name: prev_fund_count,    from: [ads_stock_fund.fund_count],       transform: direct}
+      - {name: fund_count_change,  from: [ads_stock_fund.fund_count],       transform: derive, formula: "a.fund_count - b.fund_count"}
+      - {name: total_amount,       from: [ads_stock_fund.total_amount],     transform: direct}
+      - {name: prev_total_amount,  from: [ads_stock_fund.total_amount],     transform: direct}
+      - {name: amount_change,      from: [ads_stock_fund.total_amount],     transform: derive, formula: "a-b"}
+      - {name: amount_change_pct,  from: [ads_stock_fund.total_amount],     transform: derive, formula: "(a-b)/b×100"}
+      - {name: total_mkv,          from: [ads_stock_fund.total_mkv],        transform: direct}
+      - {name: prev_total_mkv,     from: [ads_stock_fund.total_mkv],        transform: direct}
+      - {name: mkv_change,         from: [ads_stock_fund.total_mkv],        transform: derive, formula: "a-b"}
+      - {name: active_count,       from: [ads_stock_fund.active_count],     transform: direct}
+      - {name: passive_count,      from: [ads_stock_fund.passive_count],    transform: direct}
+      - {name: active_ratio,       from: [ads_stock_fund.active_count, ads_stock_fund.fund_count],
+         transform: derive, formula: "主动家数/总家数×100"}
+
+  - name: ads_fund_sector_flow
+    comment: 板块×双季度 基金资金流向(净流入/变化率/A-D信号)
+    upstream: [ads_stock_fund, stock_sectors, sectors]
+    downstream: []
+    note: 按板块名聚合 industry/concept；signal=双季度市值变化加速/减速
+    fields:
+      - {name: sector_type,      from: [sectors.category],                 transform: derive, formula: "industry/concept"}
+      - {name: sector_name,      from: [sectors.sector_name],              transform: aggregate, formula: "GROUP BY"}
+      - {name: end_date,         from: [ads_stock_fund.end_date],          transform: direct}
+      - {name: quarter,          from: [ads_stock_fund.quarter],           transform: direct}
+      - {name: stock_count,      from: [ads_stock_fund.stock_code],        transform: aggregate, formula: "COUNT(DISTINCT)"}
+      - {name: total_fund_count, from: [ads_stock_fund.fund_count],        transform: aggregate, formula: "SUM"}
+      - {name: total_mkv,        from: [ads_stock_fund.total_mkv],         transform: aggregate, formula: "SUM"}
+      - {name: prev_total_mkv,   from: [ads_stock_fund.total_mkv],         transform: aggregate, formula: "上季度 SUM"}
+      - {name: mkv_change,       from: [ads_stock_fund.total_mkv],         transform: derive, formula: "cur - prev"}
+      - {name: mkv_change_pct,   from: [ads_stock_fund.total_mkv],         transform: derive, formula: "(cur-prev)/prev×100"}
+      - {name: avg_fund_count,   from: [ads_stock_fund.fund_count],        transform: aggregate, formula: "AVG"}
+      - {name: signal,           from: [ads_fund_sector_flow.mkv_change],  transform: derive, formula: "双季度变化比较 A/B/C/D"}
+
+  - name: ads_fund_stock_trend
+    comment: 个股基金趋势评分(-4~+4, 增持季度数/连续增持)
+    upstream: [ads_stock_fund]
+    downstream: []
+    note: 取最近5个双季度计算；score=增减季度数+连续增持修正
+    fields:
+      - {name: stock_code,          from: [ads_stock_fund.stock_code],     transform: direct}
+      - {name: latest_end_date,     from: [ads_stock_fund.end_date],       transform: direct}
+      - {name: trend_score,         from: [ads_stock_fund.total_amount],   transform: derive, formula: "增持季度数评分±连续修正(-4~+4)"}
+      - {name: trend_label,         from: [ads_fund_stock_trend.trend_score], transform: derive, formula: "持续看好/偏好看好/中性/偏好看空/持续看空"}
+      - {name: increase_quarters,   from: [ads_stock_fund.total_amount],   transform: derive, formula: "增持季度数"}
+      - {name: decrease_quarters,   from: [ads_stock_fund.total_amount],   transform: derive, formula: "减持季度数"}
+      - {name: consecutive_increase, from: [ads_stock_fund.total_amount],  transform: derive, formula: "当前连续增持"}
+      - {name: latest_change_pct,   from: [ads_stock_fund.total_amount],   transform: derive, formula: "(最新-上一)/上一×100"}
+      - {name: fund_count,          from: [ads_stock_fund.fund_count],     transform: direct}
+      - {name: total_mkv,           from: [ads_stock_fund.total_mkv],      transform: direct}
+
+  # ─────────────────────────── 机构持仓预计算（compute_institution_ads.py 产出） ───────────────────────────
+  - name: ads_institution_stock
+    comment: 机构主体×股票×季度 持仓(归一化合并全变体)
+    upstream: [top10_float_holders, holder_owner, stocks, daily_kline]
+    downstream: [ads_institution_change, ads_institution_sector, ads_institution_overview]
+    note: 归一化由 holder_owner 规则驱动；持仓市值=持股股数×季末收盘价
+    fields:
+      - {name: owner_type,        from: [holder_owner.owner_type],         transform: lookup, note: "shebao/yanglao/baoxian/caizheng/guozwei/hk_central"}
+      - {name: group_name,        from: [holder_owner.group_name],         transform: lookup}
+      - {name: owner_label,       from: [holder_owner.owner_label],        transform: lookup}
+      - {name: stock_code,        from: [top10_float_holders.ts_code],     transform: derive, formula: "去.SH/.SZ 后缀"}
+      - {name: stock_name,        from: [stocks.stock_name],               transform: lookup}
+      - {name: end_date,          from: [top10_float_holders.end_date],    transform: direct}
+      - {name: quarter,           from: [top10_float_holders.end_date],    transform: derive, formula: "yyQn 标签"}
+      - {name: holder_cnt,        from: [top10_float_holders.holder_name], transform: aggregate, formula: "COUNT 组合/产品数"}
+      - {name: total_hold,        from: [top10_float_holders.hold_amount], transform: aggregate, formula: "SUM"}
+      - {name: hold_ratio,        from: [top10_float_holders.hold_ratio, top10_float_holders.hold_amount],
+         transform: derive, formula: "Σ(股数×比例)/Σ股数 加权"}
+      - {name: hold_float_ratio,  from: [top10_float_holders.hold_float_ratio, top10_float_holders.hold_amount],
+         transform: derive, formula: "Σ(股数×流通比例)/Σ股数 加权"}
+      - {name: close_price,       from: [daily_kline.close_price],         transform: lookup, note: "≤季末最近交易日收盘价"}
+      - {name: hold_mkv,          from: [top10_float_holders.hold_amount, daily_kline.close_price],
+         transform: derive, formula: "total_hold×close_price"}
+
+  - name: ads_institution_change
+    comment: 机构主体×股票 季环比(增减/新开仓/清仓)
+    upstream: [ads_institution_stock]
+    downstream: []
+    note: 相邻季度对比；action由持仓股数变化判定
+    fields:
+      - {name: owner_type,        from: [ads_institution_stock.owner_type],  transform: direct}
+      - {name: group_name,        from: [ads_institution_stock.group_name],  transform: direct}
+      - {name: stock_code,        from: [ads_institution_stock.stock_code],  transform: direct}
+      - {name: stock_name,        from: [ads_institution_stock.stock_name],  transform: direct}
+      - {name: end_date,          from: [ads_institution_stock.end_date],    transform: direct}
+      - {name: prev_end_date,     from: [],                                  transform: direct, note: "上季度"}
+      - {name: quarter,           from: [ads_institution_stock.quarter],     transform: direct}
+      - {name: hold_mkv,          from: [ads_institution_stock.hold_mkv],    transform: direct}
+      - {name: prev_hold_mkv,     from: [ads_institution_stock.hold_mkv],    transform: direct}
+      - {name: mkv_change,        from: [ads_institution_stock.hold_mkv],    transform: derive, formula: "cur-prev"}
+      - {name: total_hold,        from: [ads_institution_stock.total_hold],  transform: direct}
+      - {name: prev_total_hold,   from: [ads_institution_stock.total_hold],  transform: direct}
+      - {name: hold_change,       from: [ads_institution_stock.total_hold],  transform: derive, formula: "cur-prev"}
+      - {name: hold_change_pct,   from: [ads_institution_stock.total_hold],  transform: derive, formula: "(cur-prev)/prev×100"}
+      - {name: action,            from: [ads_institution_stock.total_hold],  transform: derive, formula: "新开仓/增持/减持/清仓/持有"}
+
+  - name: ads_institution_sector
+    comment: 机构主体×板块 持仓流向(行业/概念)
+    upstream: [ads_institution_stock, stock_sectors, sectors]
+    downstream: []
+    note: 按 机构×板块×季度 聚合市值
+    fields:
+      - {name: owner_type,       from: [ads_institution_stock.owner_type],  transform: direct}
+      - {name: group_name,       from: [ads_institution_stock.group_name],  transform: direct}
+      - {name: sector_type,      from: [sectors.category],                  transform: derive, formula: "industry/concept"}
+      - {name: sector_name,      from: [sectors.sector_name],               transform: derive, formula: "股票所属板块"}
+      - {name: end_date,         from: [ads_institution_stock.end_date],    transform: direct}
+      - {name: stock_cnt,        from: [ads_institution_stock.stock_code],  transform: aggregate, formula: "COUNT"}
+      - {name: hold_mkv,         from: [ads_institution_stock.hold_mkv],    transform: aggregate, formula: "SUM"}
+      - {name: prev_hold_mkv,    from: [ads_institution_stock.hold_mkv],    transform: aggregate, formula: "上季度 SUM(0=无数据)"}
+      - {name: mkv_change,       from: [ads_institution_stock.hold_mkv],    transform: derive, formula: "cur-prev"}
+
+  - name: ads_institution_overview
+    comment: 机构主体×季度 总览指标卡
+    upstream: [ads_institution_stock, holder_owner]
+    downstream: []
+    note: 每 机构×季度 聚合
+    fields:
+      - {name: owner_type,       from: [ads_institution_stock.owner_type],  transform: direct}
+      - {name: group_name,       from: [ads_institution_stock.group_name],  transform: direct}
+      - {name: owner_label,      from: [holder_owner.owner_label],          transform: lookup}
+      - {name: end_date,         from: [ads_institution_stock.end_date],    transform: direct}
+      - {name: quarter,          from: [ads_institution_stock.quarter],     transform: direct}
+      - {name: stock_cnt,        from: [ads_institution_stock.stock_code],  transform: aggregate, formula: "COUNT(DISTINCT)"}
+      - {name: holder_cnt,       from: [ads_institution_stock.holder_cnt],  transform: aggregate, formula: "COUNT 组合/产品数"}
+      - {name: total_mkv,        from: [ads_institution_stock.hold_mkv],    transform: aggregate, formula: "SUM"}
+      - {name: avg_ratio,        from: [ads_institution_stock.hold_float_ratio], transform: aggregate, formula: "AVG"}

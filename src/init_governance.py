@@ -130,8 +130,9 @@ def seed_catalog(conn):
     """灌入表级元数据种子（REPLACE 幂等，不会覆盖用户后续编辑的字段值之外的列）。"""
     with conn.cursor() as cur:
         cur.execute("SELECT COUNT(*) c FROM data_catalog_meta")
-        if cur.fetchone()['c'] > 0:
-            print(f'  data_catalog_meta 已有 {cur.fetchone()["c"]} 行，跳过种子灌入（保留人工编辑）')
+        cnt = cur.fetchone()['c']
+        if cnt > 0:
+            print(f'  data_catalog_meta 已有 {cnt} 行，跳过种子灌入（保留人工编辑）')
             return
         cur.executemany(
             "INSERT INTO data_catalog_meta (table_name, table_comment, category, source, refresh_method, latest_date_col, description) "

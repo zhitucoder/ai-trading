@@ -13,6 +13,7 @@
 约定：软错误返回 {'error': '...'}；全部复用 database.py 的 query/execute。
 """
 import time
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
@@ -23,9 +24,10 @@ router = APIRouter()
 
 SCHEMA = 'ai_trading'
 
-# ── 新鲜度缓存（32 张表逐表 MAX(date_col)，60s TTL） ──
+# ── 新鲜度缓存（多表并行 MAX(date_col)，300s TTL） ──
 _FRESH_CACHE = {'ts': 0.0, 'data': {}}
-_FRESH_TTL = 60
+_FRESH_TTL = 300
+_FRESH_WORKERS = 8
 
 
 def _freshness(force=False):
@@ -33,15 +35,20 @@ def _freshness(force=False):
     if not force and _FRESH_CACHE['ts'] and now - _FRESH_CACHE['ts'] < _FRESH_TTL:
         return _FRESH_CACHE['data']
     meta = query("SELECT table_name, latest_date_col FROM data_catalog_meta WHERE latest_date_col != ''")
-    out = {}
-    for m in meta:
+
+    def _max_date(m):
         tbl, col = m['table_name'], m['latest_date_col']
         try:
             r = query_one(f"SELECT MAX(`{col}`) v FROM `{tbl}`")
             v = r['v'] if r else None
-            out[tbl] = str(v)[:10] if v else ''
+            return tbl, (str(v)[:10] if v else '')
         except Exception:
-            out[tbl] = ''
+            return tbl, ''
+
+    out = {}
+    with ThreadPoolExecutor(max_workers=_FRESH_WORKERS) as ex:
+        for tbl, v in ex.map(_max_date, meta):
+            out[tbl] = v
     _FRESH_CACHE['ts'] = now
     _FRESH_CACHE['data'] = out
     return out
