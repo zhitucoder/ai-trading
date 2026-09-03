@@ -9,12 +9,27 @@ from pytdx.crawler.history_financial_crawler import HistoryFinancialCrawler
 from ..database import get_conn, query
 from ...import_financial import FIELD_MAP, safe
 from ...import_kline import classify_file
+from ...sync_stock_list import sync as sync_stock_list
 
 router = APIRouter()
 
 DATA_DIR = '/mnt/d/programs/stock/vipdoc'
 RECORD_FMT = '<IIIIIfII'
 RECORD_SIZE = 32
+
+# 源文件损坏字段（索引≥166 / 220-337）偶有超列容量的脏值，超限置 NULL 避免 1264 报错
+_DEC104_COLS = {
+    'roe', 'roe_weighted', 'roe_diluted', 'gross_margin', 'net_margin',
+    'debt_ratio', 'current_ratio', 'quick_ratio', 'inventory_turnover',
+    'basic_eps', 'diluted_eps', 'bps', 'revenue_growth_rate',
+    'net_profit_growth_rate', 'op_profit_growth_rate', 'total_asset_growth_rate',
+    'nav_growth_rate', 'revenue_cagr_3y', 'net_profit_cagr_3y', 'pe_ttm',
+    'top10_ratio', 'fund_hold_ratio', 'northbound_ratio',
+    'capital_reserve_ps', 'ocf_ps',
+}
+_INT_COLS = {'holders', 'holders_prev'}
+_DEC104_CAP = 999999.9999
+_INT_CAP = 2147483647
 
 _update_lock = threading.Lock()
 _ads_lock = threading.Lock()
@@ -161,6 +176,13 @@ def update_kline():
         conn = get_conn()
         cursor = conn.cursor()
 
+        stocks_synced = 0
+        stocks_error = ''
+        try:
+            stocks_synced = sync_stock_list(conn=conn)
+        except Exception as e:
+            stocks_error = str(e)[-200:]
+
         stock_latest, sector_latest = _get_latest_dates(cursor)
 
         stock_sql = """INSERT IGNORE INTO daily_kline
@@ -233,6 +255,8 @@ def update_kline():
             'errors': total_errors,
             'exchanges': exchanges,
             'db_latest': {'stock': str(stock_latest), 'sector': str(sector_latest)},
+            'stocks_synced': stocks_synced,
+            'stocks_error': stocks_error,
         }
     finally:
         _update_lock.release()
@@ -294,14 +318,43 @@ def update_financial():
         db_latest_str = db_latest.strftime('%Y%m%d')
 
         cw_dir = '/mnt/d/programs/stock/vipdoc/cw'
-        dat_files = sorted(
+        all_files = sorted(
             f for f in os.listdir(cw_dir)
             if re.match(r'gpcw20\d{6}\.dat$', f)
             and os.path.getsize(os.path.join(cw_dir, f)) > 100
-            and f[4:12] > db_latest_str
         )
+        if not all_files:
+            cursor.close()
+            conn.close()
+            return {'status': 'ok', 'total_inserted': 0, 'files': [],
+                    'db_latest': str(db_latest), 'message': '通达信财务数据目录没有可用文件'}
 
-        if not dat_files:
+        new_files = [f for f in all_files if f[4:12] > db_latest_str]
+
+        # 同报告期刷新：源文件比库里该报告期更完整（行数更多）时，重导刷新，
+        # 避免“报告期已是最新”但数据残缺（如只导入了 32/5554 只）
+        refresh_items = []
+        for fname in all_files:
+            if fname[4:12] != db_latest_str:
+                continue
+            fpath = os.path.join(cw_dir, fname)
+            try:
+                crawler = HistoryFinancialCrawler()
+                with open(fpath, 'rb') as f:
+                    data = crawler.parse(download_file=f)
+                df = crawler.to_df(data)
+                if df is None or df.empty:
+                    continue
+                cursor.execute(
+                    "SELECT COUNT(*) AS c FROM fin_income WHERE report_date = %s", (db_latest,))
+                db_cnt = cursor.fetchone()['c'] or 0
+                if df.index.nunique() > db_cnt:
+                    rdate = f"{db_latest_str[:4]}-{db_latest_str[4:6]}-{db_latest_str[6:8]}"
+                    refresh_items.append((fname, df, rdate))
+            except Exception:
+                continue
+
+        if not new_files and not refresh_items:
             cursor.close()
             conn.close()
             return {'status': 'ok', 'total_inserted': 0, 'files': [],
@@ -309,9 +362,38 @@ def update_financial():
 
         total = 0
         processed = []
-        BATCH = 1000
 
-        for fname in dat_files:
+        def import_df(df, rdate, mode):
+            BATCH = 1000
+            row_count = 0
+            for table_name, col_names in fin_tables.items():
+                rows = []
+                for code_val, row_data in df.iterrows():
+                    vals = {'stock_code': code_val, 'report_date': rdate}
+                    for cn in col_names:
+                        idx = field_idx.get(cn)
+                        v = safe(row_data.get(f'col{idx}')) if idx is not None else None
+                        cap = _INT_CAP if cn in _INT_COLS else (_DEC104_CAP if cn in _DEC104_COLS else None)
+                        if v is not None and cap is not None and abs(v) > cap:
+                            v = None
+                        vals[cn] = v
+                    rows.append(vals)
+                for i in range(0, len(rows), BATCH):
+                    batch = rows[i:i + BATCH]
+                    cols = ['stock_code', 'report_date'] + col_names
+                    ph = ', '.join([f'%({c})s' for c in cols])
+                    if mode == 'upsert':
+                        upd = ', '.join([f'{c}=VALUES({c})' for c in col_names])
+                        sql = (f"INSERT INTO {table_name} ({', '.join(cols)}) VALUES ({ph}) "
+                               f"ON DUPLICATE KEY UPDATE {upd}")
+                    else:
+                        sql = f"INSERT IGNORE INTO {table_name} ({', '.join(cols)}) VALUES ({ph})"
+                    cursor.executemany(sql, batch)
+                    conn.commit()
+                row_count += len(rows)
+            return row_count
+
+        for fname in new_files:
             fpath = os.path.join(cw_dir, fname)
             date_str = fname[4:12]
             rdate = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
@@ -323,41 +405,34 @@ def update_financial():
                 if df is None or df.empty:
                     processed.append({'file': fname, 'records': 0, 'error': 'empty'})
                     continue
-                row_count = 0
-                for table_name, col_names in fin_tables.items():
-                    rows = []
-                    for code_val, row_data in df.iterrows():
-                        vals = {'stock_code': code_val, 'report_date': rdate}
-                        for cn in col_names:
-                            idx = field_idx.get(cn)
-                            if idx is None:
-                                vals[cn] = None
-                            else:
-                                raw = row_data.get(f'col{idx}')
-                                vals[cn] = safe(raw)
-                        rows.append(vals)
-                    for i in range(0, len(rows), BATCH):
-                        batch = rows[i:i + BATCH]
-                        cols = ['stock_code', 'report_date'] + col_names
-                        ph = ', '.join([f'%({c})s' for c in cols])
-                        sql = f"INSERT IGNORE INTO {table_name} ({', '.join(cols)}) VALUES ({ph})"
-                        cursor.executemany(sql, batch)
-                        conn.commit()
-                    row_count += len(rows)
-
+                row_count = import_df(df, rdate, 'ignore')
                 total += row_count
                 processed.append({'file': fname, 'records': row_count})
             except Exception as e:
                 processed.append({'file': fname, 'records': 0, 'error': str(e)})
 
+        for fname, df, rdate in refresh_items:
+            try:
+                row_count = import_df(df, rdate, 'upsert')
+                total += row_count
+                processed.append({'file': fname, 'records': row_count, 'refreshed': True})
+            except Exception as e:
+                processed.append({'file': fname, 'records': 0, 'error': str(e), 'refreshed': True})
+
         cursor.close()
         conn.close()
 
+        message = ''
+        refreshed = [p for p in processed if p.get('refreshed')]
+        if refreshed:
+            message = (f"同报告期 {db_latest_str[:4]}-{db_latest_str[4:6]}-{db_latest_str[6:8]} "
+                       f"数据已刷新（{sum(p['records'] for p in refreshed)} 条）")
         return {
             'status': 'ok',
             'total_inserted': total,
             'files': processed,
             'db_latest': str(db_latest),
+            'message': message,
         }
     finally:
         _update_lock.release()
