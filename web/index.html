@@ -2477,9 +2477,18 @@
         <div class="expert-main">
             <div class="card" style="margin-bottom:12px;">
                 <div class="form-row" style="gap:8px;">
-                    <div class="config-item" style="min-width:100px;flex:0 0 100px;">
-                        <label>股票代码</label>
-                        <input v-model="stockCode" placeholder="600519" @keyup.enter="send" style="width:100%;">
+                    <div class="config-item" style="min-width:100px;flex:0 0 100px;position:relative;">
+                        <label>股票代码 / 名称 / 拼音</label>
+                        <input v-model="stockCode" placeholder="600519 / gzmt"
+                               @input="onStockInput" @keydown="onStockKeydown"
+                               @keyup.enter="send" style="width:100%;">
+                        <div v-if="stockSuggestions.length" class="stock-suggestions">
+                            <div v-for="(s, i) in stockSuggestions" :key="s.stock_code"
+                                 class="stock-suggestion-item" :class="{active: stockSuggestionIdx === i}"
+                                 @click="selectStock(s.stock_code)" @mouseenter="stockSuggestionIdx = i">
+                                <strong>{{ s.stock_code }}</strong> {{ s.stock_name }}
+                            </div>
+                        </div>
                     </div>
                     <div class="config-item" style="flex:1;">
                         <label>你想问什么？</label>
@@ -4030,13 +4039,15 @@
                     </div>
                     <div class="table-wrap scroll-table">
                         <table class="table" style="width:100%;">
-                            <thead><tr><th>季度</th><th>主体</th><th>覆盖股票</th><th>持仓市值</th><th>平均占流通比</th></tr></thead>
+                            <thead><tr><th>季度</th><th>主体</th><th>覆盖股票</th><th>持仓市值</th><th>同比市值</th><th>同比变动</th><th>平均占流通比</th></tr></thead>
                             <tbody>
                                 <tr v-for="q in overviewData.trend" :key="q.end_date + (q.group_name || '')">
                                     <td>{{ q.quarter }}</td>
                                     <td>{{ q.group_name || '-' }}</td>
                                     <td>{{ q.stock_cnt?.toLocaleString() }}</td>
                                     <td>{{ fmtMoney(q.total_mkv) }}</td>
+                                    <td>{{ q.yoy_mkv != null ? fmtMoney(q.yoy_mkv) : '-' }}</td>
+                                    <td :class="valClass(q.yoy_change_pct)">{{ q.yoy_change_pct != null ? fmtGrowth(q.yoy_change_pct) : '-' }}</td>
                                     <td>{{ fmtPct(q.avg_ratio) }}</td>
                                 </tr>
                             </tbody>
@@ -4044,10 +4055,61 @@
                     </div>
                 </div>
                 <div class="card">
-                    <div class="card-title">最新季度持仓市值 TOP20</div>
+                    <div class="card-title">
+                        最新季度持仓（共 {{ overviewData.total }} 只，{{ overviewData.page }}/{{ totalPages }} 页）
+                        <span style="margin-left:12px;font-weight:400;font-size:13px;color:var(--text-muted);">
+                            点击列头排序
+                        </span>
+                    </div>
+                    <div class="form-row" style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;">
+                        <div class="config-item" style="min-width:220px;position:relative;">
+                            <label>筛选股票（代码 / 名称 / 拼音）</label>
+                            <input v-model="stockQuery" placeholder="600519 / 贵州茅台 / gzmt"
+                                   @input="onStockInput" @keydown="onStockKeydown"
+                                   @keyup.enter="selectStock(stockQuery)"
+                                   style="width:240px;">
+                            <div v-if="stockSuggestions.length" class="stock-suggestions">
+                                <div v-for="(s, i) in stockSuggestions" :key="s.stock_code"
+                                     class="stock-suggestion-item" :class="{active: stockSuggestionIdx === i}"
+                                     @click="selectStock(s.stock_code)" @mouseenter="stockSuggestionIdx = i">
+                                    <strong>{{ s.stock_code }}</strong> {{ s.stock_name }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="config-item" style="min-width:180px;">
+                            <label>连续增减持</label>
+                            <select v-model="consecFilter" @change="applyFilter"
+                                    style="padding:8px 12px;border-radius:4px;background:var(--bg-secondary);color:var(--text);border:1px solid var(--border);">
+                                <option value="">全部</option>
+                                <option value="up">连续增持（≥1季）</option>
+                                <option value=">=2">连续增持（≥2季）</option>
+                                <option value=">=3">连续增持（≥3季）</option>
+                                <option value=">=5">连续增持（≥5季）</option>
+                                <option value="down">连续减持（≥1季）</option>
+                                <option value="<=-2">连续减持（≥2季）</option>
+                                <option value="<=-3">连续减持（≥3季）</option>
+                                <option value="<=-5">连续减持（≥5季）</option>
+                            </select>
+                        </div>
+                        <div class="config-item" style="min-width:80px;">
+                            <label>&nbsp;</label>
+                            <button class="btn btn-sm" @click="applyFilter" style="margin-right:6px;">应用</button>
+                            <button class="btn btn-sm" @click="clearFilters">重置</button>
+                        </div>
+                    </div>
                     <div class="table-wrap scroll-table">
                         <table class="table" style="width:100%;">
-                            <thead><tr><th>代码</th><th>名称</th><th>持仓股数</th><th>占流通比</th><th>持仓市值</th></tr></thead>
+                            <thead><tr>
+                                <th style="cursor:pointer;" @click="sortTable('stock_code')">代码{{ sortArrow('stock_code') }}</th>
+                                <th style="cursor:pointer;" @click="sortTable('stock_name')">名称{{ sortArrow('stock_name') }}</th>
+                                <th style="cursor:pointer;" @click="sortTable('total_hold')">持仓股数（万股）{{ sortArrow('total_hold') }}</th>
+                                <th style="cursor:pointer;" @click="sortTable('hold_float_ratio')">占流通比{{ sortArrow('hold_float_ratio') }}</th>
+                                <th style="cursor:pointer;" @click="sortTable('hold_mkv')">持仓市值{{ sortArrow('hold_mkv') }}</th>
+                                <th style="cursor:pointer;" @click="sortTable('mkv_change')">环比变动{{ sortArrow('mkv_change') }}</th>
+                                <th style="cursor:pointer;" @click="sortTable('yoy_change_pct')">同比变动{{ sortArrow('yoy_change_pct') }}</th>
+                                <th style="cursor:pointer;" @click="sortTable('consec')">连续增减持{{ sortArrow('consec') }}</th>
+                                <th>最近动作</th>
+                            </tr></thead>
                             <tbody>
                                 <tr v-for="r in overviewData.top" :key="r.stock_code" style="cursor:pointer;"
                                     @click="openStock(r.stock_code)">
@@ -4056,9 +4118,25 @@
                                     <td>{{ fmtShares(r.total_hold) }}</td>
                                     <td>{{ fmtPct(r.hold_float_ratio) }}</td>
                                     <td>{{ fmtMoney(r.hold_mkv) }}</td>
+                                    <td :class="valClass(r.mkv_change)">{{ r.mkv_change != null ? fmtMoney(r.mkv_change) : '-' }}</td>
+                                    <td :class="valClass(r.yoy_change_pct)">{{ r.yoy_change_pct != null ? fmtGrowth(r.yoy_change_pct) : '-' }}</td>
+                                    <td :style="{color: consecColor(r.consec)}">{{ consecText(r.consec) }}</td>
+                                    <td :style="{color: actionColor(r.last_action)}">{{ r.last_action || '-' }}</td>
                                 </tr>
+                                <tr v-if="!overviewData.top.length"><td colspan="9" style="text-align:center;color:var(--text-muted);">该季度无持仓记录</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap;">
+                        <button class="btn btn-sm" :disabled="overviewData.page <= 1" @click="changePage(-1)">‹ 上一页</button>
+                        <span style="color:var(--text-muted);font-size:13px;">第 {{ overviewData.page }} / {{ totalPages }} 页</span>
+                        <button class="btn btn-sm" :disabled="overviewData.page >= totalPages" @click="changePage(1)">下一页 ›</button>
+                        <select v-model="pageSize" @change="changePageSize" style="padding:4px 8px;border-radius:4px;background:var(--bg-secondary);color:var(--text);margin-left:8px;">
+                            <option :value="20">20 / 页</option>
+                            <option :value="50">50 / 页</option>
+                            <option :value="100">100 / 页</option>
+                            <option :value="200">200 / 页</option>
+                        </select>
                     </div>
                 </div>
             </template>
@@ -4211,6 +4289,6 @@
 <script src="vue.global.prod.js"></script>
 <script src="lightweight-charts.standalone.production.js"></script>
 <script src="cytoscape.min.js"></script>
-<script src="app.js?v=20260831-inst"></script>
+<script src="app.js?v=20260906-inst5"></script>
 </body>
 </html>

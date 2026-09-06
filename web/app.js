@@ -2718,6 +2718,41 @@ app.component('expert-page', {
         const finData = ref(null);
         const chatBottom = ref(null);
 
+        const stockSuggestions = ref([]);
+        const stockSuggestionIdx = ref(-1);
+        let searchTimer = null;
+
+        async function onStockInput() {
+            const q = stockCode.value.trim();
+            if (q.length < 1) { stockSuggestions.value = []; return; }
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(q)}`);
+                    const d = await r.json();
+                    stockSuggestions.value = d.rows || [];
+                    stockSuggestionIdx.value = -1;
+                } catch (e) {}
+            }, 150);
+        }
+
+        function onStockKeydown(e) {
+            const len = stockSuggestions.value.length;
+            if (len === 0) return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); stockSuggestionIdx.value = Math.min(stockSuggestionIdx.value + 1, len - 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); stockSuggestionIdx.value = Math.max(stockSuggestionIdx.value - 1, 0); }
+            else if (e.key === 'Enter' && stockSuggestionIdx.value >= 0) {
+                e.preventDefault();
+                selectStock(stockSuggestions.value[stockSuggestionIdx.value].stock_code);
+            }
+        }
+
+        function selectStock(code) {
+            stockCode.value = code;
+            stockSuggestions.value = [];
+            stockSuggestionIdx.value = -1;
+        }
+
         async function loadExperts() {
             try {
                 const r = await fetch(`${API_BASE}/expert/list`);
@@ -2814,6 +2849,8 @@ app.component('expert-page', {
         return {
             experts, availableExperts, selectedExpert, expertName, expertDesc,
             stockCode, question, loading, error, messages, stockData, finData, chatBottom,
+            stockSuggestions, stockSuggestionIdx,
+            onStockInput, onStockKeydown, selectStock,
             switchExpert, send, scrollBottom, finClass,
             renderMarkdown, fmt, fmtGrowth, valClass,
         };
@@ -4769,6 +4806,15 @@ app.component('institution-page', {
         const sectorQuarter = ref('');
         const sectorType = ref('industry');
         const stockInput = ref('');
+        const page = ref(1);
+        const pageSize = ref(50);
+        const sortBy = ref('hold_mkv');
+        const sortDir = ref('desc');
+        const stockQuery = ref('');
+        const consecFilter = ref('');
+        const stockSuggestions = ref([]);
+        const stockSuggestionIdx = ref(-1);
+        let searchTimer = null;
 
         const ownerOf = o => ownerMeta.value.find(x => x.owner_type === o);
 
@@ -4805,6 +4851,10 @@ app.component('institution-page', {
             owner.value = t;
             subTab.value = 'overview';
             stockInput.value = '';
+            stockQuery.value = '';
+            consecFilter.value = '';
+            stockSuggestions.value = [];
+            page.value = 1;
             loadOverview();
         }
 
@@ -4819,10 +4869,90 @@ app.component('institution-page', {
             loading.value = true;
             error.value = '';
             try {
-                const res = await fetch(`${API_BASE}/institution/${owner.value}/overview`);
+                const qp = stockQuery.value.trim() ? '&q=' + encodeURIComponent(stockQuery.value.trim()) : '';
+                const cp = consecFilter.value ? '&consec=' + encodeURIComponent(consecFilter.value) : '';
+                const res = await fetch(`${API_BASE}/institution/${owner.value}/overview?page=${page.value}&page_size=${pageSize.value}&sort_by=${sortBy.value}&sort_dir=${sortDir.value}${qp}${cp}`);
                 overviewData.value = await res.json();
             } catch (e) { error.value = e.message; }
             loading.value = false;
+        }
+
+        function onStockInput() {
+            const q = stockQuery.value.trim();
+            if (q.length < 1) { stockSuggestions.value = []; return; }
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(q)}`);
+                    const d = await r.json();
+                    stockSuggestions.value = d.rows || [];
+                    stockSuggestionIdx.value = -1;
+                } catch (e) { stockSuggestions.value = []; }
+            }, 150);
+        }
+
+        function onStockKeydown(e) {
+            const len = stockSuggestions.value.length;
+            if (len === 0) return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); stockSuggestionIdx.value = Math.min(stockSuggestionIdx.value + 1, len - 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); stockSuggestionIdx.value = Math.max(stockSuggestionIdx.value - 1, 0); }
+            else if (e.key === 'Enter' && stockSuggestionIdx.value >= 0) {
+                e.preventDefault();
+                selectStock(stockSuggestions.value[stockSuggestionIdx.value].stock_code);
+            }
+        }
+
+        function selectStock(code) {
+            stockQuery.value = code;
+            stockSuggestions.value = [];
+            stockSuggestionIdx.value = -1;
+            page.value = 1;
+            loadOverview();
+        }
+
+        function applyFilter() {
+            page.value = 1;
+            loadOverview();
+        }
+        function clearFilters() {
+            stockQuery.value = '';
+            consecFilter.value = '';
+            stockSuggestions.value = [];
+            page.value = 1;
+            loadOverview();
+        }
+
+        const totalPages = computed(() => Math.max(1, Math.ceil((overviewData.value?.total || 0) / pageSize.value)));
+
+        function sortTable(col) {
+            if (sortBy.value === col) {
+                sortDir.value = sortDir.value === 'desc' ? 'asc' : 'desc';
+            } else {
+                sortBy.value = col;
+                sortDir.value = 'desc';
+            }
+            page.value = 1;
+            loadOverview();
+        }
+        function sortArrow(col) {
+            if (sortBy.value !== col) return '';
+            return sortDir.value === 'desc' ? ' ↓' : ' ↑';
+        }
+        function changePage(d) {
+            const np = page.value + d;
+            if (np >= 1 && np <= totalPages.value) { page.value = np; loadOverview(); }
+        }
+        function changePageSize() {
+            page.value = 1;
+            loadOverview();
+        }
+        function consecText(v) {
+            if (v == null || v === 0) return '-';
+            return v > 0 ? '↑' + v + '季增持' : '↓' + (-v) + '季减持';
+        }
+        function consecColor(v) {
+            if (v == null || v === 0) return '';
+            return v > 0 ? '#ef4444' : '#10b981';
         }
 
         async function loadChange() {
@@ -4890,7 +5020,7 @@ app.component('institution-page', {
             return (amount / 10000).toFixed(2);
         }
         function actionColor(a) {
-            return a === '增持' || a === '新开仓' ? '#22c55e' : a === '减持' || a === '清仓' ? '#ef4444' : '#8e8ea0';
+            return a === '增持' || a === '新开仓' ? '#ef4444' : a === '减持' || a === '清仓' ? '#10b981' : '#8e8ea0';
         }
 
         onMounted(loadOwners);
@@ -4900,6 +5030,11 @@ app.component('institution-page', {
             overviewData, changeData, sectorData, stockData, crossData,
             quarters, changeQuarter, changeAction,
             sectorQuarter, sectorType, stockInput,
+            page, pageSize, sortBy, sortDir, totalPages,
+            stockQuery, consecFilter, stockSuggestions, stockSuggestionIdx,
+            onStockInput, onStockKeydown, selectStock, applyFilter, clearFilters,
+            sortTable, sortArrow, changePage, changePageSize,
+            consecText, consecColor,
             ownerLabel, ownerLabelOf, switchOwner, onSubTab,
             loadOverview, loadChange, loadSector, loadStock, loadCross, openStock,
             fmtPct, fmtShares, actionColor, fmtMoney, fmtGrowth, valClass,
