@@ -1,7 +1,7 @@
 # 年报「管理层讨论与分析」数据利用 —— 设计方案
 
 > 版本：v1.0 | 日期：2026-08
-> 关联：`src/download_reports.py`、`src/app/routers/query.py`、`src/app/routers/screening.py`、`report_pdf` 表
+> 关联：`src/scripts/download_reports.py`、`src/app/routers/query.py`、`src/app/routers/screening.py`、`report_pdf` 表
 > 数据现状：1319 份 2025 年报 PDF 已入库（`~/workspace/annual_reports/2025/annual/{cninfo|sse|szse}/*.pdf`），`report_pdf` 表有完整 file_path
 
 ---
@@ -245,7 +245,7 @@ opencode 直接 `SELECT` 这些表，或 curl 本地 `http://localhost:9000/api/
 | 2 | 建 3 张表 + FULLTEXT 索引 | `src/extract_mda.py` 内 CREATE | — |
 | 3 | 提取脚本：目录页定位 → 子节拆分 → 入库，断点续跑 | `src/extract_mda.py`（新） | ~1h |
 | 4 | 抽查 5~10 份结果质量（含一家 ST、一家金融股） | 手动 | 30min |
-| 5 | AI 蒸馏脚本：逐公司 LLM → `stock_mda_ai`，`--workers 8 --resume` 断点续跑 | `src/compute_mda_ai.py`（新） | ~1h + 几元token |
+| 5 | AI 蒸馏脚本：逐公司 LLM → `stock_mda_ai`，`--workers 8 --resume` 断点续跑 | `src/scripts/compute_mda_ai.py`（新） | ~1h + 几元token |
 | 6 | 行业聚合：板块成员 MD&A 拼接 → LLM → `sector_mda_ai` | 同脚本 `--mode sector` | ~10min |
 | 7 | 路由 `mda.py` + 注册 main.py | `src/app/routers/mda.py`（新） | 半天 |
 | 8 | ReAct 3 工具 + TOOLS_DESC | `src/app/routers/query.py` | 半天 |

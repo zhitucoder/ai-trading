@@ -13,8 +13,8 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 python batch_profile.py
 
 # Import data (one-time or catch-up)
-python src/import_kline.py        # Tongdaxin .day files → daily_kline
-python src/import_financial.py    # Tongdaxin GPCW .dat files → fin_* tables
+python src/scripts/import_kline.py        # Tongdaxin .day files → daily_kline
+python src/scripts/import_financial.py    # Tongdaxin GPCW .dat files → fin_* tables
 ```
 
 Conda env: `/home/rick/miniconda3/envs/aitrading` (Python 3.12, fastapi, uvicorn, pymysql, pytdx)

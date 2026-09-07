@@ -3,7 +3,7 @@ import json
 from datetime import date
 from src.app.database import query, execute
 from src.app.strategies.profile import generate_profile, IND_TAGS_DEF, BIZ_TAGS_DEF
-from src.compute_price_cagr import update_price_cagr
+from src.scripts.compute_price_cagr import update_price_cagr
 
 BATCH_SIZE = 500
 

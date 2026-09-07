@@ -131,7 +131,7 @@ FastAPI 应用，按功能模块划分路由。
 
 **注意**：`fin_ratios` 表中索引 ≥ 166 的字段因 pytdx 索引偏移已损坏，所有比率计算从原始表（`fin_income` / `fin_balance_sheet`）自行推导。
 
-### 6. 数据导入 (`src/import_*.py`)
+### 6. 数据导入 (`src/scripts/import_*.py`)
 定时/手动运行的 Python 脚本，通过 pytdx 从通达信导入数据：
 
 ```
