@@ -2,11 +2,11 @@
 """批量生成公司介绍与定位 → stock_intro 表
 
 用法:
-  python src/generate_stock_intro.py --mode template                     # 模板兜底（全覆盖，快）
-  python src/generate_stock_intro.py --mode ai --limit 20                # AI 生成（测试20只）
-  python src/generate_stock_intro.py --mode ai --codes 002415,600519     # 指定股票
-  python src/generate_stock_intro.py --mode ai --workers 8               # AI 全量并发（推荐）
-  python src/generate_stock_intro.py --mode ai --workers 8 --resume      # 断点续跑（跳过已有AI记录）
+  python src/scripts/tools/generate_stock_intro.py --mode template                     # 模板兜底（全覆盖，快）
+  python src/scripts/tools/generate_stock_intro.py --mode ai --limit 20                # AI 生成（测试20只）
+  python src/scripts/tools/generate_stock_intro.py --mode ai --codes 002415,600519     # 指定股票
+  python src/scripts/tools/generate_stock_intro.py --mode ai --workers 8               # AI 全量并发（推荐）
+  python src/scripts/tools/generate_stock_intro.py --mode ai --workers 8 --resume      # 断点续跑（跳过已有AI记录）
 
 人工维护(source=manual)的记录永不被覆盖。
 """
@@ -17,7 +17,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
 from src.app.database import query
 from src.app.strategies.stock_intro import (

@@ -18,15 +18,26 @@ src/
     strategies/
       technical.py   ← MA bull arrangement screening
       fundamental.py ← Financial ratio screening
-  scripts/           ← 独立命令行脚本（数据导入/预计算/绘图/下载）
-    import_kline.py    ← Tongdaxin daily K-line import → daily_kline table
-    import_financial.py ← Tongdaxin financial data import → 8 fin_* tables
-    import_sectors.py  ← Tongdaxin sector/板块 import → sectors, stock_sectors tables
-    compute_*.py       ← ads_* 预计算表生成（compute_ads/compute_dmdl/compute_fund_ads 等）
-    import_*.py        ← 各类数据源导入（Tushare/东财/通达信等）
-    download_reports.py← 年报/半年报 PDF 下载
-    plot_*.py          ← 关系图绘制（运价/基金持仓 vs 股价）
-    init_governance.py ← 数据治理血缘初始化
+  scripts/           ← 独立命令行脚本（按数据管道阶段分子目录）
+    source/          ← 数据源导入（外部数据 → 原始表，import_*.py，14个）
+      import_kline.py    ← Tongdaxin daily K-line import → daily_kline table
+      import_financial.py← Tongdaxin financial data import → 8 fin_* tables
+      import_sectors.py  ← Tongdaxin sector/板块 import → sectors, stock_sectors tables
+      import_*.py        ← Tushare/东财/akshare 等各类数据源
+    compute/         ← 预计算（原始表 → 派生表 ads_* 等，compute_*.py，10个）
+      compute_ads.py       ← ads_* 六维/俯瞰预计算
+      compute_dmdl.py      ← 达摩达兰估值预计算
+      compute_fund_ads.py  ← 基金持仓预计算
+      compute_kline_qfq.py ← 前复权K线
+      compute_*.py         ← 其余预计算
+    viz/             ← 可视化绘图（plot_*.py，2个）
+      plot_freight_vs_price.py ← 运价 vs 股价 vs 利润关系图
+      plot_fund_holding_vs_price.py ← 基金持仓 vs 股价关系图
+    tools/           ← 工具维护（7个）
+      download_reports.py← 年报/半年报 PDF 下载
+      generate_stock_intro.py ← 公司介绍批量生成
+      init_governance.py ← 数据治理血缘初始化
+      sync_stock_list.py  ← 股票列表同步
 web/
   index.html         ← Vue 3 SPA (CDN, no build tool)
   app.js             ← Vue components
@@ -90,7 +101,7 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 
 ### 分析预计算表（ads_*，必用）
 
-**行业/个股分析（六维/俯瞰）一律从 `ads_*` 表取数**，不要每次现算派生指标。统一脚本 `src/scripts/compute_ads.py` 生成，数据管理页「分析预计算」卡片一键更新（`POST /api/data/update-ads`，后台运行，进度见 `/api/data/ads/status`）。
+**行业/个股分析（六维/俯瞰）一律从 `ads_*` 表取数**，不要每次现算派生指标。统一脚本 `src/scripts/compute/compute_ads.py` 生成，数据管理页「分析预计算」卡片一键更新（`POST /api/data/update-ads`，后台运行，进度见 `/api/data/ads/status`）。
 
 | 表 | Rows | 内容 |
 |---|---|---|
@@ -99,7 +110,7 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 | `ads_sector_annual` | 14k | 每板块×每年度汇总（总营收/总净利/平均毛利/平均ROE/负债率/同比） |
 | `ads_sector_latest` | 559 | 每板块最新快照（总市值/最新汇总/同比） |
 
-**基金持仓分析预计算表**（`src/scripts/compute_fund_ads.py` 生成，仅用 Q2/Q4 完整数据）：
+**基金持仓分析预计算表**（`src/scripts/compute/compute_fund_ads.py` 生成，仅用 Q2/Q4 完整数据）：
 
 | 表 | Rows | 内容 |
 |---|---|---|
@@ -144,7 +155,7 @@ pytdx 部分字段索引偏移。详细可靠性评估见 `docs/股票画像与�
 - **禁止**使用旧 `stock_shares` 表（sina/em/manual 源）计算股本——旧表存在缺失（1080 只）与错误（如 600938=500亿股错误值）
 - 计算市值/PE/PB 时：`总股本` 取 `stock_shares_dfcf.total_shares`，`流通股本` 取 `float_shares`
 - 若需核实股本：用 `basic_eps` 交叉验证（归母净利 ÷ EPS = 总股本），或查询东方财富 F10 股本结构
-- 下载/更新脚本：`src/scripts/import_shares_dfcf.py`（可断点续传：`python src/scripts/import_shares_dfcf.py 起始序号 结束序号`）
+- 下载/更新脚本：`src/scripts/source/import_shares_dfcf.py`（可断点续传：`python src/scripts/source/import_shares_dfcf.py 起始序号 结束序号`）
 
 **股本字段口径**：`total_shares`=总股本、`float_shares`=无限售流通、`float_a_shares`=流通A股、`float_h_shares`=流通H股、`limited_shares`=限售股
 
@@ -275,13 +286,13 @@ conn.close()
 "
 
 # 2. 从 Tushare 重新拉取
-python src/scripts/import_fund_tushare.py --start 20260630  # 改成目标季度
+python src/scripts/source/import_fund_tushare.py --start 20260630  # 改成目标季度
 
 # 3. 重建 ads_stock_fund（基金持仓聚合表）
-python src/scripts/compute_ads.py
+python src/scripts/compute/compute_ads.py
 
 # 4. 重建基金分析预计算表
-python src/scripts/compute_fund_ads.py
+python src/scripts/compute/compute_fund_ads.py
 ```
 
 ---
@@ -293,14 +304,14 @@ python src/scripts/compute_fund_ads.py
 | 数据源 | 脚本 | 写入表 | 说明 |
 |---|---|---|---|
 | 东方财富 | `scripts/fetch_dividend.py` | `stock_dividend` (source=eastmoney) | 增量参数 `--since YYYY-MM-DD`，可 `--resume` |
-| Tushare | `src/scripts/import_dividend_tushare.py` | `dividend_tushare`（独立表，16字段） | 逐股票下载，可选 `--since`、`--codes` |
+| Tushare | `src/scripts/source/import_dividend_tushare.py` | `dividend_tushare`（独立表，16字段） | 逐股票下载，可选 `--since`、`--codes` |
 
 ```bash
 # 东方财富增量更新
 python scripts/fetch_dividend.py --since 2026-07-01
 
 # Tushare 全量/增量更新（默认全量，约10-15分钟）
-python src/scripts/import_dividend_tushare.py --since 20260101
+python src/scripts/source/import_dividend_tushare.py --since 20260101
 ```
 
 注意：Tushare dividend 与东方财富字段结构不同（ts_code/end_date/div_proc/cash_div_tax/ex_date 等），必须写入独立表 `dividend_tushare`，不能混入 `stock_dividend`。详情见脚本注释与接口文档 `https://tushare.pro/document/2?doc_id=103`。

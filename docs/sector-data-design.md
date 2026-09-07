@@ -98,12 +98,12 @@ CREATE TABLE stock_sectors (
 
 ### 4.1 脚本位置
 
-`src/scripts/import_sectors.py`
+`src/scripts/source/import_sectors.py`
 
 ### 4.2 运行方式
 
 ```bash
-/home/rick/miniconda3/envs/aitrading/bin/python src/scripts/import_sectors.py
+/home/rick/miniconda3/envs/aitrading/bin/python src/scripts/source/import_sectors.py
 ```
 
 ### 4.3 导入流程
@@ -234,7 +234,7 @@ ORDER BY s.category, stock_count DESC;
 - 每月更新一次（通达信会在客户端启动时自动更新本地文件）
 - 更新步骤：
   1. 打开通达信客户端，确保板块数据已同步
-  2. 运行 `python src/scripts/import_sectors.py`
+  2. 运行 `python src/scripts/source/import_sectors.py`
   3. 脚本会自动重建表并导入最新数据
 
 ## 8. 注意事项

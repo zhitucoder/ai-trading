@@ -1,7 +1,7 @@
 #!/home/rick/miniconda3/envs/aitrading/bin/python
 """预计算行业景气度指标，写入 sector_prosperity 表。
 
-运行: python src/compute_prosperity.py
+运行: python src/scripts/compute/compute_prosperity.py
 """
 
 import pymysql

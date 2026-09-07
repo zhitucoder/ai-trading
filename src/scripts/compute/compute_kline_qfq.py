@@ -13,7 +13,7 @@
     本次因子      k = P1 / P0
 前复权价 = 不复权价 × Π(该日之后所有事件的 k)
 
-运行: python src/compute_kline_qfq.py
+运行: python src/scripts/compute/compute_kline_qfq.py
 增量: 每次全量重建（价格每日变化，因子随分红事件更新，全量最简单且始终正确）
 """
 import time

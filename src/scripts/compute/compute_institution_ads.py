@@ -6,7 +6,7 @@
 
 机构归属由 holder_owner 配置表驱动（正则/关键词归一化，避免精确匹配漏数）。
 
-运行: python src/compute_institution_ads.py
+运行: python src/scripts/compute/compute_institution_ads.py
 """
 import os
 import re

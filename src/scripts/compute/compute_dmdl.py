@@ -2,7 +2,7 @@
 """达摩达兰估值预计算：ads_dmdl_static / ads_dmdl_mkt_daily / ads_dmdl_sector_val + 视图。
 
 设计见 docs/达摩达兰估值模块_设计概要.md
-运行: python src/compute_dmdl.py [--static|--mkt|--all]
+运行: python src/scripts/compute/compute_dmdl.py [--static|--mkt|--all]
 """
 import sys, time
 from datetime import date

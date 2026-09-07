@@ -7,9 +7,9 @@ from datetime import datetime, date
 from fastapi import APIRouter
 from pytdx.crawler.history_financial_crawler import HistoryFinancialCrawler
 from ..database import get_conn, query
-from ...scripts.import_financial import FIELD_MAP, safe
-from ...scripts.import_kline import classify_file
-from ...scripts.sync_stock_list import sync as sync_stock_list
+from ...scripts.source.import_financial import FIELD_MAP, safe
+from ...scripts.source.import_kline import classify_file
+from ...scripts.tools.sync_stock_list import sync as sync_stock_list
 
 router = APIRouter()
 
@@ -443,7 +443,7 @@ def update_sector():
     if not _update_lock.acquire(blocking=False):
         return {'status': 'running', 'message': '同步任务已在执行中'}
     try:
-        from ...scripts.import_sectors import (
+        from ...scripts.source.import_sectors import (
             parse_sector_definitions,
             parse_stock_sector_mapping,
             parse_industry_stock_mapping,
@@ -585,7 +585,7 @@ def ads_status():
 def update_ads():
     if not _ads_lock.acquire(blocking=False):
         return {'status': 'running', 'message': '预计算任务已在执行中'}
-    from ...scripts.compute_ads import compute
+    from ...scripts.compute.compute_ads import compute
 
     def _run():
         conn = None
@@ -633,7 +633,7 @@ def update_ads():
 def update_institution_ads():
     if not _inst_lock.acquire(blocking=False):
         return {'status': 'running', 'message': '国家队持仓预计算任务已在执行中'}
-    from ...scripts.compute_institution_ads import compute
+    from ...scripts.compute.compute_institution_ads import compute
 
     def _run():
         try:
@@ -670,7 +670,7 @@ def qfq_status():
 def update_qfq():
     if not _qfq_lock.acquire(blocking=False):
         return {'status': 'running', 'message': '前复权计算已在执行中'}
-    from ...scripts.compute_kline_qfq import compute_qfq
+    from ...scripts.compute.compute_kline_qfq import compute_qfq
 
     def _run():
         try:
@@ -858,7 +858,7 @@ def dmdl_status():
 def dmdl_update():
     if not _dmdl_lock.acquire(blocking=False):
         return {'status': 'running', 'message': '估值预计算任务已在执行中'}
-    from ...scripts.compute_dmdl import compute_static, compute_mkt, compute_sector_val
+    from ...scripts.compute.compute_dmdl import compute_static, compute_mkt, compute_sector_val
     import pymysql
     from ..database import get_conn
 
@@ -878,7 +878,7 @@ def dmdl_update():
             wlog('行业基准更新...')
             compute_sector_val(conn, wlog, td)
             cur = conn.cursor()
-            cur.execute(open('/home/rick/workspace/ai-trading/src/scripts/compute_dmdl.py', encoding='utf-8')
+            cur.execute(open('/home/rick/workspace/ai-trading/src/scripts/compute/compute_dmdl.py', encoding='utf-8')
                         .read().split('VIEW_SQL = """')[1].split('"""')[0])
             conn.commit()
             wlog('视图已刷新')

@@ -5,7 +5,7 @@
 生成 ALTER TABLE ... MODIFY COLUMN ... COMMENT '...' 执行。
 不修改类型/默认值/自增/键等任何其他属性，仅追加 COMMENT。
 
-运行: python src/add_column_comments.py
+运行: python src/scripts/tools/add_column_comments.py
 """
 import pymysql
 from pymysql.cursors import DictCursor

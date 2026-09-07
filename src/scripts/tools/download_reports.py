@@ -14,9 +14,9 @@
 - 每股票每报告期一份正式版（排除摘要/英文版，更正版次选）
 - 目录：~/workspace/annual_reports/{year}/{period}/{source}/
 运行:
-  python src/download_reports.py --source sse --period annual,q2   # 上交所年报+半年报
-  python src/download_reports.py --source cninfo                   # 巨潮全市场
-  python src/download_reports.py --source szse --period annual     # 深交所原生
+  python src/scripts/tools/download_reports.py --source sse --period annual,q2   # 上交所年报+半年报
+  python src/scripts/tools/download_reports.py --source cninfo                   # 巨潮全市场
+  python src/scripts/tools/download_reports.py --source szse --period annual     # 深交所原生
 """
 import argparse
 import json

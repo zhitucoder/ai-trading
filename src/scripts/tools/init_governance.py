@@ -6,7 +6,7 @@
 2. 灌入 32 张业务表的种子元数据（中文名/分类/数据来源/刷新方式/新鲜度探测列）
 3. 读取 config/lineage.yaml 灌入表级+字段级血缘边（幂等：全量清空重灌）
 
-运行: python src/init_governance.py
+运行: python src/scripts/tools/init_governance.py
 """
 import sys
 from pathlib import Path
@@ -19,7 +19,7 @@ DB_CONFIG = dict(host='127.0.0.1', port=3306, user='root',
                  password='aitrading123', database='ai_trading',
                  charset='utf8mb4')
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 LINEAGE_YAML = BASE_DIR / 'config' / 'lineage.yaml'
 
 CREATE_CATALOG_META = """

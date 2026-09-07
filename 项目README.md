@@ -55,7 +55,7 @@ pip install fastapi uvicorn pymysql pytdx
 
 # 3. MySQL 建库
 mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS ai_trading"
-# 建表脚本参见 src/scripts/import_*.py （导入数据时会自动建表）
+# 建表脚本参见 src/scripts/source/import_*.py （导入数据时会自动建表）
 
 # 4. 配置数据库连接
 # 编辑 src/app/database.py，确认 MySQL 连接参数
@@ -75,16 +75,16 @@ setsid /path/to/uvicorn src.app.main:app \
 
 ```bash
 # 日K线数据（通达信 .day 文件 → daily_kline 表）
-python src/scripts/import_kline.py
+python src/scripts/source/import_kline.py
 
 # 财务数据（利润表/资产负债表/现金流量表等 8 张表）
-python src/scripts/import_financial.py
+python src/scripts/source/import_financial.py
 
 # 板块分类
-python src/scripts/import_sectors.py
+python src/scripts/source/import_sectors.py
 
 # 股本信息
-python src/scripts/import_shares.py
+python src/scripts/source/import_shares.py
 ```
 
 ---

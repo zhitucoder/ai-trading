@@ -6,7 +6,7 @@ stocks 表是前端搜索（代码/名称/拼音/首字母）与画像系统的�
 只做 upsert（不删除），保证既有记录（含退市股）不受影响。
 
 用法：
-    python src/sync_stock_list.py
+    python src/scripts/tools/sync_stock_list.py
     # 或在数据管理页点击「更新K线」时自动触发
 """
 

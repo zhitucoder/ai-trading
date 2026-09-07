@@ -2,7 +2,7 @@
 """公募基金持仓预计算：生成 ads_fund_stock_change / ads_fund_sector_flow / ads_fund_stock_trend。
 
 基于 ads_stock_fund 预聚合表，只分析 Q2/Q4 完整数据。
-运行: python src/compute_fund_ads.py
+运行: python src/scripts/compute/compute_fund_ads.py
 """
 import time
 from datetime import date

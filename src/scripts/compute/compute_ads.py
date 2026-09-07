@@ -4,7 +4,7 @@
 用途：个股六维分析 / 行业俯瞰分析所需的派生指标（核心利润、净现金、ROE、毛利率、
 同比增速、市值、PE等）全部在此一次性算好，分析时直接查询 ads_* 表，无需重复计算。
 
-运行: python src/compute_ads.py
+运行: python src/scripts/compute/compute_ads.py
 """
 import time
 from datetime import date
