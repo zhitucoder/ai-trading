@@ -66,6 +66,8 @@ setsid /home/rick/miniconda3/envs/aitrading/bin/uvicorn src.app.main:app \
 - Host: `127.0.0.1:3306`, database: `ai_trading`, user: `root`, password: `aitrading123`
 - Connection config in `src/app/database.py`
 
+> 📌 **数据来源/表结构/脚本查询入口**：所有数据的来源、表注释、字段注释、下载脚本、更新方法，统一见 **`docs/数据来源介绍.md`**（含航运运价指数 BDTI/BCTI/BDI/BCI/BPI 等）。查表/查来源/查脚本时先查此文件。
+
 ### Key tables
 
 | Table | Rows | Purpose |
