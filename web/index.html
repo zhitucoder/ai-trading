@@ -3039,6 +3039,72 @@
                     <span v-if="dmdlResult" class="dm-toast dm-toast-ok">✓ {{ dmdlResult }}</span>
                 </div>
             </div>
+
+            <!-- 航运运价指数 Card -->
+            <div class="dm-card dm-card-freight">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(14,165,233,0.12);">
+                        <span style="font-size:22px;">🚢</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">航运运价指数</div>
+                        <div class="dm-card-subtitle">BDTI/BCTI/BDI/BCI/BPI · 波罗的海指数一键更新</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot" :class="freightDotClass"></span>
+                        <span class="dm-status-text">{{ freightStatusText }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row" v-for="f in (freightStatus?.detail || [])" :key="f.table">
+                        <span>{{ f.name }}</span>
+                        <span class="dm-val">{{ f.rows }} 条 · {{ f.min_date?.slice(0,4) || '-' }}~{{ f.max_date }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <button class="btn btn-primary" style="background:#0ea5e9;border-color:#0ea5e9;" @click="updateFreight" :disabled="freightLoading">
+                        <span v-if="freightLoading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ freightLoading ? '更新中...' : '⟳ 一键更新航运运价' }}
+                    </button>
+                    <span v-if="freightResult" class="dm-toast dm-toast-ok">✓ {{ freightResult }}</span>
+                    <span v-if="freightError" class="dm-toast dm-toast-err">✗ {{ freightError }}</span>
+                </div>
+            </div>
+
+            <!-- 原油数据 Card -->
+            <div class="dm-card dm-card-oil">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(234,179,8,0.12);">
+                        <span style="font-size:22px;">🛢</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">WTI / 布伦特原油</div>
+                        <div class="dm-card-subtitle">NYMEX WTI · ICE Brent · 主力连续日线</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot" :class="oilDotClass"></span>
+                        <span class="dm-status-text">{{ oilStatusText }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row" v-for="o in (oilStatus?.detail || [])" :key="o.variety">
+                        <span>{{ o.variety }}</span>
+                        <span class="dm-val">{{ o.rows }} 条 · {{ o.min_date }} ~ {{ o.max_date }}</span>
+                    </div>
+                    <div class="dm-info-row" v-if="!(oilStatus?.detail?.length)">
+                        <span>数据来源</span>
+                        <span class="dm-val">akshare (新浪外盘期货)</span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <button class="btn btn-primary" style="background:#eab308;border-color:#eab308;color:#18192f;" @click="updateCrudeOil" :disabled="oilLoading">
+                        <span v-if="oilLoading" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                        {{ oilLoading ? '更新中...' : '⟳ 一键更新原油数据' }}
+                    </button>
+                    <span v-if="oilResult" class="dm-toast dm-toast-ok">✓ {{ oilResult }}</span>
+                    <span v-if="oilError" class="dm-toast dm-toast-err">✗ {{ oilError }}</span>
+                </div>
+            </div>
         </div>
     </div>
 </template>

@@ -36,6 +36,8 @@ _ads_lock = threading.Lock()
 _inst_lock = threading.Lock()
 _dmdl_lock = threading.Lock()
 _qfq_lock = threading.Lock()
+_freight_lock = threading.Lock()
+_oil_lock = threading.Lock()
 
 
 def _parse_day_file_after(filepath, since):
@@ -908,3 +910,91 @@ def dmdl_update_status():
     except Exception:
         pass
     return {'status': status, 'log_tail': log_tail}
+
+
+# ── 航运运价指数（shipping_*）一键更新 ──
+@router.get('/data/freight/status')
+def freight_status():
+    """航运运价指数：各表最新日期 + 是否运行中"""
+    tables = ['shipping_bdti', 'shipping_bcti', 'shipping_bdi', 'shipping_bci', 'shipping_bpi']
+    names = {
+        'shipping_bdti': 'BDTI 原油轮运价',
+        'shipping_bcti': 'BCTI 成品油轮运价',
+        'shipping_bdi': 'BDI 干散货综合',
+        'shipping_bci': 'BCI 好望角型',
+        'shipping_bpi': 'BPI 巴拿马型',
+    }
+    detail = []
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        for t in tables:
+            cur.execute(f"SELECT COUNT(*) c, MIN(trade_date) mn, MAX(trade_date) mx, MAX(update_time) ut FROM `{t}`")
+            r = cur.fetchone()
+            detail.append({
+                'table': t,
+                'name': names.get(t, t),
+                'rows': r['c'],
+                'min_date': str(r['mn'] or ''),
+                'max_date': str(r['mx'] or ''),
+                'last_update': str(r['ut'] or ''),
+            })
+        cur.close()
+    finally:
+        conn.close()
+    return {'status': 'running' if _freight_lock.locked() else 'idle', 'detail': detail}
+
+
+@router.post('/data/update-freight')
+def update_freight():
+    if not _freight_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '航运运价更新已在执行中'}
+    from ...scripts.source.import_freight_index import update_all
+
+    def _run():
+        try:
+            result = update_all()
+        except Exception as e:
+            result = {'error': str(e)}
+        finally:
+            _freight_lock.release()
+        if isinstance(result, dict) and result.get('error'):
+            print(f'[freight] error: {result["error"]}', flush=True)
+        else:
+            print(f"[freight] done: {result}", flush=True)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'message': '航运运价一键更新已启动（后台运行）'}
+
+
+# ── WTI/布伦特原油（crude_oil_daily）一键更新 ──
+@router.get('/data/crude-oil/status')
+def crude_oil_status():
+    """原油数据：各品种最新日期 + 是否运行中"""
+    from ...scripts.source.import_crude_oil import get_crude_oil_status
+    detail = get_crude_oil_status().get('detail', [])
+    return {'status': 'running' if _oil_lock.locked() else 'idle', 'detail': detail}
+
+
+@router.post('/data/update-crude-oil')
+def update_crude_oil():
+    if not _oil_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '原油数据更新已在执行中'}
+    from ...scripts.source.import_crude_oil import update_crude_oil as _update
+
+    def _run():
+        try:
+            result = _update()
+        except Exception as e:
+            result = {'error': str(e)}
+        finally:
+            _oil_lock.release()
+        if isinstance(result, dict) and result.get('error'):
+            print(f'[crude-oil] error: {result["error"]}', flush=True)
+        else:
+            print(f"[crude-oil] done: {result}", flush=True)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'message': '原油数据更新已启动（后台运行）'}

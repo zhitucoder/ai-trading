@@ -3154,6 +3154,8 @@ app.component('data-mgmt-page', {
             loadStatus();
             loadProfileRefreshStatus();
             loadDmdlStatus();
+            loadFreightStatus();
+            loadOilStatus();
         });
 
         const adsLoading = ref(false);
@@ -3255,6 +3257,88 @@ app.component('data-mgmt-page', {
             }
         }
 
+        const freightLoading = ref(false);
+        const freightResult = ref('');
+        const freightError = ref('');
+        const freightStatus = ref(null);
+
+        const freightDotClass = computed(() => {
+            return freightLoading.value ? 'dm-dot-sync' : ((freightStatus.value?.detail?.length) ? 'dm-dot-online' : 'dm-dot-pending');
+        });
+        const freightStatusText = computed(() => {
+            return freightLoading.value ? '更新中' : (freightStatus.value?.status === 'running' ? '运行中' : ((freightStatus.value?.detail?.length) ? '已同步' : '待更新'));
+        });
+
+        async function loadFreightStatus() {
+            try {
+                const r = await fetch(`${API_BASE}/data/freight/status`);
+                freightStatus.value = await r.json();
+            } catch (e) {}
+        }
+
+        async function updateFreight() {
+            freightLoading.value = true;
+            freightResult.value = '';
+            freightError.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/data/update-freight`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    freightResult.value = '航运运价更新已在执行中';
+                } else if (data.status === 'error') {
+                    freightError.value = data.message || '更新失败';
+                } else {
+                    freightResult.value = data.message || '航运运价一键更新已启动';
+                }
+                setTimeout(loadFreightStatus, 3000);
+            } catch (e) {
+                freightError.value = e.message;
+            } finally {
+                freightLoading.value = false;
+            }
+        }
+
+        const oilLoading = ref(false);
+        const oilResult = ref('');
+        const oilError = ref('');
+        const oilStatus = ref(null);
+
+        const oilDotClass = computed(() => {
+            return oilLoading.value ? 'dm-dot-sync' : ((oilStatus.value?.detail?.length) ? 'dm-dot-online' : 'dm-dot-pending');
+        });
+        const oilStatusText = computed(() => {
+            return oilLoading.value ? '更新中' : (oilStatus.value?.status === 'running' ? '运行中' : ((oilStatus.value?.detail?.length) ? '已同步' : '待更新'));
+        });
+
+        async function loadOilStatus() {
+            try {
+                const r = await fetch(`${API_BASE}/data/crude-oil/status`);
+                oilStatus.value = await r.json();
+            } catch (e) {}
+        }
+
+        async function updateCrudeOil() {
+            oilLoading.value = true;
+            oilResult.value = '';
+            oilError.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/data/update-crude-oil`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    oilResult.value = '原油数据更新已在执行中';
+                } else if (data.status === 'error') {
+                    oilError.value = data.message || '更新失败';
+                } else {
+                    oilResult.value = data.message || '原油数据更新已启动';
+                }
+                setTimeout(loadOilStatus, 3000);
+            } catch (e) {
+                oilError.value = e.message;
+            } finally {
+                oilLoading.value = false;
+            }
+        }
+
         return {
             status, klineLoading, klineResult, klineError,
             qfqLoading, qfqResult, qfqError, qfqProgress, qfqDotClass, qfqStatusText, fmtQfqRows, updateQfq,
@@ -3269,6 +3353,8 @@ app.component('data-mgmt-page', {
             adsLoading, adsResult, adsError, adsDotClass, adsStatusText, updateAds,
             instLoading, instResult, instError, instDotClass, instStatusText, updateInstitution,
             dmdlLoading, dmdlResult, dmdlStatus, dmdlDotClass, dmdlStatusText, updateDmdl,
+            freightLoading, freightResult, freightError, freightStatus, freightDotClass, freightStatusText, loadFreightStatus, updateFreight,
+            oilLoading, oilResult, oilError, oilStatus, oilDotClass, oilStatusText, loadOilStatus, updateCrudeOil,
         };
     },
 });
