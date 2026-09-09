@@ -57,6 +57,7 @@ const app = createApp({
             { id: 'fund', label: '基金持仓', icon: '◈' },
             { id: 'institution', label: '国家队持仓', icon: '🏛' },
             { id: 'logic', label: '投资逻辑', icon: '⛓' },
+            { id: 'oil_shipping', label: '原油与航运', icon: '⚓' },
         ];
         const navPages = computed(() => pages);
         provide('currentPage', currentPage);
@@ -3156,6 +3157,7 @@ app.component('data-mgmt-page', {
             loadDmdlStatus();
             loadFreightStatus();
             loadOilStatus();
+            loadHkStatus();
         });
 
         const adsLoading = ref(false);
@@ -3339,6 +3341,54 @@ app.component('data-mgmt-page', {
             }
         }
 
+        const hkLoading = reactive({ basic: false, daily: false, financial: false });
+        const hkResult = ref('');
+        const hkError = ref('');
+        const hkStatus = ref(null);
+
+        const hkDotClass = computed(() => {
+            const busy = Object.values(hkLoading.value).some(Boolean);
+            return busy ? 'dm-dot-sync' : ((hkStatus.value?.detail?.length) ? 'dm-dot-online' : 'dm-dot-pending');
+        });
+        const hkStatusText = computed(() => {
+            const busy = Object.values(hkLoading.value).some(Boolean);
+            if (busy) return '更新中';
+            const st = hkStatus.value?.status || {};
+            if (st.basic === 'running' || st.daily === 'running' || st.financial === 'running') return '运行中';
+            return (hkStatus.value?.detail?.length) ? '已同步' : '待更新';
+        });
+
+        async function loadHkStatus() {
+            try {
+                const r = await fetch(`${API_BASE}/data/hk/status`);
+                hkStatus.value = await r.json();
+            } catch (e) {}
+        }
+
+        async function updateHk(kind) {
+            if (hkLoading.value[kind]) return;
+            hkLoading.value[kind] = true;
+            hkResult.value = '';
+            hkError.value = '';
+            const ep = { basic: 'update-hk-basic', daily: 'update-hk-daily', financial: 'update-hk-financial' }[kind];
+            try {
+                const r = await fetch(`${API_BASE}/data/${ep}`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    hkResult.value = data.message || '该任务已在执行中';
+                } else if (data.status === 'error') {
+                    hkError.value = data.message || '更新失败';
+                } else {
+                    hkResult.value = data.message || '更新已启动';
+                }
+                setTimeout(loadHkStatus, 3000);
+            } catch (e) {
+                hkError.value = e.message;
+            } finally {
+                hkLoading.value[kind] = false;
+            }
+        }
+
         return {
             status, klineLoading, klineResult, klineError,
             qfqLoading, qfqResult, qfqError, qfqProgress, qfqDotClass, qfqStatusText, fmtQfqRows, updateQfq,
@@ -3355,6 +3405,7 @@ app.component('data-mgmt-page', {
             dmdlLoading, dmdlResult, dmdlStatus, dmdlDotClass, dmdlStatusText, updateDmdl,
             freightLoading, freightResult, freightError, freightStatus, freightDotClass, freightStatusText, loadFreightStatus, updateFreight,
             oilLoading, oilResult, oilError, oilStatus, oilDotClass, oilStatusText, loadOilStatus, updateCrudeOil,
+            hkLoading, hkResult, hkError, hkStatus, hkDotClass, hkStatusText, loadHkStatus, updateHk,
         };
     },
 });
@@ -6288,6 +6339,190 @@ app.component('logic-page', {
             events, activeEvent, ev, switchEvent, timingLabel, goStock,
             viewMode, sectorGroups, activeSector, curSector,
         };
+    },
+});
+
+// ── 原油与航运 关联分析看板 ──
+app.component('oil-shipping-page', {
+    template: '#oil-shipping-tpl',
+    setup() {
+        const oilShippingTab = ref('oil');
+        const oilVariety = ref('WTI');
+        const freightIndex = ref('BDTI');
+        const oilLoading = ref(false);
+        const oilError = ref('');
+        const rawData = ref(null);
+        const freightKeys = ['BDTI', 'BCTI', 'BDI', 'BCI', 'BPI'];
+        const freightStocks = ['601872', '600026', '600428'];
+        const oilStocks = ['600938', '601857'];
+        const airStocks = ['600115', '600029'];
+        const stockNames = { '600938': '中国海油', '601857': '中国石油', '601872': '招商轮船', '600026': '中远海能', '600428': '中远海特', '600115': '东方航空', '600029': '南方航空' };
+        const oilColors = { '600938': { profit: '#2d6da8', price: '#6ba3d6' }, '601857': { profit: '#b33e3e', price: '#e68080' } };
+        const freightColors = { '601872': { profit: '#2e8b57', price: '#6fbf73' }, '600026': { profit: '#e3772e', price: '#f2a65a' }, '600428': { profit: '#7b5e9e', price: '#a88fd0' } };
+        const airColors = { '600115': { profit: '#0077be', price: '#5ba3d9' }, '600029': { profit: '#c01a1a', price: '#e68080' } };
+        const allColors = Object.assign({}, oilColors, freightColors, airColors);
+        const chartEls = {};
+        const charts = {};
+
+        async function loadData() {
+            oilLoading.value = true;
+            oilError.value = '';
+            try {
+                const res = await fetch('/api/oil-shipping/data');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                rawData.value = await res.json();
+            } catch (e) {
+                oilError.value = '数据加载失败：' + e.message;
+            } finally {
+                oilLoading.value = false;
+            }
+        }
+
+        function setVariety(v) {
+            if (oilVariety.value === v) return;
+            oilVariety.value = v;
+            renderAll();
+        }
+        function setFreightIndex(f) {
+            if (freightIndex.value === f) return;
+            freightIndex.value = f;
+            renderAll();
+        }
+        function switchTab(t) {
+            if (oilShippingTab.value === t) return;
+            oilShippingTab.value = t;
+            setTimeout(() => renderAll(), 50);
+        }
+
+        function setFreightChartRef(el, code) {
+            chartEls['f_' + code] = el;
+            if (!el && charts['f_' + code]) { charts['f_' + code].dispose(); delete charts['f_' + code]; }
+        }
+        function setOilChartRef(el, code) {
+            chartEls['o_' + code] = el;
+            if (!el && charts['o_' + code]) { charts['o_' + code].dispose(); delete charts['o_' + code]; }
+        }
+        function setAirChartRef(el, code) {
+            chartEls['a_' + code] = el;
+            if (!el && charts['a_' + code]) { charts['a_' + code].dispose(); delete charts['a_' + code]; }
+        }
+
+        function xNames(code, baseSeries) {
+            const s = rawData.value.stocks[code];
+            const months = new Set();
+            for (const b of baseSeries) months.add(b.date);
+            for (const p of s.price) months.add(p.date);
+            for (const q of s.profit) months.add(q.date);
+            return Array.from(months).sort();
+        }
+
+        function mapValues(names, series) {
+            const map = new Map(series.map(p => [p.date, p.value]));
+            return names.map(n => map.has(n) ? map.get(n) : null);
+        }
+
+        function baseOption(names, leftName, leftAxisName, leftUnit) {
+            const last = names[names.length - 1];
+            const startIdx = Math.max(0, names.length - 120);
+            return {
+                backgroundColor: 'transparent',
+                legend: { top: 0, textStyle: { color: '#aab2cf', fontSize: 12 } },
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: '#16213e', borderColor: '#2a3560', textStyle: { color: '#e0e0e0', fontSize: 12 },
+                    axisPointer: { type: 'cross', lineStyle: { color: '#4a5578' } },
+                },
+                grid: { left: 76, right: 168, top: 34, bottom: 46 },
+                xAxis: {
+                    type: 'category', data: names,
+                    axisLine: { lineStyle: { color: '#3a4570' } },
+                    axisLabel: { color: '#aab2cf', fontSize: 11, interval: 6 },
+                },
+                dataZoom: [
+                    { type: 'slider', height: 18, bottom: 6, startValue: names[startIdx], endValue: last, textStyle: { color: '#aab2cf' }, borderColor: '#2a3560', fillerColor: 'rgba(90,110,180,0.2)', handleStyle: { color: '#e2b714' } },
+                    { type: 'inside', startValue: names[startIdx], endValue: last },
+                ],
+                yAxis: [
+                    {
+                        type: 'value', name: leftAxisName, nameTextStyle: { color: '#f5c518', fontSize: 11 }, scale: true,
+                        axisLabel: { color: '#aab2cf', fontSize: 11, formatter: v => v.toLocaleString() },
+                        splitLine: { lineStyle: { color: '#2a3560', type: 'dashed' } },
+                    },
+                    {
+                        type: 'value', name: '净利润(亿元)', nameTextStyle: { color: '#aab2cf', fontSize: 11 }, scale: true,
+                        axisLabel: { color: '#aab2cf', fontSize: 11, formatter: v => v.toLocaleString() },
+                        splitLine: { show: false },
+                    },
+                    {
+                        type: 'value', name: '股价(元)', nameTextStyle: { color: '#aab2cf', fontSize: 11 }, scale: true,
+                        axisLabel: { color: '#aab2cf', fontSize: 11, formatter: v => v.toLocaleString() },
+                        splitLine: { show: false }, offset: 62,
+                    },
+                ],
+            };
+        }
+
+        function renderOne(chartKey, el, code, baseSeries, leftName, leftAxisName) {
+            if (!el || !rawData.value) return;
+            const s = rawData.value.stocks[code];
+            const names = xNames(code, baseSeries);
+            const sColor = allColors[code] || { profit: '#888', price: '#ccc' };
+            const opt = baseOption(names, leftName, leftAxisName);
+            opt.series = [
+                {
+                    name: leftName, type: 'line', yAxisIndex: 0, data: mapValues(names, baseSeries),
+                    showSymbol: false, lineStyle: { width: 2, color: '#f5c518' }, itemStyle: { color: '#f5c518' }, z: 1,
+                },
+                {
+                    name: '季度净利润(亿元)', type: 'bar', yAxisIndex: 1, data: mapValues(names, s.profit),
+                    barWidth: '38%', itemStyle: { color: sColor.profit }, z: 2,
+                },
+                {
+                    name: '月度收盘价(前复权,元)', type: 'line', yAxisIndex: 2, data: mapValues(names, s.price),
+                    showSymbol: false, lineStyle: { width: 2, color: sColor.price }, itemStyle: { color: sColor.price }, z: 3,
+                },
+            ];
+            if (charts[chartKey]) {
+                charts[chartKey].setOption(opt, true);
+            } else {
+                charts[chartKey] = echarts.init(el);
+                charts[chartKey].setOption(opt);
+            }
+        }
+
+        function renderAll() {
+            if (!rawData.value) return;
+            const tab = oilShippingTab.value;
+            const isOil = tab === 'oil';
+            const isAir = tab === 'air';
+            const baseKey = (isOil || isAir) ? oilVariety.value : freightIndex.value;
+            const baseSeries = (isOil || isAir) ? rawData.value.oil[baseKey] : rawData.value.freight[baseKey];
+            if (isOil) {
+                oilStocks.forEach(code => renderOne('o_' + code, chartEls['o_' + code], code, baseSeries, baseKey + ' 原油(美元/桶)', baseKey + ' 收盘价'));
+            } else if (isAir) {
+                airStocks.forEach(code => renderOne('a_' + code, chartEls['a_' + code], code, baseSeries, baseKey + ' 原油(美元/桶)', baseKey + ' 收盘价'));
+            } else {
+                freightStocks.forEach(code => renderOne('f_' + code, chartEls['f_' + code], code, baseSeries, baseKey + ' 运价', baseKey + ' 收盘价'));
+            }
+        }
+
+        function onResize() {
+            for (const c of Object.values(charts)) c && c.resize();
+        }
+
+        onMounted(() => {
+            setTimeout(async () => {
+                await loadData();
+                renderAll();
+            }, 0);
+            window.addEventListener('resize', onResize);
+        });
+        onUnmounted(() => {
+            window.removeEventListener('resize', onResize);
+            for (const c of Object.values(charts)) c && c.dispose();
+        });
+
+        return { oilShippingTab, oilVariety, freightIndex, oilLoading, oilError, freightKeys, freightStocks, stockNames, switchTab, setVariety, setFreightIndex, setFreightChartRef, setOilChartRef, setAirChartRef };
     },
 });
 

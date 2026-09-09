@@ -45,6 +45,7 @@
         <fund-page v-else-if="currentPage === 'fund'"></fund-page>
         <institution-page v-else-if="currentPage === 'institution'"></institution-page>
         <logic-page v-else-if="currentPage === 'logic'"></logic-page>
+        <oil-shipping-page v-else-if="currentPage === 'oil_shipping'"></oil-shipping-page>
         <placeholder-page v-else :page="pages.find(p => p.id === currentPage)"></placeholder-page>
     </div>
 </div>
@@ -3105,6 +3106,49 @@
                     <span v-if="oilError" class="dm-toast dm-toast-err">✗ {{ oilError }}</span>
                 </div>
             </div>
+
+            <!-- 港股数据 Card -->
+            <div class="dm-card dm-card-hk">
+                <div class="dm-card-header">
+                    <div class="dm-card-icon-wrap" style="background:rgba(139,92,246,0.12);">
+                        <span style="font-size:22px;">🇭🇰</span>
+                    </div>
+                    <div class="dm-card-meta">
+                        <div class="dm-card-title">港股数据</div>
+                        <div class="dm-card-subtitle">hk_basic / hk_daily / hk_fina_* · Tushare 一键更新</div>
+                    </div>
+                    <div class="dm-card-status">
+                        <span class="dm-dot" :class="hkDotClass"></span>
+                        <span class="dm-status-text">{{ hkStatusText }}</span>
+                    </div>
+                </div>
+                <div class="dm-card-body">
+                    <div class="dm-info-row" v-for="t in (hkStatus?.detail || [])" :key="t.table">
+                        <span>{{ t.name }}</span>
+                        <span class="dm-val">{{ t.rows }} 条<b v-if="t.max_date"> · {{ t.max_date }}</b><b v-if="t.resume_date"> · 断点 {{ t.resume_date }}</b></span>
+                    </div>
+                </div>
+                <div class="dm-card-footer">
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                        <button class="btn btn-primary" style="background:#0ea5e9;border-color:#0ea5e9;" @click="updateHk('basic')" :disabled="hkLoading.basic">
+                            <span v-if="hkLoading.basic" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                            ⟳ 港股列表
+                        </button>
+                        <button class="btn btn-primary" style="background:#eab308;border-color:#eab308;color:#18192f;" @click="updateHk('daily')" :disabled="hkLoading.daily">
+                            <span v-if="hkLoading.daily" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                            ⟳ 行情·每日
+                        </button>
+                        <button class="btn btn-primary" style="background:#8b5cf6;border-color:#8b5cf6;" @click="updateHk('financial')" :disabled="hkLoading.financial">
+                            <span v-if="hkLoading.financial" class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>
+                            ⟳ 财报·季度
+                        </button>
+                    </div>
+                    <div style="width:100%;margin-top:6px;">
+                        <span v-if="hkResult" class="dm-toast dm-toast-ok">✓ {{ hkResult }}</span>
+                        <span v-if="hkError" class="dm-toast dm-toast-err">✗ {{ hkError }}</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -4352,7 +4396,71 @@
     </div>
 </template>
 
+<template id="oil-shipping-tpl">
+    <div class="topbar">
+        <h2>原油与航运关联分析</h2>
+        <span class="badge">月度数据 · ECharts</span>
+    </div>
+    <div class="content">
+        <div class="card">
+            <div class="oil-tabs">
+                <button class="btn oil-tab" :class="{ active: oilShippingTab === 'oil' }"
+                        @click="switchTab('oil')">油价 vs 能源企业</button>
+                <button class="btn oil-tab" :class="{ active: oilShippingTab === 'freight' }"
+                        @click="switchTab('freight')">运价 vs 航运企业</button>
+                <button class="btn oil-tab" :class="{ active: oilShippingTab === 'air' }"
+                        @click="switchTab('air')">油价 vs 航空企业</button>
+            </div>
+
+            <div v-if="oilShippingTab === 'oil' || oilShippingTab === 'air'" class="oil-controls">
+                <span class="oil-control-label">原油品种：</span>
+                <button v-for="v in ['WTI', 'Brent']" :key="v" class="btn oil-switch"
+                        :class="{ active: oilVariety === v }"
+                        @click="setVariety(v)">{{ v }}</button>
+            </div>
+            <div v-else class="oil-controls">
+                <span class="oil-control-label">运价指数：</span>
+                <button v-for="f in freightKeys" :key="f" class="btn oil-switch"
+                        :class="{ active: freightIndex === f }"
+                        @click="setFreightIndex(f)">{{ f }}</button>
+            </div>
+
+            <div v-if="oilLoading" class="oil-loading">加载中...</div>
+            <div v-else-if="oilError" class="oil-error">{{ oilError }}</div>
+            <div v-else>
+                <div v-if="oilShippingTab === 'oil'">
+                    <div class="oil-chart-block">
+                        <h3 class="oil-chart-title">中国海油（600938.SH）月度利润 / 股价 / 油价</h3>
+                        <div :ref="el => setOilChartRef(el, '600938')" class="oil-chart" style="height:420px;"></div>
+                    </div>
+                    <div class="oil-chart-block">
+                        <h3 class="oil-chart-title">中国石油（601857.SH）月度利润 / 股价 / 油价</h3>
+                        <div :ref="el => setOilChartRef(el, '601857')" class="oil-chart" style="height:420px;"></div>
+                    </div>
+                </div>
+                <div v-else-if="oilShippingTab === 'air'">
+                    <div class="oil-chart-block">
+                        <h3 class="oil-chart-title">东方航空（600115.SH）月度利润 / 股价 / 油价</h3>
+                        <div :ref="el => setAirChartRef(el, '600115')" class="oil-chart" style="height:420px;"></div>
+                    </div>
+                    <div class="oil-chart-block">
+                        <h3 class="oil-chart-title">南方航空（600029.SH）月度利润 / 股价 / 油价</h3>
+                        <div :ref="el => setAirChartRef(el, '600029')" class="oil-chart" style="height:420px;"></div>
+                    </div>
+                </div>
+                <div v-else>
+                    <div class="oil-chart-block" v-for="code in freightStocks" :key="code">
+                        <h3 class="oil-chart-title">{{ stockNames[code] }}（{{ code }}）月度利润 / 股价 / 运价</h3>
+                        <div :ref="el => setFreightChartRef(el, code)" class="oil-chart" style="height:400px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
 <script src="vue.global.prod.js"></script>
+<script src="echarts.min.js"></script>
 <script src="lightweight-charts.standalone.production.js"></script>
 <script src="cytoscape.min.js"></script>
 <script src="app.js?v=20260906-inst5"></script>

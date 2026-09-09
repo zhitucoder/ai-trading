@@ -2410,3 +2410,19 @@ tbody tr:last-child td { border-bottom: none; }
 .ch-badge.bull { background: rgba(34,197,94,0.15); color: #22c55e; }
 .ch-badge.bear { background: rgba(239,68,68,0.15); color: #ef4444; }
 .ch-node.node-bear { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); }
+
+/* ── 原油与航运 关联分析看板 ── */
+.oil-tabs { display: flex; gap: 10px; margin-bottom: 14px; }
+.oil-tab { background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--text-muted); padding: 8px 18px; border-radius: 8px; font-size: 13px; }
+.oil-tab.active, .oil-tab:hover { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.oil-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.oil-control-label { font-size: 13px; color: var(--text-muted); }
+.oil-switch { background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--text-muted); padding: 6px 14px; border-radius: 6px; font-size: 12.5px; }
+.oil-switch.active, .oil-switch:hover { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.oil-chart-block { margin-bottom: 20px; }
+.oil-chart-title { font-size: 14px; color: #c8cfdd; margin-bottom: 8px; font-weight: 600; }
+.oil-chart { width: 100%; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.02); }
+.oil-loading { text-align: center; color: var(--accent); font-size: 14px; padding: 60px 0; }
+.oil-loading::before { content: ''; display: block; width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; margin: 0 auto 12px; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.oil-error { text-align: center; color: #ef4444; font-size: 14px; padding: 40px 0; }
