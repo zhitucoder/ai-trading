@@ -51,9 +51,7 @@ const app = createApp({
             { id: 'expert', label: '蒸馏专家', icon: '⚗' },
             { id: 'dmdl', label: '估值榜', icon: '⚖' },
             { id: 'query', label: '智能问数', icon: '✦' },
-            { id: 'data_mgmt', label: '数据维护', icon: '⚙' },
-            { id: 'data_catalog', label: '数据资产', icon: '🗂' },
-            { id: 'data_lineage', label: '数据血缘', icon: '⛓' },
+            { id: 'data_manage', label: '数据管理', icon: '⚙' },
             { id: 'fund', label: '基金持仓', icon: '◈' },
             { id: 'institution', label: '国家队持仓', icon: '🏛' },
             { id: 'logic', label: '投资逻辑', icon: '⛓' },
@@ -2859,6 +2857,15 @@ app.component('expert-page', {
 });
 
 // ── Data Management ──
+app.component('data-manage-page', {
+    template: '#data-manage-tpl',
+    setup() {
+        const dmTab = ref('mgmt');
+        provide('dmTab', dmTab);
+        return { dmTab };
+    },
+});
+
 app.component('data-mgmt-page', {
     template: '#data-mgmt-tpl',
     setup() {
@@ -3347,11 +3354,11 @@ app.component('data-mgmt-page', {
         const hkStatus = ref(null);
 
         const hkDotClass = computed(() => {
-            const busy = Object.values(hkLoading.value).some(Boolean);
+            const busy = Object.values(hkLoading).some(Boolean);
             return busy ? 'dm-dot-sync' : ((hkStatus.value?.detail?.length) ? 'dm-dot-online' : 'dm-dot-pending');
         });
         const hkStatusText = computed(() => {
-            const busy = Object.values(hkLoading.value).some(Boolean);
+            const busy = Object.values(hkLoading).some(Boolean);
             if (busy) return '更新中';
             const st = hkStatus.value?.status || {};
             if (st.basic === 'running' || st.daily === 'running' || st.financial === 'running') return '运行中';
@@ -4168,6 +4175,7 @@ app.component('data-catalog-page', {
     template: '#data-catalog-tpl',
     setup() {
         const currentPage = inject('currentPage');
+        const dmTab = inject('dmTab', null);
         const q = ref('');
         const category = ref('全部');
         const sort = ref('table_name');
@@ -4314,13 +4322,21 @@ app.component('data-catalog-page', {
         function goLineage(t) {
             window._lineageTable = t;
             window._lineageField = null;
-            currentPage.value = 'data_lineage';
+            if (dmTab) {
+                dmTab.value = 'lineage';
+            } else {
+                currentPage.value = 'data_lineage';
+            }
         }
 
         function goFieldLineage(t, col) {
             window._lineageTable = t;
             window._lineageField = col;
-            currentPage.value = 'data_lineage';
+            if (dmTab) {
+                dmTab.value = 'lineage';
+            } else {
+                currentPage.value = 'data_lineage';
+            }
         }
 
         onMounted(() => {

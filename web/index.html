@@ -37,11 +37,9 @@
         <expert-page v-else-if="currentPage === 'expert'"></expert-page>
         <dmdl-page v-else-if="currentPage === 'dmdl'"></dmdl-page>
         <query-page v-else-if="currentPage === 'query'"></query-page>
-        <data-mgmt-page v-else-if="currentPage === 'data_mgmt'"></data-mgmt-page>
+        <data-manage-page v-else-if="currentPage === 'data_manage'"></data-manage-page>
         <strong-page v-else-if="currentPage === 'strong'"></strong-page>
         <strong-stocks-page v-else-if="currentPage === 'strong_stocks'"></strong-stocks-page>
-        <data-catalog-page v-else-if="currentPage === 'data_catalog'"></data-catalog-page>
-        <data-lineage-page v-else-if="currentPage === 'data_lineage'"></data-lineage-page>
         <fund-page v-else-if="currentPage === 'fund'"></fund-page>
         <institution-page v-else-if="currentPage === 'institution'"></institution-page>
         <logic-page v-else-if="currentPage === 'logic'"></logic-page>
@@ -2596,6 +2594,19 @@
 </template>
 
 <!-- ── Data Management Template ── -->
+<template id="data-manage-tpl">
+    <div class="topbar">
+        <h2>数据管理</h2>
+        <div class="tab-group">
+            <button class="tab-btn" :class="{active: dmTab === 'mgmt'}" @click="dmTab = 'mgmt'">数据维护</button>
+            <button class="tab-btn" :class="{active: dmTab === 'catalog'}" @click="dmTab = 'catalog'">数据资产</button>
+            <button class="tab-btn" :class="{active: dmTab === 'lineage'}" @click="dmTab = 'lineage'">数据血缘</button>
+        </div>
+    </div>
+    <data-mgmt-page v-if="dmTab === 'mgmt'"></data-mgmt-page>
+    <data-catalog-page v-if="dmTab === 'catalog'"></data-catalog-page>
+    <data-lineage-page v-if="dmTab === 'lineage'"></data-lineage-page>
+</template>
 <template id="data-mgmt-tpl">
     <div class="topbar">
         <h2>数据维护</h2>
