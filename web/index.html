@@ -4430,27 +4430,27 @@
             <div v-else>
                 <div v-if="oilShippingTab === 'oil'">
                     <div class="oil-chart-block">
-                        <h3 class="oil-chart-title">中国海油（600938.SH）月度利润 / 股价 / 油价</h3>
+                        <h3 class="oil-chart-title">中国海油（600938.SH）月度股价 / 油价 / 季度利润</h3>
                         <div :ref="el => setOilChartRef(el, '600938')" class="oil-chart" style="height:420px;"></div>
                     </div>
                     <div class="oil-chart-block">
-                        <h3 class="oil-chart-title">中国石油（601857.SH）月度利润 / 股价 / 油价</h3>
+                        <h3 class="oil-chart-title">中国石油（601857.SH）月度股价 / 油价 / 季度利润</h3>
                         <div :ref="el => setOilChartRef(el, '601857')" class="oil-chart" style="height:420px;"></div>
                     </div>
                 </div>
                 <div v-else-if="oilShippingTab === 'air'">
                     <div class="oil-chart-block">
-                        <h3 class="oil-chart-title">东方航空（600115.SH）月度利润 / 股价 / 油价</h3>
+                        <h3 class="oil-chart-title">东方航空（600115.SH）月度股价 / 油价 / 季度利润</h3>
                         <div :ref="el => setAirChartRef(el, '600115')" class="oil-chart" style="height:420px;"></div>
                     </div>
                     <div class="oil-chart-block">
-                        <h3 class="oil-chart-title">南方航空（600029.SH）月度利润 / 股价 / 油价</h3>
+                        <h3 class="oil-chart-title">南方航空（600029.SH）月度股价 / 油价 / 季度利润</h3>
                         <div :ref="el => setAirChartRef(el, '600029')" class="oil-chart" style="height:420px;"></div>
                     </div>
                 </div>
                 <div v-else>
                     <div class="oil-chart-block" v-for="code in freightStocks" :key="code">
-                        <h3 class="oil-chart-title">{{ stockNames[code] }}（{{ code }}）月度利润 / 股价 / 运价</h3>
+                        <h3 class="oil-chart-title">{{ stockNames[code] }}（{{ code }}）月度股价 / 运价 / 季度利润</h3>
                         <div :ref="el => setFreightChartRef(el, code)" class="oil-chart" style="height:400px;"></div>
                     </div>
                 </div>
