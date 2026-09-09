@@ -51,7 +51,7 @@ const app = createApp({
             { id: 'expert', label: '蒸馏专家', icon: '⚗' },
             { id: 'dmdl', label: '估值榜', icon: '⚖' },
             { id: 'query', label: '智能问数', icon: '✦' },
-            { id: 'data_mgmt', label: '数据管理', icon: '⚙' },
+            { id: 'data_mgmt', label: '数据维护', icon: '⚙' },
             { id: 'data_catalog', label: '数据资产', icon: '🗂' },
             { id: 'data_lineage', label: '数据血缘', icon: '⛓' },
             { id: 'fund', label: '基金持仓', icon: '◈' },
