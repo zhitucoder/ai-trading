@@ -1204,7 +1204,8 @@ tbody tr:last-child td { border-bottom: none; }
 .expert-layout {
     display: flex;
     gap: 16px;
-    height: calc(100vh - 52px);
+    flex: 1;
+    min-height: 0;
     padding-bottom: 0;
 }
 .expert-sidebar {
@@ -1683,7 +1684,8 @@ tbody tr:last-child td { border-bottom: none; }
 .query-container {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - var(--topbar-h, 56px));
+    flex: 1;
+    min-height: 0;
     background: var(--bg-primary);
 }
 .query-messages {

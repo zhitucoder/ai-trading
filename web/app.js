@@ -47,10 +47,8 @@ const app = createApp({
             { id: 'profile', label: '股票画像', icon: '◈' },
             { id: 'dividend', label: '分红列表', icon: '❖' },
             { id: 'buyback', label: '股份回购', icon: '↺' },
-            { id: 'debate', label: 'AI多空辩论', icon: '⚖' },
-            { id: 'expert', label: '蒸馏专家', icon: '⚗' },
+            { id: 'ai_judge', label: 'AI 研判', icon: '⚖' },
             { id: 'dmdl', label: '估值榜', icon: '⚖' },
-            { id: 'query', label: '智能问数', icon: '✦' },
             { id: 'data_manage', label: '数据管理', icon: '⚙' },
             { id: 'institution_holdings', label: '机构持仓', icon: '◈' },
             { id: 'logic', label: '投资逻辑', icon: '⛓' },
@@ -2562,6 +2560,14 @@ app.component('buyback-page', {
 });
 
 // ── AI Debate ──
+app.component('ai-judge-page', {
+    template: '#ai-judge-tpl',
+    setup() {
+        const aiTab = ref('debate');
+        return { aiTab };
+    },
+});
+
 app.component('debate-page', {
     template: '#debate-tpl',
     setup() {

@@ -33,10 +33,8 @@
         <profile-page v-else-if="currentPage === 'profile'"></profile-page>
         <dividend-page v-else-if="currentPage === 'dividend'"></dividend-page>
         <buyback-page v-else-if="currentPage === 'buyback'"></buyback-page>
-        <debate-page v-else-if="currentPage === 'debate'"></debate-page>
-        <expert-page v-else-if="currentPage === 'expert'"></expert-page>
+        <ai-judge-page v-else-if="currentPage === 'ai_judge'"></ai-judge-page>
         <dmdl-page v-else-if="currentPage === 'dmdl'"></dmdl-page>
-        <query-page v-else-if="currentPage === 'query'"></query-page>
         <data-manage-page v-else-if="currentPage === 'data_manage'"></data-manage-page>
         <strong-page v-else-if="currentPage === 'strong'"></strong-page>
         <strong-stocks-page v-else-if="currentPage === 'strong_stocks'"></strong-stocks-page>
@@ -2428,10 +2426,6 @@
 </template>
 
 <template id="expert-tpl">
-    <div class="topbar">
-        <h2>蒸馏专家</h2>
-        <span class="badge" v-if="expertName">{{ expertName }}</span>
-    </div>
     <div class="content expert-layout">
         <div class="expert-sidebar">
             <div class="card" style="margin-bottom:12px;">
@@ -2532,14 +2526,28 @@
     </div>
 </template>
 
+<!-- ── AI 研判 Template ── -->
+<template id="ai-judge-tpl">
+    <div class="topbar">
+        <h2>AI 研判</h2>
+        <span class="badge">AI Agent</span>
+    </div>
+    <div style="flex-shrink:0;padding:14px 24px 0;background:var(--bg-primary);">
+        <div class="ih-tabs" style="margin-bottom:0;">
+            <button class="ih-tab" :class="{active: aiTab === 'debate'}" @click="aiTab = 'debate'">⚖ 多空辩论</button>
+            <button class="ih-tab" :class="{active: aiTab === 'expert'}" @click="aiTab = 'expert'">⚗ 蒸馏专家</button>
+            <button class="ih-tab" :class="{active: aiTab === 'query'}" @click="aiTab = 'query'">✦ 智能问数</button>
+        </div>
+    </div>
+    <debate-page v-if="aiTab === 'debate'"></debate-page>
+    <expert-page v-if="aiTab === 'expert'"></expert-page>
+    <query-page v-if="aiTab === 'query'"></query-page>
+</template>
+
 <!-- ── AI Debate Template ── -->
 <template id="debate-tpl">
-    <div class="topbar">
-        <h2>AI多空辩论</h2>
-        <span class="badge">实时分析</span>
-    </div>
     <div class="content">
-        <div class="card">
+            <div class="card">
             <div class="form-row">
                 <div class="config-item" style="min-width:120px;">
                     <label>股票代码</label>
@@ -3299,10 +3307,6 @@
 </template>
 
 <template id="query-tpl">
-    <div class="topbar">
-        <h2>智能问数</h2>
-        <span class="badge">AI Agent</span>
-    </div>
     <div class="query-container">
         <div class="query-messages" ref="msgBox">
             <div v-for="(msg, i) in messages" :key="i" class="query-msg" :class="msg.role">
