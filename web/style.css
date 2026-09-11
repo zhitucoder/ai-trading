@@ -2423,6 +2423,10 @@ tbody tr:last-child td { border-bottom: none; }
 .oil-tabs { display: flex; gap: 10px; margin-bottom: 14px; }
 .oil-tab { background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--text-muted); padding: 8px 18px; border-radius: 8px; font-size: 13px; }
 .oil-tab.active, .oil-tab:hover { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.ih-tabs { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.ih-tab { background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--text-muted); padding: 8px 18px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+.ih-tab:hover { border-color: var(--accent); color: var(--accent); }
+.ih-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .oil-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
 .oil-control-label { font-size: 13px; color: var(--text-muted); }
 .oil-switch { background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--text-muted); padding: 6px 14px; border-radius: 6px; font-size: 12.5px; }

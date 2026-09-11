@@ -3897,17 +3897,17 @@
         <span class="badge">公募基金 · 社保 · 养老 · 保险 · 财政 · 国资委 · 北向</span>
     </div>
     <div class="content">
-        <div class="tabs" style="margin-bottom:16px;">
-            <button :class="{active: mainTab === 'fund'}" @click="switchMainTab('fund')">基金持仓</button>
-            <button :class="{active: mainTab === 'institution'}" @click="switchMainTab('institution')">国家队持仓</button>
+        <div class="ih-tabs">
+            <button class="ih-tab" :class="{active: mainTab === 'fund'}" @click="switchMainTab('fund')">基金持仓</button>
+            <button class="ih-tab" :class="{active: mainTab === 'institution'}" @click="switchMainTab('institution')">国家队持仓</button>
         </div>
 
         <template v-if="mainTab === 'fund'">
-            <div class="tabs" style="margin-bottom:16px;">
-                <button :class="{active: fundTab==='macro'}" @click="onFundTabChange('macro')">宏观总览</button>
-                <button :class="{active: fundTab==='sector'}" @click="onFundTabChange('sector')">板块轮动</button>
-                <button :class="{active: fundTab==='stock'}" @click="fundTab='stock'">个股画像</button>
-                <button :class="{active: fundTab==='screen'}" @click="onFundTabChange('screen')">条件筛选</button>
+            <div class="ih-tabs">
+                <button class="ih-tab" :class="{active: fundTab==='macro'}" @click="onFundTabChange('macro')">宏观总览</button>
+                <button class="ih-tab" :class="{active: fundTab==='sector'}" @click="onFundTabChange('sector')">板块轮动</button>
+                <button class="ih-tab" :class="{active: fundTab==='stock'}" @click="fundTab='stock'">个股画像</button>
+                <button class="ih-tab" :class="{active: fundTab==='screen'}" @click="onFundTabChange('screen')">条件筛选</button>
             </div>
 
             <div v-if="fundError" class="error">{{ fundError }}</div>
@@ -4160,8 +4160,8 @@
         </template>
 
         <template v-if="mainTab === 'institution'">
-            <div class="tabs" style="margin-bottom:16px;flex-wrap:wrap;">
-                <button v-for="o in ownerMeta" :key="o.owner_type"
+            <div class="ih-tabs">
+                <button v-for="o in ownerMeta" :key="o.owner_type" class="ih-tab"
                         :class="{active: owner === o.owner_type}"
                         @click="switchOwner(o.owner_type)">
                     {{ o.icon }} {{ o.label }}
@@ -4172,12 +4172,12 @@
             <div v-if="instLoading" class="loading"><div class="spinner"></div></div>
 
             <template v-if="owner && !instLoading">
-                <div class="tabs" style="margin-bottom:16px;">
-                    <button :class="{active: instSubTab==='overview'}" @click="onInstSubTab('overview')">总览</button>
-                    <button :class="{active: instSubTab==='change'}" @click="onInstSubTab('change')">季度变化</button>
-                    <button :class="{active: instSubTab==='sector'}" @click="onInstSubTab('sector')">板块分布</button>
-                    <button :class="{active: instSubTab==='stock'}" @click="onInstSubTab('stock')">个股轨迹</button>
-                    <button v-if="owner !== 'hk_central'" :class="{active: instSubTab==='cross'}" @click="onInstSubTab('cross')">共持透视</button>
+                <div class="ih-tabs">
+                    <button class="ih-tab" :class="{active: instSubTab==='overview'}" @click="onInstSubTab('overview')">总览</button>
+                    <button class="ih-tab" :class="{active: instSubTab==='change'}" @click="onInstSubTab('change')">季度变化</button>
+                    <button class="ih-tab" :class="{active: instSubTab==='sector'}" @click="onInstSubTab('sector')">板块分布</button>
+                    <button class="ih-tab" :class="{active: instSubTab==='stock'}" @click="onInstSubTab('stock')">个股轨迹</button>
+                    <button v-if="owner !== 'hk_central'" class="ih-tab" :class="{active: instSubTab==='cross'}" @click="onInstSubTab('cross')">共持透视</button>
                 </div>
 
                 <!-- ═══ 总览 ═══ -->
