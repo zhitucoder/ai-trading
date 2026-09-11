@@ -52,8 +52,7 @@ const app = createApp({
             { id: 'dmdl', label: '估值榜', icon: '⚖' },
             { id: 'query', label: '智能问数', icon: '✦' },
             { id: 'data_manage', label: '数据管理', icon: '⚙' },
-            { id: 'fund', label: '基金持仓', icon: '◈' },
-            { id: 'institution', label: '国家队持仓', icon: '🏛' },
+            { id: 'institution_holdings', label: '机构持仓', icon: '◈' },
             { id: 'logic', label: '投资逻辑', icon: '⛓' },
             { id: 'oil_shipping', label: '原油与航运', icon: '⚓' },
         ];
@@ -3030,17 +3029,63 @@ app.component('data-mgmt-page', {
             }
         }
 
-        const divLoading = ref(false);
-        const divResult = ref('');
-        const divError = ref('');
+        const divEmLoading = ref(false);
+        const divEmResult = ref('');
+        const divEmError = ref('');
+        const divTsLoading = ref(false);
+        const divTsResult = ref('');
+        const divTsError = ref('');
 
         const divDotClass = computed(() => {
-            return divLoading.value ? 'dm-dot-sync' : (status.value.dividend?.latest_update ? 'dm-dot-online' : 'dm-dot-pending');
+            const busy = divEmLoading.value || divTsLoading.value;
+            const hasData = status.value.dividend?.latest_update || status.value.dividend_tushare?.latest_update;
+            return busy ? 'dm-dot-sync' : (hasData ? 'dm-dot-online' : 'dm-dot-pending');
         });
 
         const divStatusText = computed(() => {
-            return divLoading.value ? '更新中' : (status.value.dividend?.latest_update ? '已同步' : '待接入');
+            const busy = divEmLoading.value || divTsLoading.value;
+            return busy ? '更新中' : (status.value.dividend?.latest_update || status.value.dividend_tushare?.latest_update ? '已同步' : '待接入');
         });
+
+        async function updateDividendEm() {
+            divEmLoading.value = true;
+            divEmResult.value = '';
+            divEmError.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/data/update-dividend`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    divEmResult.value = '更新任务已在执行中';
+                } else {
+                    divEmResult.value = data.message || '东方财富分红更新已启动';
+                    setTimeout(loadStatus, 3000);
+                }
+            } catch (e) {
+                divEmError.value = e.message;
+            } finally {
+                divEmLoading.value = false;
+            }
+        }
+
+        async function updateDividendTushare() {
+            divTsLoading.value = true;
+            divTsResult.value = '';
+            divTsError.value = '';
+            try {
+                const r = await fetch(`${API_BASE}/data/update-dividend-tushare`, { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'running') {
+                    divTsResult.value = '更新任务已在执行中';
+                } else {
+                    divTsResult.value = data.message || 'Tushare 分红更新已启动';
+                    setTimeout(loadStatus, 3000);
+                }
+            } catch (e) {
+                divTsError.value = e.message;
+            } finally {
+                divTsLoading.value = false;
+            }
+        }
 
         const sectorLoading = ref(false);
         const sectorResult = ref('');
@@ -3073,28 +3118,6 @@ app.component('data-mgmt-page', {
                 sectorError.value = e.message;
             } finally {
                 sectorLoading.value = false;
-            }
-        }
-
-        async function updateDividend() {
-            divLoading.value = true;
-            divResult.value = '';
-            divError.value = '';
-            try {
-                const r = await fetch(`${API_BASE}/data/update-dividend`, { method: 'POST' });
-                const data = await r.json();
-                if (data.status === 'running') {
-                    divResult.value = '更新任务已在执行中';
-                } else if (data.status === 'error') {
-                    divError.value = data.message || '更新失败';
-                } else {
-                    divResult.value = `增量更新完成（自 ${data.since}）`;
-                    loadStatus();
-                }
-            } catch (e) {
-                divError.value = e.message;
-            } finally {
-                divLoading.value = false;
             }
         }
 
@@ -3400,7 +3423,7 @@ app.component('data-mgmt-page', {
             status, klineLoading, klineResult, klineError,
             qfqLoading, qfqResult, qfqError, qfqProgress, qfqDotClass, qfqStatusText, fmtQfqRows, updateQfq,
             finLoading, finResult, finError,
-            divLoading, divResult, divError, divDotClass, divStatusText, updateDividend,
+            divEmLoading, divEmResult, divEmError, divTsLoading, divTsResult, divTsError, divDotClass, divStatusText, updateDividendEm, updateDividendTushare,
             sectorLoading, sectorResult, sectorError, sectorDotClass, sectorStatusText, updateSector,
             lastSyncLabel, finDotClass, finStatusText,
             updateKline, updateFinancial,
@@ -4683,147 +4706,183 @@ app.component('placeholder-page', {
     },
 });
 
-app.component('fund-page', {
-    template: '#fund-tpl',
+app.component('institution-holdings-page', {
+    template: '#institution-holdings-tpl',
     setup() {
-        const tab = ref('macro');
-        const loading = ref(false);
-        const error = ref('');
-        const macroData = ref(null);
-        const sectorType = ref('industry');
-        const sectorList = ref([]);
-        const selectedSector = ref('');
-        const sectorStocks = ref([]);
-        const stockInput = ref('');
-        const stockDetail = ref(null);
-        const stockSuggestions = ref([]);
-        const stockSuggestionIdx = ref(-1);
-        let searchTimer = null;
-        const stockHoldings = ref({ rows: [], total: 0, offset: 0 });
-        const holdingsSort = ref({ key: 'mkv', dir: 'desc' });
-        const holdingsLoading = ref(false);
-        const fundModal = ref(null);
-        const screenType = ref('thousand');
-        const screenResult = ref([]);
-        const latestQuarter = ref('');
+        const mainTab = ref('fund');
 
-        async function loadMacro() {
-            loading.value = true;
-            error.value = '';
+        const fundTab = ref('macro');
+        const fundLoading = ref(false);
+        const fundError = ref('');
+        const macroData = ref(null);
+        const fundSectorType = ref('industry');
+        const fundSectorList = ref([]);
+        const fundSelectedSector = ref('');
+        const fundSectorStocks = ref([]);
+        const fundStockInput = ref('');
+        const fundStockDetail = ref(null);
+        const fundStockSuggestions = ref([]);
+        const fundStockSuggestionIdx = ref(-1);
+        let fundSearchTimer = null;
+        const fundStockHoldings = ref({ rows: [], total: 0, offset: 0 });
+        const fundHoldingsSort = ref({ key: 'mkv', dir: 'desc' });
+        const fundHoldingsLoading = ref(false);
+        const fundModal = ref(null);
+        const fundScreenType = ref('thousand');
+        const fundScreenResult = ref([]);
+        const fundLatestQuarter = ref('');
+
+        const ownerMeta = ref([]);
+        const owner = ref('');
+        const instSubTab = ref('overview');
+        const instLoading = ref(false);
+        const instError = ref('');
+        const overviewData = ref(null);
+        const changeData = ref(null);
+        const sectorData = ref(null);
+        const stockData = ref(null);
+        const crossData = ref(null);
+        const instQuarters = ref([]);
+        const instChangeQuarter = ref('');
+        const instChangeAction = ref('');
+        const instSectorQuarter = ref('');
+        const instSectorType = ref('industry');
+        const instStockInput = ref('');
+        const instPage = ref(1);
+        const instPageSize = ref(50);
+        const instSortBy = ref('hold_mkv');
+        const instSortDir = ref('desc');
+        const instStockQuery = ref('');
+        const instConsecFilter = ref('');
+        const instStockSuggestions = ref([]);
+        const instStockSuggestionIdx = ref(-1);
+        let instSearchTimer = null;
+
+        function switchMainTab(t) {
+            mainTab.value = t;
+        }
+
+        function switchFundMainTab() {
+            if (fundTab.value === 'macro') loadFundMacro();
+        }
+
+        async function loadFundMacro() {
+            fundLoading.value = true;
+            fundError.value = '';
             try {
                 const res = await fetch(`${API_BASE}/fund/macro/overview`);
                 macroData.value = await res.json();
-                latestQuarter.value = macroData.value.latest_date || '';
-            } catch (e) { error.value = e.message; }
-            loading.value = false;
+                fundLatestQuarter.value = macroData.value.latest_date || '';
+            } catch (e) { fundError.value = e.message; }
+            fundLoading.value = false;
         }
 
-        async function loadSectorFlow() {
-            loading.value = true;
+        async function loadFundSectorFlow() {
+            fundLoading.value = true;
             try {
-                const res = await fetch(`${API_BASE}/fund/sector/flow?sector_type=${sectorType.value}`);
-                sectorList.value = await res.json();
-            } catch (e) { error.value = e.message; }
-            loading.value = false;
+                const res = await fetch(`${API_BASE}/fund/sector/flow?sector_type=${fundSectorType.value}`);
+                fundSectorList.value = await res.json();
+            } catch (e) { fundError.value = e.message; }
+            fundLoading.value = false;
         }
 
-        async function loadSectorStocks(name) {
-            selectedSector.value = name;
-            loading.value = true;
+        async function loadFundSectorStocks(name) {
+            fundSelectedSector.value = name;
+            fundLoading.value = true;
             try {
                 const res = await fetch(`${API_BASE}/fund/sector/${encodeURIComponent(name)}/stocks`);
-                sectorStocks.value = await res.json();
-            } catch (e) { error.value = e.message; }
-            loading.value = false;
+                fundSectorStocks.value = await res.json();
+            } catch (e) { fundError.value = e.message; }
+            fundLoading.value = false;
         }
 
-        async function loadStockDetail(code) {
+        async function loadFundStockDetail(code) {
             if (!code) return;
-            loading.value = true;
-            error.value = '';
+            fundLoading.value = true;
+            fundError.value = '';
             try {
                 const res = await fetch(`${API_BASE}/fund/stock/${code}`);
-                stockDetail.value = await res.json();
-                await loadHoldings(code, 0, true);
-            } catch (e) { error.value = e.message; }
-            loading.value = false;
+                fundStockDetail.value = await res.json();
+                await loadFundHoldings(code, 0, true);
+            } catch (e) { fundError.value = e.message; }
+            fundLoading.value = false;
         }
 
-        async function loadHoldings(code, offset, reset = false) {
-            const c = code || stockInput.value;
+        async function loadFundHoldings(code, offset, reset = false) {
+            const c = code || fundStockInput.value;
             if (!c) return;
-            holdingsLoading.value = true;
+            fundHoldingsLoading.value = true;
             try {
-                const { key, dir } = holdingsSort.value;
+                const { key, dir } = fundHoldingsSort.value;
                 const url = `${API_BASE}/fund/stock/${c}/holdings?offset=${offset}&limit=20&sort_key=${key}&sort_dir=${dir}`;
                 const res = await fetch(url);
                 const data = await res.json();
                 if (reset) {
-                    stockHoldings.value = { ...data, rows: data.rows };
+                    fundStockHoldings.value = { ...data, rows: data.rows };
                 } else {
-                    stockHoldings.value = { ...data, rows: [...(stockHoldings.value.rows || []), ...data.rows] };
+                    fundStockHoldings.value = { ...data, rows: [...(fundStockHoldings.value.rows || []), ...data.rows] };
                 }
-            } catch (e) { error.value = e.message; }
-            holdingsLoading.value = false;
+            } catch (e) { fundError.value = e.message; }
+            fundHoldingsLoading.value = false;
         }
 
-        function loadMoreHoldings() {
-            if (!stockHoldings.value.total || stockHoldings.value.rows.length >= stockHoldings.value.total) return;
-            loadHoldings(stockInput.value, stockHoldings.value.rows.length, false);
+        function loadMoreFundHoldings() {
+            if (!fundStockHoldings.value.total || fundStockHoldings.value.rows.length >= fundStockHoldings.value.total) return;
+            loadFundHoldings(fundStockInput.value, fundStockHoldings.value.rows.length, false);
         }
 
-        async function onStockInput() {
-            const q = stockInput.value.trim();
-            if (q.length < 1) { stockSuggestions.value = []; return; }
-            if (searchTimer) clearTimeout(searchTimer);
-            searchTimer = setTimeout(async () => {
+        async function onFundStockInput() {
+            const q = fundStockInput.value.trim();
+            if (q.length < 1) { fundStockSuggestions.value = []; return; }
+            if (fundSearchTimer) clearTimeout(fundSearchTimer);
+            fundSearchTimer = setTimeout(async () => {
                 try {
                     const r = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(q)}`);
                     const d = await r.json();
-                    stockSuggestions.value = d.rows || [];
-                    stockSuggestionIdx.value = -1;
+                    fundStockSuggestions.value = d.rows || [];
+                    fundStockSuggestionIdx.value = -1;
                 } catch (e) {}
             }, 150);
         }
 
-        function onStockKeydown(e) {
-            const len = stockSuggestions.value.length;
+        function onFundStockKeydown(e) {
+            const len = fundStockSuggestions.value.length;
             if (len === 0) return;
-            if (e.key === 'ArrowDown') { e.preventDefault(); stockSuggestionIdx.value = Math.min(stockSuggestionIdx.value + 1, len - 1); }
-            else if (e.key === 'ArrowUp') { e.preventDefault(); stockSuggestionIdx.value = Math.max(stockSuggestionIdx.value - 1, 0); }
-            else if (e.key === 'Enter' && stockSuggestionIdx.value >= 0) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); fundStockSuggestionIdx.value = Math.min(fundStockSuggestionIdx.value + 1, len - 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); fundStockSuggestionIdx.value = Math.max(fundStockSuggestionIdx.value - 1, 0); }
+            else if (e.key === 'Enter' && fundStockSuggestionIdx.value >= 0) {
                 e.preventDefault();
-                selectStock(stockSuggestions.value[stockSuggestionIdx.value].stock_code);
+                selectFundStock(fundStockSuggestions.value[fundStockSuggestionIdx.value].stock_code);
             }
         }
 
-        function selectStock(code) {
+        function selectFundStock(code) {
             if (!code) return;
-            stockInput.value = code;
-            stockSuggestions.value = [];
-            stockSuggestionIdx.value = -1;
-            loadStockDetail(code);
+            fundStockInput.value = code;
+            fundStockSuggestions.value = [];
+            fundStockSuggestionIdx.value = -1;
+            loadFundStockDetail(code);
         }
 
-        function sortHoldings(key) {
-            if (holdingsSort.value.key === key) {
-                holdingsSort.value = { key, dir: holdingsSort.value.dir === 'asc' ? 'desc' : 'asc' };
+        function sortFundHoldings(key) {
+            if (fundHoldingsSort.value.key === key) {
+                fundHoldingsSort.value = { key, dir: fundHoldingsSort.value.dir === 'asc' ? 'desc' : 'asc' };
             } else {
-                holdingsSort.value = { key, dir: 'desc' };
+                fundHoldingsSort.value = { key, dir: 'desc' };
             }
-            loadHoldings(stockInput.value, 0, true);
+            loadFundHoldings(fundStockInput.value, 0, true);
         }
 
-        function sortArrowH(key) {
-            if (holdingsSort.value.key !== key) return '';
-            return holdingsSort.value.dir === 'asc' ? ' ▲' : ' ▼';
+        function sortFundHoldingsArrow(key) {
+            if (fundHoldingsSort.value.key !== key) return '';
+            return fundHoldingsSort.value.dir === 'asc' ? ' ▲' : ' ▼';
         }
 
         async function openFundHistory(h) {
             if (!h || !h.fund_code) return;
             fundModal.value = { fund_code: h.fund_code, fund_name: h.fund_name, rows: [], loading: true };
             try {
-                const res = await fetch(`${API_BASE}/fund/stock/${stockInput.value}/fund/${h.fund_code}`);
+                const res = await fetch(`${API_BASE}/fund/stock/${fundStockInput.value}/fund/${h.fund_code}`);
                 const data = await res.json();
                 fundModal.value = { fund_code: data.fund_code, fund_name: data.fund_name, rows: data.rows || [], loading: false };
                 await nextTick();
@@ -4884,35 +4943,20 @@ app.component('fund-page', {
             fundModal.value = null;
         }
 
-        function fmtShares(amount) {
-            if (amount == null) return '-';
-            return (amount / 10000).toFixed(2);
-        }
-
-        function fmtPct(val) {
-            if (val == null || val === '') return '-';
-            return Number(val).toFixed(2) + '%';
-        }
-
-        function fundHoldRatio(h) {
-            if (h == null || h.total_amount == null || !h.total_shares) return null;
-            return h.total_amount / h.total_shares * 100;
-        }
-
-        async function loadScreen() {
-            loading.value = true;
+        async function loadFundScreen() {
+            fundLoading.value = true;
             try {
-                const res = await fetch(`${API_BASE}/fund/screen?type=${screenType.value}`);
-                screenResult.value = await res.json();
-            } catch (e) { error.value = e.message; }
-            loading.value = false;
+                const res = await fetch(`${API_BASE}/fund/screen?type=${fundScreenType.value}`);
+                fundScreenResult.value = await res.json();
+            } catch (e) { fundError.value = e.message; }
+            fundLoading.value = false;
         }
 
-        function onTabChange(t) {
-            tab.value = t;
-            if (t === 'macro') loadMacro();
-            else if (t === 'sector') loadSectorFlow();
-            else if (t === 'screen') loadScreen();
+        function onFundTabChange(t) {
+            fundTab.value = t;
+            if (t === 'macro') loadFundMacro();
+            else if (t === 'sector') loadFundSectorFlow();
+            else if (t === 'screen') loadFundScreen();
         }
 
         function signalColor(s) {
@@ -4922,61 +4966,14 @@ app.component('fund-page', {
             return s === 'A' ? '加速流入' : s === 'B' ? '减速流入' : s === 'C' ? '减速流出' : '加速流出';
         }
 
-        onMounted(() => loadMacro());
-
-        return {
-            tab, loading, error, macroData, sectorType, sectorList,
-            selectedSector, sectorStocks, stockInput, stockDetail,
-            stockSuggestions, stockSuggestionIdx, stockHoldings,
-            holdingsSort, holdingsLoading, fundModal,
-            screenType, screenResult, latestQuarter,
-            onTabChange, loadMacro, loadSectorFlow, loadSectorStocks,
-            loadStockDetail, loadScreen, signalColor, signalText,
-            onStockInput, onStockKeydown, selectStock,
-            sortHoldings, sortArrowH, fmtShares, fmtPct, fundHoldRatio,
-            loadMoreHoldings, openFundHistory, closeFundModal,
-            fmtMoney, fmtGrowth, valClass,
-        };
-    },
-});
-
-app.component('institution-page', {
-    template: '#institution-tpl',
-    setup() {
-        const ownerMeta = ref([]);
-        const owner = ref('');
-        const subTab = ref('overview');
-        const loading = ref(false);
-        const error = ref('');
-        const overviewData = ref(null);
-        const changeData = ref(null);
-        const sectorData = ref(null);
-        const stockData = ref(null);
-        const crossData = ref(null);
-        const quarters = ref([]);
-        const changeQuarter = ref('');
-        const changeAction = ref('');
-        const sectorQuarter = ref('');
-        const sectorType = ref('industry');
-        const stockInput = ref('');
-        const page = ref(1);
-        const pageSize = ref(50);
-        const sortBy = ref('hold_mkv');
-        const sortDir = ref('desc');
-        const stockQuery = ref('');
-        const consecFilter = ref('');
-        const stockSuggestions = ref([]);
-        const stockSuggestionIdx = ref(-1);
-        let searchTimer = null;
-
-        const ownerOf = o => ownerMeta.value.find(x => x.owner_type === o);
+        const instOwnerOf = o => ownerMeta.value.find(x => x.owner_type === o);
 
         function ownerLabel() {
-            const o = ownerOf(owner.value);
+            const o = instOwnerOf(owner.value);
             return o ? o.label : owner.value;
         }
         function ownerLabelOf(code) {
-            const o = ownerOf(code);
+            const o = instOwnerOf(code);
             return o ? o.label : code;
         }
 
@@ -4985,9 +4982,9 @@ app.component('institution-page', {
                 const res = await fetch(`${API_BASE}/institution/owners`);
                 const d = await res.json();
                 ownerMeta.value = d.owners || [];
-                quarters.value = (d.dates || []).slice().reverse().map(dateToQuarter);
+                instQuarters.value = (d.dates || []).slice().reverse().map(dateToQuarter);
                 if (ownerMeta.value.length) switchOwner(ownerMeta.value[0].owner_type);
-            } catch (e) { error.value = e.message; }
+            } catch (e) { instError.value = e.message; }
         }
 
         function dateToQuarter(d) {
@@ -4997,107 +4994,107 @@ app.component('institution-page', {
         }
 
         function latestQuarterOf() {
-            return quarters.value[0] || '';
+            return instQuarters.value[0] || '';
         }
 
         function switchOwner(t) {
             owner.value = t;
-            subTab.value = 'overview';
-            stockInput.value = '';
-            stockQuery.value = '';
-            consecFilter.value = '';
-            stockSuggestions.value = [];
-            page.value = 1;
-            loadOverview();
+            instSubTab.value = 'overview';
+            instStockInput.value = '';
+            instStockQuery.value = '';
+            instConsecFilter.value = '';
+            instStockSuggestions.value = [];
+            instPage.value = 1;
+            loadInstOverview();
         }
 
-        function onSubTab(t) {
-            subTab.value = t;
-            if (t === 'change') loadChange();
-            else if (t === 'sector') loadSector();
-            else if (t === 'cross') loadCross();
+        function onInstSubTab(t) {
+            instSubTab.value = t;
+            if (t === 'change') loadInstChange();
+            else if (t === 'sector') loadInstSector();
+            else if (t === 'cross') loadInstCross();
         }
 
-        async function loadOverview() {
-            loading.value = true;
-            error.value = '';
+        async function loadInstOverview() {
+            instLoading.value = true;
+            instError.value = '';
             try {
-                const qp = stockQuery.value.trim() ? '&q=' + encodeURIComponent(stockQuery.value.trim()) : '';
-                const cp = consecFilter.value ? '&consec=' + encodeURIComponent(consecFilter.value) : '';
-                const res = await fetch(`${API_BASE}/institution/${owner.value}/overview?page=${page.value}&page_size=${pageSize.value}&sort_by=${sortBy.value}&sort_dir=${sortDir.value}${qp}${cp}`);
+                const qp = instStockQuery.value.trim() ? '&q=' + encodeURIComponent(instStockQuery.value.trim()) : '';
+                const cp = instConsecFilter.value ? '&consec=' + encodeURIComponent(instConsecFilter.value) : '';
+                const res = await fetch(`${API_BASE}/institution/${owner.value}/overview?page=${instPage.value}&page_size=${instPageSize.value}&sort_by=${instSortBy.value}&sort_dir=${instSortDir.value}${qp}${cp}`);
                 overviewData.value = await res.json();
-            } catch (e) { error.value = e.message; }
-            loading.value = false;
+            } catch (e) { instError.value = e.message; }
+            instLoading.value = false;
         }
 
-        function onStockInput() {
-            const q = stockQuery.value.trim();
-            if (q.length < 1) { stockSuggestions.value = []; return; }
-            if (searchTimer) clearTimeout(searchTimer);
-            searchTimer = setTimeout(async () => {
+        function onInstStockInput() {
+            const q = instStockQuery.value.trim();
+            if (q.length < 1) { instStockSuggestions.value = []; return; }
+            if (instSearchTimer) clearTimeout(instSearchTimer);
+            instSearchTimer = setTimeout(async () => {
                 try {
                     const r = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(q)}`);
                     const d = await r.json();
-                    stockSuggestions.value = d.rows || [];
-                    stockSuggestionIdx.value = -1;
-                } catch (e) { stockSuggestions.value = []; }
+                    instStockSuggestions.value = d.rows || [];
+                    instStockSuggestionIdx.value = -1;
+                } catch (e) { instStockSuggestions.value = []; }
             }, 150);
         }
 
-        function onStockKeydown(e) {
-            const len = stockSuggestions.value.length;
+        function onInstStockKeydown(e) {
+            const len = instStockSuggestions.value.length;
             if (len === 0) return;
-            if (e.key === 'ArrowDown') { e.preventDefault(); stockSuggestionIdx.value = Math.min(stockSuggestionIdx.value + 1, len - 1); }
-            else if (e.key === 'ArrowUp') { e.preventDefault(); stockSuggestionIdx.value = Math.max(stockSuggestionIdx.value - 1, 0); }
-            else if (e.key === 'Enter' && stockSuggestionIdx.value >= 0) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); instStockSuggestionIdx.value = Math.min(instStockSuggestionIdx.value + 1, len - 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); instStockSuggestionIdx.value = Math.max(instStockSuggestionIdx.value - 1, 0); }
+            else if (e.key === 'Enter' && instStockSuggestionIdx.value >= 0) {
                 e.preventDefault();
-                selectStock(stockSuggestions.value[stockSuggestionIdx.value].stock_code);
+                selectInstStock(instStockSuggestions.value[instStockSuggestionIdx.value].stock_code);
             }
         }
 
-        function selectStock(code) {
-            stockQuery.value = code;
-            stockSuggestions.value = [];
-            stockSuggestionIdx.value = -1;
-            page.value = 1;
-            loadOverview();
+        function selectInstStock(code) {
+            instStockQuery.value = code;
+            instStockSuggestions.value = [];
+            instStockSuggestionIdx.value = -1;
+            instPage.value = 1;
+            loadInstOverview();
         }
 
-        function applyFilter() {
-            page.value = 1;
-            loadOverview();
+        function applyInstFilter() {
+            instPage.value = 1;
+            loadInstOverview();
         }
-        function clearFilters() {
-            stockQuery.value = '';
-            consecFilter.value = '';
-            stockSuggestions.value = [];
-            page.value = 1;
-            loadOverview();
+        function clearInstFilters() {
+            instStockQuery.value = '';
+            instConsecFilter.value = '';
+            instStockSuggestions.value = [];
+            instPage.value = 1;
+            loadInstOverview();
         }
 
-        const totalPages = computed(() => Math.max(1, Math.ceil((overviewData.value?.total || 0) / pageSize.value)));
+        const instTotalPages = computed(() => Math.max(1, Math.ceil((overviewData.value?.total || 0) / instPageSize.value)));
 
-        function sortTable(col) {
-            if (sortBy.value === col) {
-                sortDir.value = sortDir.value === 'desc' ? 'asc' : 'desc';
+        function sortInstTable(col) {
+            if (instSortBy.value === col) {
+                instSortDir.value = instSortDir.value === 'desc' ? 'asc' : 'desc';
             } else {
-                sortBy.value = col;
-                sortDir.value = 'desc';
+                instSortBy.value = col;
+                instSortDir.value = 'desc';
             }
-            page.value = 1;
-            loadOverview();
+            instPage.value = 1;
+            loadInstOverview();
         }
-        function sortArrow(col) {
-            if (sortBy.value !== col) return '';
-            return sortDir.value === 'desc' ? ' ↓' : ' ↑';
+        function sortInstArrow(col) {
+            if (instSortBy.value !== col) return '';
+            return instSortDir.value === 'desc' ? ' ↓' : ' ↑';
         }
-        function changePage(d) {
-            const np = page.value + d;
-            if (np >= 1 && np <= totalPages.value) { page.value = np; loadOverview(); }
+        function changeInstPage(d) {
+            const np = instPage.value + d;
+            if (np >= 1 && np <= instTotalPages.value) { instPage.value = np; loadInstOverview(); }
         }
-        function changePageSize() {
-            page.value = 1;
-            loadOverview();
+        function changeInstPageSize() {
+            instPage.value = 1;
+            loadInstOverview();
         }
         function consecText(v) {
             if (v == null || v === 0) return '-';
@@ -5108,60 +5105,60 @@ app.component('institution-page', {
             return v > 0 ? '#ef4444' : '#10b981';
         }
 
-        async function loadChange() {
-            loading.value = true;
-            error.value = '';
+        async function loadInstChange() {
+            instLoading.value = true;
+            instError.value = '';
             try {
-                const q = changeQuarter.value || latestQuarterOf();
-                const act = changeAction.value ? '&action=' + encodeURIComponent(changeAction.value) : '';
+                const q = instChangeQuarter.value || latestQuarterOf();
+                const act = instChangeAction.value ? '&action=' + encodeURIComponent(instChangeAction.value) : '';
                 const res = await fetch(`${API_BASE}/institution/${owner.value}/change?quarter=${q}${act}`);
                 changeData.value = await res.json();
-                if (!changeQuarter.value) changeQuarter.value = changeData.value.quarter || q;
-            } catch (e) { error.value = e.message; }
-            loading.value = false;
+                if (!instChangeQuarter.value) instChangeQuarter.value = changeData.value.quarter || q;
+            } catch (e) { instError.value = e.message; }
+            instLoading.value = false;
         }
 
-        async function loadSector() {
-            loading.value = true;
-            error.value = '';
+        async function loadInstSector() {
+            instLoading.value = true;
+            instError.value = '';
             try {
-                const q = sectorQuarter.value || latestQuarterOf();
-                const res = await fetch(`${API_BASE}/institution/${owner.value}/sector?quarter=${q}&sector_type=${sectorType.value}`);
+                const q = instSectorQuarter.value || latestQuarterOf();
+                const res = await fetch(`${API_BASE}/institution/${owner.value}/sector?quarter=${q}&sector_type=${instSectorType.value}`);
                 sectorData.value = await res.json();
-                if (!sectorQuarter.value) sectorQuarter.value = sectorData.value.quarter || q;
-            } catch (e) { error.value = e.message; }
-            loading.value = false;
+                if (!instSectorQuarter.value) instSectorQuarter.value = sectorData.value.quarter || q;
+            } catch (e) { instError.value = e.message; }
+            instLoading.value = false;
         }
 
-        async function loadStock(code) {
-            const c = (code || stockInput.value || '').trim();
+        async function loadInstStock(code) {
+            const c = (code || instStockInput.value || '').trim();
             if (!c) return;
-            loading.value = true;
-            error.value = '';
+            instLoading.value = true;
+            instError.value = '';
             try {
                 const res = await fetch(`${API_BASE}/institution/${owner.value}/stock/${c}`);
                 stockData.value = await res.json();
-            } catch (e) { error.value = e.message; }
-            loading.value = false;
+            } catch (e) { instError.value = e.message; }
+            instLoading.value = false;
         }
 
-        function openStock(code) {
+        function openInstStock(code) {
             if (!code) return;
-            subTab.value = 'stock';
-            stockInput.value = code;
-            loadStock(code);
+            instSubTab.value = 'stock';
+            instStockInput.value = code;
+            loadInstStock(code);
         }
 
-        async function loadCross() {
-            subTab.value = 'cross';
-            loading.value = true;
-            error.value = '';
+        async function loadInstCross() {
+            instSubTab.value = 'cross';
+            instLoading.value = true;
+            instError.value = '';
             try {
                 const q = latestQuarterOf();
                 const res = await fetch(`${API_BASE}/institution/cross?types=shebao,yanglao,baoxian,caizheng,guozwei&quarter=${q}`);
                 crossData.value = await res.json();
-            } catch (e) { error.value = e.message; }
-            loading.value = false;
+            } catch (e) { instError.value = e.message; }
+            instLoading.value = false;
         }
 
         function fmtPct(v) {
@@ -5176,26 +5173,41 @@ app.component('institution-page', {
             return a === '增持' || a === '新开仓' ? '#ef4444' : a === '减持' || a === '清仓' ? '#10b981' : '#8e8ea0';
         }
 
-        onMounted(loadOwners);
+        function fundHoldRatio(h) {
+            if (h == null || h.total_amount == null || !h.total_shares) return null;
+            return h.total_amount / h.total_shares * 100;
+        }
+
+        onMounted(() => { loadFundMacro(); loadOwners(); });
 
         return {
-            ownerMeta, owner, subTab, loading, error,
+            mainTab, switchMainTab,
+            fundTab, fundLoading, fundError, macroData, fundSectorType, fundSectorList,
+            fundSelectedSector, fundSectorStocks, fundStockInput, fundStockDetail,
+            fundStockSuggestions, fundStockSuggestionIdx, fundStockHoldings,
+            fundHoldingsSort, fundHoldingsLoading, fundModal,
+            fundScreenType, fundScreenResult, fundLatestQuarter,
+            onFundTabChange, loadFundMacro, loadFundSectorFlow, loadFundSectorStocks,
+            loadFundStockDetail, loadFundScreen, signalColor, signalText,
+            onFundStockInput, onFundStockKeydown, selectFundStock,
+            sortFundHoldings, sortFundHoldingsArrow, fmtShares, fmtPct, fundHoldRatio,
+            loadMoreFundHoldings, openFundHistory, closeFundModal,
+            ownerMeta, owner, instSubTab, instLoading, instError,
             overviewData, changeData, sectorData, stockData, crossData,
-            quarters, changeQuarter, changeAction,
-            sectorQuarter, sectorType, stockInput,
-            page, pageSize, sortBy, sortDir, totalPages,
-            stockQuery, consecFilter, stockSuggestions, stockSuggestionIdx,
-            onStockInput, onStockKeydown, selectStock, applyFilter, clearFilters,
-            sortTable, sortArrow, changePage, changePageSize,
+            instQuarters, instChangeQuarter, instChangeAction,
+            instSectorQuarter, instSectorType, instStockInput,
+            instPage, instPageSize, instSortBy, instSortDir, instTotalPages,
+            instStockQuery, instConsecFilter, instStockSuggestions, instStockSuggestionIdx,
+            onInstStockInput, onInstStockKeydown, selectInstStock, applyInstFilter, clearInstFilters,
+            sortInstTable, sortInstArrow, changeInstPage, changeInstPageSize,
             consecText, consecColor,
-            ownerLabel, ownerLabelOf, switchOwner, onSubTab,
-            loadOverview, loadChange, loadSector, loadStock, loadCross, openStock,
-            fmtPct, fmtShares, actionColor, fmtMoney, fmtGrowth, valClass,
+            ownerLabel, ownerLabelOf, switchOwner, onInstSubTab,
+            loadInstOverview, loadInstChange, loadInstSector, loadInstStock, loadInstCross, openInstStock,
+            actionColor, fmtMoney, fmtGrowth, valClass,
         };
     },
 });
 
-// ── 投资逻辑 · 事件传导网络 ──
 app.component('logic-page', {
     template: '#logic-tpl',
     setup() {
