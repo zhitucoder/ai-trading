@@ -42,7 +42,6 @@ const app = createApp({
             { id: 'strong', label: '强势板块', icon: '▲' },
             { id: 'strong_stocks', label: '强势个股', icon: '★' },
             { id: 'screening', label: '选股策略', icon: '⊞' },
-            { id: 'vcp', label: 'VCP波动收缩', icon: '◐' },
             { id: 'bt_strategies', label: '回测策略', icon: '⇄' },
             { id: 'profile', label: '股票画像', icon: '◈' },
             { id: 'dividend', label: '分红列表', icon: '❖' },

@@ -24,7 +24,6 @@
     <!-- Main -->
     <div class="main">
         <screening-page v-if="currentPage === 'screening'"></screening-page>
-        <vcp-page v-else-if="currentPage === 'vcp'"></vcp-page>
         <bt-strategies-page v-else-if="currentPage === 'bt_strategies'"></bt-strategies-page>
         <position-bt-page v-else-if="currentPage === 'position_bt'"></position-bt-page>
         <ma-bt-page v-else-if="currentPage === 'ma_bt'"></ma-bt-page>
@@ -125,7 +124,12 @@
             <button class="strategy-tab" :class="{ active: tabType === 'undervalued' }"
                     @click="tabType = 'undervalued'; selectedStrategy = null; result = null"
                     style="color:#e2b714;">⬇ 低估成长</button>
+            <button class="strategy-tab" :class="{ active: tabType === 'vcp' }"
+                    @click="tabType = 'vcp'; selectedStrategy = null; result = null"
+                    style="color:var(--amber);">◐ VCP波动收缩</button>
         </div>
+
+        <vcp-page v-if="tabType === 'vcp'"></vcp-page>
 
         <div v-if="tabType === 'minervini'" class="card" style="border-color:var(--amber);font-size:13px;line-height:1.7;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
@@ -2288,11 +2292,6 @@
 </template>
 
 <template id="vcp-tpl">
-    <div class="topbar">
-        <h2>VCP 波动收缩扫描</h2>
-        <span class="badge">Minervini</span>
-    </div>
-    <div class="content">
         <div class="card" style="border-color:var(--amber);font-size:13px;line-height:1.7;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
                 <span style="font-size:18px;">◐</span>
@@ -2422,7 +2421,6 @@
                 </div>
             </div>
         </div>
-    </div>
 </template>
 
 <template id="expert-tpl">
