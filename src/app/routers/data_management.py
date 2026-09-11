@@ -38,6 +38,11 @@ _dmdl_lock = threading.Lock()
 _qfq_lock = threading.Lock()
 _freight_lock = threading.Lock()
 _oil_lock = threading.Lock()
+_hk_basic_lock = threading.Lock()
+_hk_daily_lock = threading.Lock()
+_hk_fin_lock = threading.Lock()
+_dividend_em_lock = threading.Lock()
+_dividend_ts_lock = threading.Lock()
 
 
 def _parse_day_file_after(filepath, since):
@@ -91,6 +96,9 @@ def data_status():
     div = query("SELECT MAX(updated_at) AS d, COUNT(DISTINCT stock_code) AS sc, COUNT(*) AS cnt, MAX(report_date) AS rd FROM stock_dividend")
     div_row = div[0] if div else {}
 
+    div_ts = query("SELECT MAX(update_time) AS d, COUNT(DISTINCT ts_code) AS sc, COUNT(*) AS cnt, MAX(ann_date) AS rd FROM dividend_tushare")
+    div_ts_row = div_ts[0] if div_ts else {}
+
     sector = query("SELECT COUNT(*) AS sc FROM sectors")
     sector_map = query("SELECT COUNT(*) AS mc FROM stock_sectors")
     sector_row = sector[0] if sector else {}
@@ -142,6 +150,12 @@ def data_status():
             'stock_count': div_row.get('sc') or 0,
             'record_count': div_row.get('cnt') or 0,
             'latest_report_date': str(div_row.get('rd') or ''),
+        },
+        'dividend_tushare': {
+            'latest_update': str(div_ts_row.get('d') or ''),
+            'stock_count': div_ts_row.get('sc') or 0,
+            'record_count': div_ts_row.get('cnt') or 0,
+            'latest_report_date': str(div_ts_row.get('rd') or ''),
         },
         'sector': {
             'status': 'ok' if has_sector else 'pending',
@@ -535,31 +549,100 @@ def update_sector():
         _update_lock.release()
 
 
+# ── 分红数据（东方财富 stock_dividend / Tushare dividend_tushare）独立更新 ──
+@router.get('/data/dividend/status')
+def dividend_status():
+    def _q(sql):
+        try:
+            rows = query(sql)
+            return rows[0] if rows else {}
+        except Exception:
+            return {}
+
+    em = _q("SELECT MAX(updated_at) AS last_update, COUNT(DISTINCT stock_code) AS sc, COUNT(*) AS cnt, MAX(report_date) AS rd FROM stock_dividend")
+    ts = _q("SELECT MAX(update_time) AS last_update, COUNT(DISTINCT ts_code) AS sc, COUNT(*) AS cnt, MAX(ann_date) AS rd FROM dividend_tushare")
+    em_locked = _dividend_em_lock.locked()
+    ts_locked = _dividend_ts_lock.locked()
+    return {
+        'status': 'running' if (em_locked or ts_locked) else 'idle',
+        'em_locked': em_locked,
+        'ts_locked': ts_locked,
+        'eastmoney': {
+            'last_update': str(em.get('last_update') or ''),
+            'stock_count': em.get('sc') or 0,
+            'record_count': em.get('cnt') or 0,
+            'latest_report_date': str(em.get('rd') or ''),
+        },
+        'tushare': {
+            'last_update': str(ts.get('last_update') or ''),
+            'stock_count': ts.get('sc') or 0,
+            'record_count': ts.get('cnt') or 0,
+            'latest_report_date': str(ts.get('rd') or ''),
+        },
+    }
+
+
 @router.post('/data/update-dividend')
 def update_dividend():
-    if not _update_lock.acquire(blocking=False):
-        return {'status': 'running', 'message': '更新任务已在执行中'}
-    try:
-        import subprocess
-        from pathlib import Path
-        latest = query("SELECT MAX(updated_at) AS d FROM stock_dividend")[0]['d']
-        since = latest.date() if latest else date(2021, 1, 1)
-        script = Path(__file__).resolve().parent.parent.parent.parent / 'scripts' / 'fetch_dividend.py'
-        proc = subprocess.run(
-            [sys.executable, str(script), '--since', str(since), '--workers', '8'],
-            capture_output=True, text=True, timeout=600,
-        )
-        if proc.returncode != 0:
-            return {'status': 'error', 'message': proc.stderr[-500:]}
-        return {
-            'status': 'ok',
-            'since': str(since),
-            'message': proc.stdout.strip()[-300:],
-        }
-    except subprocess.TimeoutExpired:
-        return {'status': 'error', 'message': '抓取超时（>10分钟）'}
-    finally:
-        _update_lock.release()
+    if not _dividend_em_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '东方财富分红更新已在执行中'}
+
+    def _run():
+        try:
+            import subprocess
+            from pathlib import Path
+            latest = query("SELECT MAX(updated_at) AS d FROM stock_dividend")
+            latest_dt = latest[0]['d'] if latest and latest[0]['d'] else None
+            since = latest_dt.date() if latest_dt else date(2026, 7, 1)
+            since = min(since, date(2026, 7, 1))  # 自上次或至少 2026-07 重新获取（幂等 UPSERT）
+            script = Path(__file__).resolve().parent.parent.parent.parent / 'scripts' / 'fetch_dividend.py'
+            proc = subprocess.run(
+                [sys.executable, str(script), '--since', str(since), '--workers', '8'],
+                capture_output=True, text=True, timeout=1800,
+            )
+            if proc.returncode != 0:
+                print(f'[dividend-em] error: {proc.stderr[-500:]}', flush=True)
+            else:
+                print(f"[dividend-em] done since={since}: {proc.stdout.strip()[-300:]}", flush=True)
+        except Exception as e:
+            print(f'[dividend-em] error: {e}', flush=True)
+        finally:
+            _dividend_em_lock.release()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'message': '东方财富分红更新已启动（后台运行）'}
+
+
+@router.post('/data/update-dividend-tushare')
+def update_dividend_tushare():
+    if not _dividend_ts_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': 'Tushare 分红更新已在执行中'}
+
+    def _run():
+        try:
+            import subprocess
+            from pathlib import Path
+            latest = query("SELECT MAX(ann_date) AS d FROM dividend_tushare")
+            latest_d = (latest[0]['d'] or '20260701') if latest else '20260701'
+            since = min(latest_d, '20260701')  # 自上次或至少 2026-07 重新获取（幂等 UPSERT）
+            script = Path(__file__).resolve().parent.parent.parent.parent / 'src' / 'scripts' / 'source' / 'import_dividend_tushare.py'
+            proc = subprocess.run(
+                [sys.executable, str(script), '--since', since],
+                capture_output=True, text=True, timeout=3600,
+            )
+            if proc.returncode != 0:
+                print(f'[dividend-ts] error: {proc.stderr[-500:]}', flush=True)
+            else:
+                print(f"[dividend-ts] done since={since}: {proc.stdout.strip()[-300:]}", flush=True)
+        except Exception as e:
+            print(f'[dividend-ts] error: {e}', flush=True)
+        finally:
+            _dividend_ts_lock.release()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'message': 'Tushare 分红更新已启动（后台运行）'}
 
 
 @router.get('/data/ads/status')
@@ -998,3 +1081,99 @@ def update_crude_oil():
     t = threading.Thread(target=_run, daemon=True)
     t.start()
     return {'status': 'started', 'message': '原油数据更新已启动（后台运行）'}
+
+
+# ── 港股数据（hk_basic / hk_daily / hk_income / hk_balancesheet / hk_cashflow / hk_fina_indicator）一键更新 ──
+def _import_hk(mod):
+    from ...scripts.source import import_hk_tushare
+    return getattr(import_hk_tushare, mod)
+
+
+@router.get('/data/hk/status')
+def hk_status():
+    """港股数据状态：各表行数/最新日期 + 三类任务是否运行中"""
+    detail = _import_hk('get_hk_status')().get('detail', [])
+    return {
+        'status': {
+            'basic': 'running' if _hk_basic_lock.locked() else 'idle',
+            'daily': 'running' if _hk_daily_lock.locked() else 'idle',
+            'financial': 'running' if _hk_fin_lock.locked() else 'idle',
+        },
+        'detail': detail,
+    }
+
+
+@router.post('/data/update-hk-basic')
+def update_hk_basic():
+    """港股列表：按 ts_code 逐个同步"""
+    if not _hk_basic_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '港股列表同步已在执行中'}
+
+    def _run():
+        try:
+            result = _import_hk('update_hk_basic')(ts.pro_api(os.environ.get('TUSHARE_TOKEN', '')))
+        except Exception as e:
+            result = {'error': str(e)}
+        finally:
+            _hk_basic_lock.release()
+        if isinstance(result, dict) and result.get('error'):
+            print(f'[hk-basic] error: {result["error"]}', flush=True)
+        else:
+            print(f"[hk-basic] done: {result}", flush=True)
+
+    import tushare as ts
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'message': '港股列表同步已启动（后台运行）'}
+
+
+@router.post('/data/update-hk-daily')
+def update_hk_daily(mode: str = 'inc'):
+    """港股日线行情：mode=inc 增量（按 trade_date 断点续传）｜mode=his 历史全量（按 ts_code）"""
+    if not _hk_daily_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '港股行情更新已在执行中'}
+
+    def _run():
+        try:
+            import tushare as ts
+            pro = ts.pro_api(os.environ.get('TUSHARE_TOKEN', ''))
+            if mode == 'his':
+                result = _import_hk('update_hk_daily_his')(pro)
+            else:
+                result = _import_hk('update_hk_daily_inc')(pro)
+        except Exception as e:
+            result = {'error': str(e)}
+        finally:
+            _hk_daily_lock.release()
+        if isinstance(result, dict) and result.get('error'):
+            print(f'[hk-daily:{mode}] error: {result["error"]}', flush=True)
+        else:
+            print(f"[hk-daily:{mode}] done: {result}", flush=True)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'mode': mode, 'message': '港股行情更新已启动（后台运行）'}
+
+
+@router.post('/data/update-hk-financial')
+def update_hk_financial():
+    """港股财务报表：利润表/资产负债表/现金流量表/财务指标（按 ts_code）"""
+    if not _hk_fin_lock.acquire(blocking=False):
+        return {'status': 'running', 'message': '港股财务更新已在执行中'}
+
+    def _run():
+        try:
+            import tushare as ts
+            result = _import_hk('update_hk_financial')(ts.pro_api(os.environ.get('TUSHARE_TOKEN', '')))
+        except Exception as e:
+            result = {'error': str(e)}
+        finally:
+            _hk_fin_lock.release()
+        if isinstance(result, dict) and result.get('error'):
+            print(f'[hk-financial] error: {result["error"]}', flush=True)
+        else:
+            print(f"[hk-financial] done: {result}", flush=True)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {'status': 'started', 'message': '港股财务更新已启动（后台运行）'}

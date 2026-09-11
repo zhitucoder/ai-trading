@@ -65,12 +65,25 @@ def fetch_one_stock(symbol_code, since=None):
 
     since: 增量模式 —— 仅拉取除息日/预案公告日 ≥ since 的记录（UPSERT 覆盖实现幂等更新）。
     """
+    if since:
+        # 东方财富 filter 不支持在同组内用 OR 组合两个日期条件（实测返回 0 行），
+        # 因此对两个日期字段分别查询再按 report_date 去重合并。EX_DIVIDEND_DATE 与
+        # PLAN_NOTICE_DATE 同时 >= since 的记录会出现两次，只保留一份。
+        records = _merge_records(
+            _fetch_filter(symbol_code, f'EX_DIVIDEND_DATE >= \'{since}\''),
+            _fetch_filter(symbol_code, f'PLAN_NOTICE_DATE >= \'{since}\''),
+        )
+        return records
+    return _fetch_filter(symbol_code)
+
+
+def _fetch_filter(symbol_code, cond=None):
     records = []
     page = 1
     while True:
         flt = f'(SECURITY_CODE="{symbol_code}")'
-        if since:
-            flt += f'(EX_DIVIDEND_DATE >= \'{since}\' OR PLAN_NOTICE_DATE >= \'{since}\')'
+        if cond:
+            flt += f'({cond})'
         params = {
             'reportName': REPORT_NAME,
             'columns': 'ALL',
@@ -97,6 +110,20 @@ def fetch_one_stock(symbol_code, since=None):
         page += 1
         time.sleep(0.05)
     return records
+
+
+def _merge_records(*lists):
+    """按 (stock_code, report_date) 去重合并多个查询结果，保持遇到顺序。"""
+    out = []
+    seen = set()
+    for recs in lists:
+        for rec in recs:
+            key = (rec['stock_code'], rec['report_date'])
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(rec)
+    return out
 
 
 def _to_record(code, row):

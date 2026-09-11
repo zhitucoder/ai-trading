@@ -761,12 +761,9 @@ def list_dividends(year: Optional[int] = None, is_mid: Optional[int] = None,
     if year:
         where.append('d.ex_dividend_date LIKE %(year)s')
         params['year'] = f'{year}%'
-    if is_mid is not None:
-        if is_mid == 2:
-            where.append('d.is_mid_year = 0')
-        else:
-            where.append('d.is_mid_year = %(is_mid)s')
-            params['is_mid'] = 1 if is_mid else 0
+    if is_mid in (1, 2):
+        where.append('d.is_mid_year = %(is_mid)s')
+        params['is_mid'] = 1 if is_mid == 1 else 0
     if sort not in ('ex_dividend_date', 'report_date', 'cash_per_10', 'dividend_yield', 'payout_ratio'):
         sort = 'ex_dividend_date'
     sort_col = f'd.{sort}'
