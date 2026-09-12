@@ -39,8 +39,7 @@ const app = createApp({
     setup() {
         const currentPage = ref('profile');
         const pages = [
-            { id: 'strong', label: '强势板块', icon: '▲' },
-            { id: 'strong_stocks', label: '强势个股', icon: '★' },
+            { id: 'sector_analysis', label: '板块分析', icon: '▲' },
             { id: 'screening', label: '选股策略', icon: '⊞' },
             { id: 'bt_strategies', label: '回测策略', icon: '⇄' },
             { id: 'profile', label: '股票画像', icon: '◈' },
@@ -3684,6 +3683,15 @@ app.component('query-page', {
 
 window.CHART_COLORS = ['#26a69a', '#ef5350', '#42a5f5', '#ffa726', '#ab47bc', '#5c6bc0'];
 
+app.component('sector-analysis-page', {
+    template: '#sector-analysis-tpl',
+    setup() {
+        const sectorAnalysisTab = ref('sector');
+        provide('sectorAnalysisTab', sectorAnalysisTab);
+        return { sectorAnalysisTab };
+    },
+});
+
 app.component('strong-page', {
     template: '#strong-tpl',
     setup() {
@@ -3755,6 +3763,7 @@ app.component('strong-page', {
         });
 
         const currentPage = inject('currentPage');
+        const sectorAnalysisTab = inject('sectorAnalysisTab', null);
 
         async function loadSectors() {
             loading.value = true;
@@ -3847,8 +3856,13 @@ app.component('strong-page', {
         }
 
         function goToSector(code) {
-            currentPage.value = 'strong_stocks';
-            window._sectorCode = code;
+            if (sectorAnalysisTab) {
+                sectorAnalysisTab.value = 'stocks';
+                window._sectorCode = code;
+            } else {
+                currentPage.value = 'strong_stocks';
+                window._sectorCode = code;
+            }
         }
 
         async function loadFinance(index) {
@@ -4041,6 +4055,7 @@ app.component('strong-stocks-page', {
         const topN = ref(3);
 
         const currentPage = inject('currentPage');
+        const sectorAnalysisTab = inject('sectorAnalysisTab', null);
 
         async function loadStocks() {
             loading.value = true;
@@ -4169,6 +4184,8 @@ app.component('strong-stocks-page', {
                 sectorData.value = null;
                 stocks.value = [];
                 loadTopStocks();
+            } else if (sectorAnalysisTab) {
+                sectorAnalysisTab.value = 'sector';
             } else {
                 currentPage.value = 'strong';
             }
