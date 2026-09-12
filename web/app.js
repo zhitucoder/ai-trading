@@ -2265,6 +2265,7 @@ const filterPegMax = ref(null);
             if (window._profileStockCode) {
                 stockCode.value = window._profileStockCode;
                 window._profileStockCode = null;
+                activeTab.value = 'single';
             }
             if (window._profileReturnPage) {
                 returnPage.value = window._profileReturnPage;
@@ -2342,6 +2343,54 @@ app.component('dividend-page', {
         const error = ref('');
         const source = ref('eastmoney');
 
+        const stockFilter = ref('');
+        const stockFilterName = ref('');
+        const stockSuggestions = ref([]);
+        const stockSuggestionIdx = ref(-1);
+        let searchTimer = null;
+
+        async function onStockInput() {
+            const q = stockFilter.value.trim();
+            if (q.length < 1) { stockSuggestions.value = []; return; }
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(q)}`);
+                    const d = await r.json();
+                    stockSuggestions.value = d.rows || [];
+                    stockSuggestionIdx.value = -1;
+                } catch (e) {}
+            }, 150);
+        }
+
+        function onStockKeydown(e) {
+            const len = stockSuggestions.value.length;
+            if (len === 0) return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); stockSuggestionIdx.value = Math.min(stockSuggestionIdx.value + 1, len - 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); stockSuggestionIdx.value = Math.max(stockSuggestionIdx.value - 1, 0); }
+            else if (e.key === 'Enter' && stockSuggestionIdx.value >= 0) {
+                e.preventDefault();
+                selectStock(stockSuggestions.value[stockSuggestionIdx.value].stock_code);
+            }
+        }
+
+        function selectStock(code) {
+            stockFilter.value = code;
+            const sel = stockSuggestions.value.find(s => s.stock_code === code);
+            stockFilterName.value = sel ? sel.stock_name : '';
+            stockSuggestions.value = [];
+            stockSuggestionIdx.value = -1;
+            onFilter();
+        }
+
+        function clearStockFilter() {
+            stockFilter.value = '';
+            stockFilterName.value = '';
+            stockSuggestions.value = [];
+            stockSuggestionIdx.value = -1;
+            onFilter();
+        }
+
         async function loadList() {
             loading.value = true;
             error.value = '';
@@ -2351,6 +2400,7 @@ app.component('dividend-page', {
                     year: year.value || '', sort: sort.value, order: order.value,
                     page: page.value, page_size: pageSize.value,
                 });
+                if (stockFilter.value) params.set('stock_code', stockFilter.value);
                 if (source.value === 'eastmoney') params.set('is_mid', isMid.value);
                 const r = await fetch(`${API_BASE}${endpoint}?${params}`);
                 const d = await r.json();
@@ -2415,7 +2465,7 @@ app.component('dividend-page', {
         }
 
         onMounted(loadList);
-        return { years, year, isMid, sort, order, page, pageSize, total, rows, loading, error, source, switchSource, loadList, toggleSort, sortArrow, goStock, tsToCode, onFilter, yieldTip, payoutTip, planWidth, startResize };
+        return { years, year, isMid, sort, order, page, pageSize, total, rows, loading, error, source, switchSource, loadList, toggleSort, sortArrow, goStock, tsToCode, onFilter, yieldTip, payoutTip, planWidth, startResize, stockFilter, stockFilterName, stockSuggestions, stockSuggestionIdx, onStockInput, onStockKeydown, selectStock, clearStockFilter };
     },
 });
 

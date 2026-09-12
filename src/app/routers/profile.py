@@ -754,8 +754,8 @@ def list_sectors(category: str = Query('industry', regex='^(industry|concept)$')
 # ── 分红列表 ──
 @router.get('/dividends/list')
 def list_dividends(year: Optional[int] = None, is_mid: Optional[int] = None,
-                   sort: str = 'ex_dividend_date', order: str = 'desc',
-                   page: int = 1, page_size: int = 50):
+                   stock_code: Optional[str] = None, sort: str = 'ex_dividend_date',
+                   order: str = 'desc', page: int = 1, page_size: int = 50):
     where = []
     params = {}
     if year:
@@ -764,6 +764,9 @@ def list_dividends(year: Optional[int] = None, is_mid: Optional[int] = None,
     if is_mid in (1, 2):
         where.append('d.is_mid_year = %(is_mid)s')
         params['is_mid'] = 1 if is_mid == 1 else 0
+    if stock_code:
+        where.append('d.stock_code = %(stock_code)s')
+        params['stock_code'] = stock_code.strip()
     if sort not in ('ex_dividend_date', 'report_date', 'cash_per_10', 'dividend_yield', 'payout_ratio'):
         sort = 'ex_dividend_date'
     sort_col = f'd.{sort}'
@@ -796,13 +799,17 @@ def list_dividends(year: Optional[int] = None, is_mid: Optional[int] = None,
 
 
 @router.get('/dividends/tushare/list')
-def list_dividends_tushare(year: Optional[int] = None, sort: str = 'ex_date',
-                           order: str = 'desc', page: int = 1, page_size: int = 50):
+def list_dividends_tushare(year: Optional[int] = None, stock_code: Optional[str] = None,
+                           sort: str = 'ex_date', order: str = 'desc',
+                           page: int = 1, page_size: int = 50):
     where = []
     params = {}
     if year:
         where.append('d.ex_date LIKE %(year)s')
         params['year'] = f'{year}%'
+    if stock_code:
+        where.append('d.ts_code LIKE %(stock_code)s')
+        params['stock_code'] = f"{stock_code.strip()}%"
     if sort not in ('ex_date', 'end_date', 'cash_div_tax'):
         sort = 'ex_date'
     sort_col = f'd.{sort}'

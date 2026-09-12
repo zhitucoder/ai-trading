@@ -1932,6 +1932,22 @@
     <div class="content">
         <div class="card">
             <div class="form-row" style="gap:12px;align-items:flex-end;">
+                <div class="config-item" style="min-width:220px;position:relative;">
+                    <label>股票筛选</label>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <input v-model="stockFilter" placeholder="代码 / 名称 / 拼音" style="width:160px;"
+                               @input="onStockInput" @keydown="onStockKeydown" @keyup.enter="selectStock(stockFilter)">
+                        <button v-if="stockFilter" class="btn btn-sm btn-outline" @click="clearStockFilter" style="padding:2px 8px;">✕</button>
+                        <span class="screening-count" v-if="stockFilter && stockFilterName" style="font-size:12px;color:var(--green);">筛选:{{ stockFilterName }}</span>
+                    </div>
+                    <div v-if="stockSuggestions.length" class="stock-suggestions">
+                        <div v-for="(s, i) in stockSuggestions" :key="s.stock_code"
+                             class="stock-suggestion-item" :class="{active: stockSuggestionIdx === i}"
+                             @click="selectStock(s.stock_code)" @mouseenter="stockSuggestionIdx = i">
+                            <strong>{{ s.stock_code }}</strong> {{ s.stock_name }}
+                        </div>
+                    </div>
+                </div>
                 <div class="config-item">
                     <label>报告年份</label>
                     <select v-model="year" @change="onFilter" style="width:90px;">
