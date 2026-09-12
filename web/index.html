@@ -1951,6 +1951,7 @@
                 <div class="config-item">
                     <label>报告年份</label>
                     <select v-model="year" @change="onFilter" style="width:90px;">
+                        <option value="">全部年份</option>
                         <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
                     </select>
                 </div>
@@ -1991,6 +1992,7 @@
                             <th style="width:70px;">代码</th>
                             <th style="width:90px;">名称</th>
                             <th style="width:90px;cursor:pointer;" @click="toggleSort('end_date')">分红年度{{ sortArrow('end_date') }}</th>
+                            <th style="width:70px;">类型</th>
                             <th style="width:80px;cursor:pointer;" @click="toggleSort('cash_div_tax')">每股分红{{ sortArrow('cash_div_tax') }}</th>
                             <th style="width:70px;">每股送转</th>
                             <th style="width:100px;cursor:pointer;" @click="toggleSort('ex_date')">除息日{{ sortArrow('ex_date') }}</th>
@@ -2018,6 +2020,7 @@
                             <td><strong>{{ row.ts_code }}</strong></td>
                             <td>{{ row.stock_name }}</td>
                             <td>{{ row.end_date }}</td>
+                            <td><span v-if="(row.end_date || '').slice(4) === '0630'" class="screening-tag" style="color:#00d4ff;">中期</span><span v-else class="screening-tag" style="color:var(--text-dim);">年度</span></td>
                             <td>{{ row.cash_div_tax != null ? row.cash_div_tax.toFixed(2) : '-' }}</td>
                             <td>{{ row.stk_div != null ? row.stk_div.toFixed(1) : '-' }}</td>
                             <td>{{ row.ex_date || '-' }}</td>

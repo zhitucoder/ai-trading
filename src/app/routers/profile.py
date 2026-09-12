@@ -759,7 +759,7 @@ def list_dividends(year: Optional[int] = None, is_mid: Optional[int] = None,
     where = []
     params = {}
     if year:
-        where.append('d.ex_dividend_date LIKE %(year)s')
+        where.append('d.report_date LIKE %(year)s')
         params['year'] = f'{year}%'
     if is_mid in (1, 2):
         where.append('d.is_mid_year = %(is_mid)s')
@@ -805,27 +805,41 @@ def list_dividends_tushare(year: Optional[int] = None, stock_code: Optional[str]
     where = []
     params = {}
     if year:
-        where.append('d.ex_date LIKE %(year)s')
+        where.append('d2.end_date LIKE %(year)s')
         params['year'] = f'{year}%'
     if stock_code:
-        where.append('d.ts_code LIKE %(stock_code)s')
+        where.append('d2.ts_code LIKE %(stock_code)s')
         params['stock_code'] = f"{stock_code.strip()}%"
-    if sort not in ('ex_date', 'end_date', 'cash_div_tax'):
+    if sort not in ('ex_date', 'end_date', 'cash_div_tax', 'ann_date', 'record_date'):
         sort = 'ex_date'
     sort_col = f'd.{sort}'
     sort_dir = 'DESC' if order == 'desc' else 'ASC'
 
     where_sql = (' WHERE ' + ' AND '.join(where)) if where else ''
-    total = query(f"SELECT COUNT(*) AS c FROM dividend_tushare d{where_sql}", params)[0]['c']
+    total = query(f"SELECT COUNT(DISTINCT d2.ts_code, d2.end_date) AS c FROM dividend_tushare d2{where_sql}", params)[0]['c']
     offset = (page - 1) * page_size
     rows = query(f"""
         SELECT d.ts_code, s.stock_name, d.end_date, d.div_proc, d.cash_div_tax,
                d.cash_div, d.stk_bo_rate, d.stk_co_rate, d.stk_div,
                d.ex_date, d.record_date, d.ann_date, d.pay_date
-        FROM dividend_tushare d
+        FROM (
+            SELECT d2.*, ROW_NUMBER() OVER (
+                PARTITION BY d2.ts_code, d2.end_date
+                ORDER BY CASE d2.div_proc
+                             WHEN '实施' THEN 0
+                             WHEN '股东大会通过' THEN 1
+                             WHEN '预案' THEN 2
+                             WHEN '预披露' THEN 3
+                             ELSE 4 END,
+                         d2.cash_div_tax IS NULL,
+                         d2.ann_date DESC
+            ) AS rn
+            FROM dividend_tushare d2
+            {where_sql}
+        ) d
         LEFT JOIN stocks s ON s.stock_code = SUBSTRING_INDEX(d.ts_code, '.', 1)
-        {where_sql}
-        ORDER BY {sort_col} {sort_dir}
+        WHERE d.rn = 1
+        ORDER BY {sort_col} {sort_dir}, d.ts_code
         LIMIT %(lo)s OFFSET %(of)s
     """, {**params, 'lo': page_size, 'of': offset})
 

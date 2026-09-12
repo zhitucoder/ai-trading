@@ -2331,7 +2331,7 @@ app.component('dividend-page', {
         const currentPage = inject('currentPage');
         const years = ref([]);
         for (let y = new Date().getFullYear(); y >= 2018; y--) years.value.push(y);
-        const year = ref(new Date().getFullYear());
+        const year = ref('');
         const isMid = ref(0);
         const sort = ref('ex_dividend_date');
         const order = ref('desc');
@@ -2380,6 +2380,8 @@ app.component('dividend-page', {
             stockFilterName.value = sel ? sel.stock_name : '';
             stockSuggestions.value = [];
             stockSuggestionIdx.value = -1;
+            sort.value = source.value === 'tushare' ? 'end_date' : 'report_date';
+            order.value = 'desc';
             onFilter();
         }
 
@@ -2397,9 +2399,10 @@ app.component('dividend-page', {
             try {
                 const endpoint = source.value === 'tushare' ? '/dividends/tushare/list' : '/dividends/list';
                 const params = new URLSearchParams({
-                    year: year.value || '', sort: sort.value, order: order.value,
+                    sort: sort.value, order: order.value,
                     page: page.value, page_size: pageSize.value,
                 });
+                if (year.value) params.set('year', year.value);
                 if (stockFilter.value) params.set('stock_code', stockFilter.value);
                 if (source.value === 'eastmoney') params.set('is_mid', isMid.value);
                 const r = await fetch(`${API_BASE}${endpoint}?${params}`);
