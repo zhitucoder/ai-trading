@@ -799,7 +799,8 @@ def list_dividends(year: Optional[int] = None, is_mid: Optional[int] = None,
 
 
 @router.get('/dividends/tushare/list')
-def list_dividends_tushare(year: Optional[int] = None, stock_code: Optional[str] = None,
+def list_dividends_tushare(year: Optional[int] = None, is_mid: Optional[int] = None,
+                           stock_code: Optional[str] = None,
                            sort: str = 'ex_date', order: str = 'desc',
                            page: int = 1, page_size: int = 50):
     where = []
@@ -807,6 +808,12 @@ def list_dividends_tushare(year: Optional[int] = None, stock_code: Optional[str]
     if year:
         where.append('d2.end_date LIKE %(year)s')
         params['year'] = f'{year}%'
+    if is_mid == 1:
+        where.append('d2.end_date LIKE %(is_mid)s')
+        params['is_mid'] = '%0630'
+    elif is_mid == 2:
+        where.append('d2.end_date NOT LIKE %(is_mid)s')
+        params['is_mid'] = '%0630'
     if stock_code:
         where.append('d2.ts_code LIKE %(stock_code)s')
         params['stock_code'] = f"{stock_code.strip()}%"

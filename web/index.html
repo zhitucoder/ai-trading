@@ -1955,7 +1955,7 @@
                         <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
                     </select>
                 </div>
-                <div class="config-item" v-if="source === 'eastmoney'">
+                <div class="config-item">
                     <label>分红类型</label>
                     <select v-model="isMid" @change="onFilter" style="width:110px;">
                         <option :value="0">全部</option>

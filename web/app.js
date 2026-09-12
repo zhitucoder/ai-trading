@@ -2393,7 +2393,9 @@ app.component('dividend-page', {
             onFilter();
         }
 
+        let listSeq = 0;
         async function loadList() {
+            const mySeq = ++listSeq;
             loading.value = true;
             error.value = '';
             try {
@@ -2404,18 +2406,21 @@ app.component('dividend-page', {
                 });
                 if (year.value) params.set('year', year.value);
                 if (stockFilter.value) params.set('stock_code', stockFilter.value);
-                if (source.value === 'eastmoney') params.set('is_mid', isMid.value);
+                if (isMid.value) params.set('is_mid', isMid.value);
                 const r = await fetch(`${API_BASE}${endpoint}?${params}`);
                 const d = await r.json();
+                if (mySeq !== listSeq) return;
                 if (d.error) error.value = d.error;
                 else { rows.value = d.rows; total.value = d.total; }
-            } catch (e) { error.value = e.message; } finally { loading.value = false; }
+            } catch (e) { if (mySeq === listSeq) error.value = e.message; } finally { if (mySeq === listSeq) loading.value = false; }
         }
 
         function switchSource(src) {
             if (source.value === src) return;
             source.value = src;
             page.value = 1;
+            rows.value = [];
+            total.value = 0;
             loadList();
         }
 
